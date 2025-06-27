@@ -30,6 +30,7 @@ type Package struct {
 	Homepage              string
 	License               string
 	Dependencies          []string
+	Dependents            []string
 	InstallCount90d       int
 	IsCask                bool
 	Status                string
@@ -200,10 +201,8 @@ func fetchInstalled(installedChan chan brewInfo, errChan chan error) {
 
 // processAllData merges all data sources into a single slice of Package.
 func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalytics, installed brewInfo) []Package {
-	packages := make([]Package, 0, len(formulae)+len(casks))
 	analyticsMap := make(map[string]int)
-	installedMap := make(map[string]installedPkg)
-
+	// Process analytics data which would be added to Package struct later
 	for _, item := range analytics.Items {
 		countStr := strings.ReplaceAll(item.Count, ",", "")
 		count, _ := strconv.Atoi(countStr)
@@ -213,6 +212,9 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 		}
 		analyticsMap[name] = count
 	}
+
+	installedMap := make(map[string]installedPkg)
+	// Process installed pacakges
 	for _, f := range installed.Formulae {
 		isDependency := false
 		if len(f.Installed) > 0 {
@@ -225,6 +227,8 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 		installedMap[c.Name] = installedPkg{c.InstalledVersion, c.Outdated, false, false}
 	}
 
+	packages := make([]Package, 0, len(formulae)+len(casks))
+	// Add formulaes to packages
 	for _, f := range formulae {
 		pkg := Package{
 			Name:         f.Name,
@@ -243,10 +247,10 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 			pkg.IsOutdated = inst.isOutdated
 			pkg.IsPinned = inst.isPinned
 			pkg.InstalledAsDependency = inst.isDependency
-			if inst.isOutdated {
-				pkg.Status = "Outdated"
-			} else if inst.isPinned {
+			if inst.isPinned {
 				pkg.Status = "Pinned"
+			} else if inst.isOutdated {
+				pkg.Status = "Outdated"
 			} else if pkg.InstalledAsDependency {
 				pkg.Status = "Installed (Dep)"
 			} else {
@@ -258,6 +262,7 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 		packages = append(packages, pkg)
 	}
 
+	// Add casks to packages
 	for _, c := range casks {
 		pkg := Package{
 			Name:         c.Name,
@@ -285,5 +290,25 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 		}
 		packages = append(packages, pkg)
 	}
+
+	// Build reverse dependency map for installed packages
+	dependentsMap := make(map[string][]string)
+	for _, pkg := range packages {
+		if pkg.IsInstalled {
+			for _, depName := range pkg.Dependencies {
+				dependentsMap[depName] = append(dependentsMap[depName], pkg.Name)
+			}
+		}
+	}
+
+	// Populate dependents for each installed package
+	for i, pkg := range packages {
+		if pkg.IsInstalled {
+			if dependents, ok := dependentsMap[pkg.Name]; ok {
+				packages[i].Dependents = dependents
+			}
+		}
+	}
+
 	return packages
 }

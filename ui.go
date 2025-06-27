@@ -25,18 +25,25 @@ var (
 	highlightColor          = headerColor
 	highlightForegroudColor = lipgloss.Color("#2E2E2E")
 	borderColor             = lipgloss.Color("240")
-	installedDepColor       = lipgloss.Color("#22C55E")
-	missingDepColor         = lipgloss.Color("#EF4444")
+	installedColor          = lipgloss.Color("#22C55E")
+	uninstalledColor        = lipgloss.Color("#EF4444")
+	pinnedColor             = lipgloss.Color("#B57EDC")
 
 	baseStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(borderColor)
 
-	installedDepStyle = lipgloss.NewStyle().
-				Foreground(installedDepColor)
+	installedStyle = lipgloss.NewStyle().
+			Foreground(installedColor)
 
-	missingDepStyle = lipgloss.NewStyle().
-			Foreground(missingDepColor)
+	uninstalledStyle = lipgloss.NewStyle().
+				Foreground(uninstalledColor)
+
+	outdatedStyle = lipgloss.NewStyle().
+			Foreground(highlightColor)
+
+	pinnedStyle = lipgloss.NewStyle().
+			Foreground(pinnedColor)
 
 	headerStyle = lipgloss.NewStyle().
 			Foreground(headerColor).
@@ -132,10 +139,10 @@ func (m *model) updateTable() {
 	rows := make([]table.Row, len(m.viewPackages))
 	for i, pkg := range m.viewPackages {
 		version := pkg.Version
-		if pkg.IsOutdated {
-			version = fmt.Sprintf("%s (New)", pkg.Version)
-		} else if pkg.IsPinned {
+		if pkg.IsPinned {
 			version = fmt.Sprintf("%s (Pin)", pkg.InstalledVersion)
+		} else if pkg.IsOutdated {
+			version = fmt.Sprintf("%s (New)", pkg.Version)
 		}
 		rows[i] = table.Row{
 			pkg.Name,
@@ -170,12 +177,27 @@ func (m *model) updateViewport() {
 	}
 
 	pkg := m.viewPackages[selectedIndex]
+
 	version := pkg.Version
 	if pkg.IsOutdated {
 		version = fmt.Sprintf("%s -> %s", pkg.InstalledVersion, pkg.Version)
 	} else if pkg.IsPinned {
 		version = fmt.Sprintf("%s (Pin)", pkg.InstalledVersion)
 	}
+
+	status := pkg.Status
+	statusSymbol := ""
+	if pkg.IsPinned {
+		statusSymbol = pinnedStyle.Render("")
+	} else if pkg.IsOutdated {
+		statusSymbol = outdatedStyle.Render("")
+	} else if pkg.IsInstalled {
+		statusSymbol = installedStyle.Render("✓")
+	} else {
+		statusSymbol = uninstalledStyle.Render("✗")
+	}
+	status = fmt.Sprintf("%s %s\n", statusSymbol, status)
+
 	var b strings.Builder
 	b.WriteString(headerStyle.Render(pkg.Name))
 	b.WriteString(fmt.Sprintf("\n%s\n\n", pkg.Desc))
@@ -183,21 +205,28 @@ func (m *model) updateViewport() {
 	b.WriteString(fmt.Sprintf("Tap: %s\n", pkg.Tap))
 	b.WriteString(fmt.Sprintf("Homepage: %s\n", pkg.Homepage))
 	b.WriteString(fmt.Sprintf("License: %s\n\n", pkg.License))
-	b.WriteString(fmt.Sprintf("Status: %s\n", pkg.Status))
+	b.WriteString(fmt.Sprintf("Status: %s\n", status))
 	b.WriteString(fmt.Sprintf("90-Day Installs: %d\n\n", pkg.InstallCount90d))
 
 	b.WriteString("Dependencies:\n")
 	if len(pkg.Dependencies) > 0 {
 		for _, dep := range pkg.Dependencies {
 			depPkg := m.getPackage(dep)
-			if depPkg.InstalledAsDependency {
-				b.WriteString(fmt.Sprintf("  %s %s\n", installedDepStyle.Render("✓"), dep))
+			if depPkg.IsInstalled {
+				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
 			} else {
-				b.WriteString(fmt.Sprintf("  %s %s\n", missingDepStyle.Render("✗"), dep))
+				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
 			}
 		}
 	} else {
 		b.WriteString("  None\n")
+	}
+
+	if pkg.IsInstalled && len(pkg.Dependents) > 0 {
+		b.WriteString("\nRequired By:\n")
+		for _, dep := range pkg.Dependents {
+			b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
+		}
 	}
 
 	vpStyle := lipgloss.NewStyle().Width(viewportWidth)
