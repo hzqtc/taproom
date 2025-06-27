@@ -22,10 +22,10 @@ const (
 
 // Package holds all combined information for a formula or cask.
 type Package struct {
-	Name                  string
-	FullName              string // Used as a unique key
+	Name                  string // Used as a unique key
 	Tap                   string
 	Version               string
+	InstalledVersion      string
 	Desc                  string
 	Homepage              string
 	License               string
@@ -42,7 +42,6 @@ type Package struct {
 // Structs for parsing Homebrew API JSON
 type apiFormula struct {
 	Name     string `json:"name"`
-	FullName string `json:"full_name"`
 	Desc     string `json:"desc"`
 	Versions struct {
 		Stable string `json:"stable"`
@@ -54,12 +53,10 @@ type apiFormula struct {
 }
 
 type apiCask struct {
-	Token        string   `json:"token"`
-	FullName     string   `json:"full_token"`
-	Name         []string `json:"name"`
-	Desc         string   `json:"desc"`
-	Version      string   `json:"version"`
-	Homepage     string   `json:"homepage"`
+	Name         string `json:"token"`
+	Desc         string `json:"desc"`
+	Version      string `json:"version"`
+	Homepage     string `json:"homepage"`
 	Dependencies struct {
 		Formulae []string `json:"formula"`
 		Casks    []string `json:"cask"`
@@ -81,9 +78,15 @@ type brewInfo struct {
 	Casks    []installedCask    `json:"casks"`
 }
 
+type installedPkg struct {
+	installedVersion string
+	isOutdated       bool
+	isPinned         bool
+	isDependency     bool
+}
+
 type installedFormula struct {
 	Name      string `json:"name"`
-	FullName  string `json:"full_name"`
 	Outdated  bool   `json:"outdated"`
 	Pinned    bool   `json:"pinned"`
 	Installed []struct {
@@ -93,11 +96,9 @@ type installedFormula struct {
 }
 
 type installedCask struct {
-	Token            string   `json:"token"`
-	FullName         string   `json:"full_token"`
-	Name             []string `json:"name"`
-	Outdated         bool     `json:"outdated"`
-	InstalledVersion string   `json:"installed"`
+	Name             string `json:"token"`
+	Outdated         bool   `json:"outdated"`
+	InstalledVersion string `json:"installed"`
 }
 
 // --- Data Fetching & Processing Logic ---
@@ -201,11 +202,7 @@ func fetchInstalled(installedChan chan brewInfo, errChan chan error) {
 func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalytics, installed brewInfo) []Package {
 	packages := make([]Package, 0, len(formulae)+len(casks))
 	analyticsMap := make(map[string]int)
-	installedMap := make(map[string]struct {
-		isOutdated   bool
-		isPinned     bool
-		isDependency bool
-	})
+	installedMap := make(map[string]installedPkg)
 
 	for _, item := range analytics.Items {
 		countStr := strings.ReplaceAll(item.Count, ",", "")
@@ -221,24 +218,16 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 		if len(f.Installed) > 0 {
 			isDependency = f.Installed[0].InstalledAsReq
 		}
-		installedMap[f.FullName] = struct {
-			isOutdated   bool
-			isPinned     bool
-			isDependency bool
-		}{f.Outdated, f.Pinned, isDependency}
+		installedMap[f.Name] = installedPkg{f.Installed[0].Version, f.Outdated, f.Pinned, isDependency}
 	}
 	for _, c := range installed.Casks {
-		installedMap[c.FullName] = struct {
-			isOutdated   bool
-			isPinned     bool
-			isDependency bool
-		}{c.Outdated, false, false} // Casks can't be pinned or installed as dependencies
+		// Casks can't be pinned or installed as dependencies
+		installedMap[c.Name] = installedPkg{c.InstalledVersion, c.Outdated, false, false}
 	}
 
 	for _, f := range formulae {
 		pkg := Package{
 			Name:         f.Name,
-			FullName:     f.FullName,
 			Tap:          f.Tap,
 			Version:      f.Versions.Stable,
 			Desc:         f.Desc,
@@ -248,8 +237,12 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 			IsCask:       false,
 		}
 		pkg.InstallCount90d = analyticsMap[pkg.Name]
-		if inst, ok := installedMap[pkg.FullName]; ok {
-			pkg.IsInstalled, pkg.IsOutdated, pkg.IsPinned, pkg.InstalledAsDependency = true, inst.isOutdated, inst.isPinned, inst.isDependency
+		if inst, ok := installedMap[pkg.Name]; ok {
+			pkg.IsInstalled = true
+			pkg.InstalledVersion = inst.installedVersion
+			pkg.IsOutdated = inst.isOutdated
+			pkg.IsPinned = inst.isPinned
+			pkg.InstalledAsDependency = inst.isDependency
 			if inst.isOutdated {
 				pkg.Status = "Outdated"
 			} else if inst.isPinned {
@@ -265,8 +258,7 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 
 	for _, c := range casks {
 		pkg := Package{
-			Name:         c.Token,
-			FullName:     c.FullName,
+			Name:         c.Name,
 			Tap:          c.Tap,
 			Version:      c.Version,
 			Desc:         c.Desc,
@@ -275,8 +267,12 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 			IsCask:       true,
 		}
 		pkg.InstallCount90d = analyticsMap[pkg.Name]
-		if inst, ok := installedMap[pkg.FullName]; ok {
-			pkg.IsInstalled, pkg.IsOutdated, pkg.IsPinned, pkg.InstalledAsDependency = true, inst.isOutdated, inst.isPinned, inst.isDependency
+		if inst, ok := installedMap[pkg.Name]; ok {
+			pkg.IsInstalled = true
+			pkg.InstalledVersion = inst.installedVersion
+			pkg.IsOutdated = inst.isOutdated
+			pkg.IsPinned = inst.isPinned
+			pkg.InstalledAsDependency = inst.isDependency
 			if inst.isOutdated {
 				pkg.Status = "Outdated"
 			} else {
