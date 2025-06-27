@@ -50,7 +50,9 @@ var (
 			Bold(true)
 
 	helpStyle = lipgloss.NewStyle().
-			Padding(1 /* top */, 1 /* horizontal */, 0 /* bottom */)
+			Padding(1 /* top */, 2 /* horizontal */, 0 /* bottom */)
+	keyStyle = lipgloss.NewStyle().
+			Foreground(highlightColor)
 
 	searchStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
@@ -83,20 +85,65 @@ func (m model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left,
 		searchStyle.Render(m.search.View()),
 		mainContent,
-		helpStyle.Render(m.help.View(m.keys)),
+		m.renderHelp(),
 	)
+}
+
+func (m model) renderHelp() string {
+	var b strings.Builder
+
+	b.WriteString("General   : ")
+	b.WriteString(keyStyle.Render("q"))
+	b.WriteString(": quit ")
+	b.WriteString(keyStyle.Render("/"))
+	b.WriteString(": search ")
+	b.WriteString(keyStyle.Render("Esc"))
+	b.WriteString(": clear search ")
+	b.WriteString(keyStyle.Render("Enter"))
+	b.WriteString(": exit focus ")
+	b.WriteString(keyStyle.Render("s"))
+	b.WriteString(": sort by name/popularity")
+	b.WriteString("\n")
+	b.WriteString("Navigation: ")
+	b.WriteString(keyStyle.Render("j/↓"))
+	b.WriteString(": cursor down ")
+	b.WriteString(keyStyle.Render("k/↑"))
+	b.WriteString(": cursor up ")
+	b.WriteString(keyStyle.Render("PageUp"))
+	b.WriteString(": prev page ")
+	b.WriteString(keyStyle.Render("PageDown"))
+	b.WriteString(": next page ")
+	b.WriteString(keyStyle.Render("g"))
+	b.WriteString(": go to top ")
+	b.WriteString(keyStyle.Render("G"))
+	b.WriteString(": go to bottom")
+	b.WriteString("\n")
+	b.WriteString("Filters   : ")
+	b.WriteString(keyStyle.Render("a"))
+	b.WriteString(": all ")
+	b.WriteString(keyStyle.Render("f"))
+	b.WriteString(": formulae ")
+	b.WriteString(keyStyle.Render("c"))
+	b.WriteString(": casks ")
+	b.WriteString(keyStyle.Render("i"))
+	b.WriteString(": installed ")
+	b.WriteString(keyStyle.Render("o"))
+	b.WriteString(": outdated ")
+	b.WriteString(keyStyle.Render("e"))
+	b.WriteString(": explicitly installed")
+
+	return helpStyle.Render(b.String())
 }
 
 // updateLayout recalculates component dimensions based on window size.
 func (m *model) updateLayout() {
 	availableWidth := m.width - 6
 	m.search.Width = availableWidth
-	m.help.Width = availableWidth
 
 	tableWidth := availableWidth - viewportWidth - 5
 
 	searchHeight := lipgloss.Height(searchStyle.Render(m.search.View()))
-	helpHeight := lipgloss.Height(helpStyle.Render(m.help.View(m.keys)))
+	helpHeight := lipgloss.Height(m.renderHelp())
 	mainHeight := m.height - helpHeight - searchHeight - 4
 
 	m.viewport.Width = viewportWidth

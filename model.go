@@ -4,7 +4,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
@@ -44,7 +43,6 @@ type model struct {
 	viewport viewport.Model
 	search   textinput.Model
 	spinner  spinner.Model
-	help     help.Model
 
 	// State
 	isLoading  bool
@@ -81,7 +79,6 @@ func initialModel() model {
 		table:     tbl,
 		isLoading: true,
 		keys:      defaultKeyMap(),
-		help:      help.New(),
 	}
 }
 
@@ -167,11 +164,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.keys.GoToBottom):
 				m.table.SetCursor(len(m.viewPackages) - 1)
 				m.updateViewport()
-
-			// Help
-			case key.Matches(msg, m.keys.Help):
-				m.help.ShowAll = !m.help.ShowAll
-				m.updateLayout()
 
 			// Search
 			case key.Matches(msg, m.keys.FocusSearch):
