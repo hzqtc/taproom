@@ -14,29 +14,42 @@ const (
 	colVersionWidth  = 15
 	colTapWidth      = 15
 	colDescWidthMin  = 30
-	colInstallsWidth = 15
-	colStatusWidth   = 20
+	colInstallsWidth = 12
+	colStatusWidth   = 25
 )
 
 // --- Styles ---
 
 var (
-	headerColor    = lipgloss.Color("#FFD580")
-	highlightColor = headerColor
-	borderColor    = lipgloss.Color("240")
+	headerColor             = lipgloss.Color("#FFD580")
+	highlightColor          = headerColor
+	highlightForegroudColor = lipgloss.Color("#2E2E2E")
+	borderColor             = lipgloss.Color("240")
+	installedDepColor       = lipgloss.Color("#22C55E")
+	missingDepColor         = lipgloss.Color("#EF4444")
 
 	baseStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(borderColor)
+
+	installedDepStyle = lipgloss.NewStyle().
+				Foreground(installedDepColor)
+
+	missingDepStyle = lipgloss.NewStyle().
+			Foreground(missingDepColor)
+
 	headerStyle = lipgloss.NewStyle().
 			Foreground(headerColor).
 			Bold(true)
+
 	helpStyle = lipgloss.NewStyle().
 			Padding(1 /* top */, 1 /* horizontal */, 0 /* bottom */)
+
 	searchStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(borderColor).
 			Margin(1 /* top */, 0 /* horizontal */, 0 /* bottom */)
+
 	spinnerStyle = lipgloss.NewStyle().
 			Foreground(highlightColor)
 )
@@ -54,8 +67,6 @@ func (m model) View() string {
 		return fmt.Sprintf("\n %s Loading package data...\n\n", m.spinner.View())
 	}
 
-	helpView := m.help.View(m.keys)
-
 	mainContent := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		baseStyle.Render(m.table.View()),
@@ -65,7 +76,7 @@ func (m model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left,
 		searchStyle.Render(m.search.View()),
 		mainContent,
-		helpStyle.Render(helpView),
+		helpStyle.Render(m.help.View(m.keys)),
 	)
 }
 
@@ -110,7 +121,8 @@ func (m *model) updateLayout() {
 		BorderBottom(true).
 		Bold(true)
 	tableStyle.Selected = tableStyle.Selected.
-		Foreground(highlightColor).
+		Foreground(highlightForegroudColor).
+		Background(highlightColor).
 		Bold(true)
 	m.table.SetStyles(tableStyle)
 }
@@ -119,9 +131,15 @@ func (m *model) updateLayout() {
 func (m *model) updateTable() {
 	rows := make([]table.Row, len(m.viewPackages))
 	for i, pkg := range m.viewPackages {
+		version := pkg.Version
+		if pkg.IsOutdated {
+			version = fmt.Sprintf("%s (New)", pkg.Version)
+		} else if pkg.IsPinned {
+			version = fmt.Sprintf("%s (Pin)", pkg.InstalledVersion)
+		}
 		rows[i] = table.Row{
 			pkg.Name,
-			pkg.Version,
+			version,
 			pkg.Tap,
 			pkg.Desc,
 			fmt.Sprintf("%d", pkg.InstallCount90d),
@@ -152,24 +170,37 @@ func (m *model) updateViewport() {
 	}
 
 	pkg := m.viewPackages[selectedIndex]
-
+	version := pkg.Version
+	if pkg.IsOutdated {
+		version = fmt.Sprintf("%s -> %s", pkg.InstalledVersion, pkg.Version)
+	} else if pkg.IsPinned {
+		version = fmt.Sprintf("%s (Pin)", pkg.InstalledVersion)
+	}
 	var b strings.Builder
 	b.WriteString(headerStyle.Render(pkg.Name))
 	b.WriteString(fmt.Sprintf("\n%s\n\n", pkg.Desc))
-	b.WriteString(fmt.Sprintf("Version: %s\n", pkg.Version))
+	b.WriteString(fmt.Sprintf("Version: %s\n", version))
 	b.WriteString(fmt.Sprintf("Tap: %s\n", pkg.Tap))
 	b.WriteString(fmt.Sprintf("Homepage: %s\n", pkg.Homepage))
 	b.WriteString(fmt.Sprintf("License: %s\n\n", pkg.License))
 	b.WriteString(fmt.Sprintf("Status: %s\n", pkg.Status))
 	b.WriteString(fmt.Sprintf("90-Day Installs: %d\n\n", pkg.InstallCount90d))
 
+	b.WriteString("Dependencies:\n")
 	if len(pkg.Dependencies) > 0 {
-		b.WriteString("Dependencies:\n")
 		for _, dep := range pkg.Dependencies {
-			b.WriteString(fmt.Sprintf("  - %s\n", dep))
+			depPkg := m.getPackage(dep)
+			if depPkg.InstalledAsDependency {
+				b.WriteString(fmt.Sprintf("  %s %s\n", installedDepStyle.Render("✓"), dep))
+			} else {
+				b.WriteString(fmt.Sprintf("  %s %s\n", missingDepStyle.Render("✗"), dep))
+			}
 		}
+	} else {
+		b.WriteString("  None\n")
 	}
 
-	m.viewport.SetContent(b.String())
+	vpStyle := lipgloss.NewStyle().Width(viewportWidth)
+	m.viewport.SetContent(vpStyle.Render(b.String()))
 	m.viewport.GotoTop() // Reset scroll position
 }

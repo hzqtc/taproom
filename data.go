@@ -247,6 +247,8 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 				pkg.Status = "Outdated"
 			} else if inst.isPinned {
 				pkg.Status = "Pinned"
+			} else if pkg.InstalledAsDependency {
+				pkg.Status = "Installed (Dep)"
 			} else {
 				pkg.Status = "Installed"
 			}

@@ -222,13 +222,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+func (m *model) getPackage(name string) *Package {
+	if name == "" {
+		return nil
+	}
+
+	for _, pkg := range m.allPackages {
+		if pkg.Name == name {
+			return &pkg
+		}
+	}
+	return nil
+}
+
 // filterAndSortPackages updates the viewPackages based on current filters and sort mode.
 func (m *model) filterAndSortPackages() {
 	m.viewPackages = []Package{}
 	searchQuery := strings.ToLower(m.search.Value())
 
 	for _, pkg := range m.allPackages {
-		if searchQuery != "" && !strings.Contains(strings.ToLower(pkg.Name), searchQuery) && !strings.Contains(strings.ToLower(pkg.Desc), searchQuery) {
+		if searchQuery != "" &&
+			!strings.Contains(strings.ToLower(pkg.Name), searchQuery) &&
+			!strings.Contains(strings.ToLower(pkg.Desc), searchQuery) {
 			continue
 		}
 
