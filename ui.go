@@ -8,34 +8,37 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	viewportWidth    = 30
+	colNameWidth     = 15
+	colVersionWidth  = 15
+	colTapWidth      = 15
+	colDescWidthMin  = 30
+	colInstallsWidth = 15
+	colStatusWidth   = 20
+)
+
 // --- Styles ---
 
 var (
-	// General
+	headerColor    = lipgloss.Color("#FFD580")
+	highlightColor = headerColor
+	borderColor    = lipgloss.Color("240")
+
 	baseStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("240"))
-	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
-
-	// Table
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(borderColor)
 	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("212"))
-	selectedRowStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("212"))
-
-	// Spinner
-	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-
-	// Table Styles
-	tableStyles = func() table.Styles {
-		s := table.DefaultStyles()
-		s.Header = headerStyle
-		s.Selected = selectedRowStyle
-		return s
-	}()
+			Foreground(headerColor).
+			Bold(true)
+	helpStyle = lipgloss.NewStyle().
+			Padding(1 /* top */, 1 /* horizontal */, 0 /* bottom */)
+	searchStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(borderColor).
+			Margin(1 /* top */, 0 /* horizontal */, 0 /* bottom */)
+	spinnerStyle = lipgloss.NewStyle().
+			Foreground(highlightColor)
 )
 
 // --- View & Layout ---
@@ -47,6 +50,7 @@ func (m model) View() string {
 	}
 
 	if m.isLoading {
+		m.spinner.Style = spinnerStyle
 		return fmt.Sprintf("\n %s Loading package data...\n\n", m.spinner.View())
 	}
 
@@ -59,7 +63,7 @@ func (m model) View() string {
 	)
 
 	return lipgloss.JoinVertical(lipgloss.Left,
-		m.search.View(),
+		searchStyle.Render(m.search.View()),
 		mainContent,
 		helpStyle.Render(helpView),
 	)
@@ -67,31 +71,48 @@ func (m model) View() string {
 
 // updateLayout recalculates component dimensions based on window size.
 func (m *model) updateLayout() {
-	helpHeight := lipgloss.Height(m.help.View(m.keys))
-	searchHeight := lipgloss.Height(m.search.View())
-	mainHeight := m.height - helpHeight - searchHeight - 2 // -2 for margins/borders
+	availableWidth := m.width - 6
+	m.search.Width = availableWidth
+	m.help.Width = availableWidth
 
-	tableWidth := int(float64(m.width) * 0.6)
-	viewportWidth := m.width - tableWidth - 4 // -4 for borders
+	tableWidth := availableWidth - viewportWidth - 5
 
-	m.table.SetHeight(mainHeight)
-	m.table.SetWidth(tableWidth)
-
-	// Dynamically adjust the width of the description column.
-	descWidth := tableWidth - 15 - 15 - 20 - 20 - 4 // name, tap, version, status, borders
-	if descWidth < 10 {
-		descWidth = 10
-	}
-	m.table.SetColumns([]table.Column{
-		{Title: "Name", Width: 20},
-		{Title: "Tap", Width: 15},
-		{Title: "Description", Width: descWidth},
-		{Title: "Version", Width: 15},
-		{Title: "Status", Width: 20},
-	})
+	searchHeight := lipgloss.Height(searchStyle.Render(m.search.View()))
+	helpHeight := lipgloss.Height(helpStyle.Render(m.help.View(m.keys)))
+	mainHeight := m.height - helpHeight - searchHeight - 4
 
 	m.viewport.Width = viewportWidth
 	m.viewport.Height = mainHeight
+
+	m.table.SetWidth(tableWidth)
+	m.table.SetHeight(mainHeight)
+
+	// Dynamically adjust the width of the description column.
+	otherColsWidth := colNameWidth + colVersionWidth + colTapWidth + colInstallsWidth + colStatusWidth
+	descWidth := tableWidth - otherColsWidth - 5 // Account for 5 column separators
+	if descWidth < colDescWidthMin {
+		descWidth = colDescWidthMin
+	}
+	m.table.SetColumns([]table.Column{
+		{Title: "Name", Width: colNameWidth},
+		{Title: "Version", Width: colVersionWidth},
+		{Title: "Tap", Width: colTapWidth},
+		{Title: "Description", Width: descWidth},
+		{Title: "90d Installs", Width: colInstallsWidth},
+		{Title: "Status", Width: colStatusWidth},
+	})
+
+	tableStyle := table.DefaultStyles()
+	tableStyle.Header = tableStyle.Header.
+		Foreground(headerColor).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		BorderBottom(true).
+		Bold(true)
+	tableStyle.Selected = tableStyle.Selected.
+		Foreground(highlightColor).
+		Bold(true)
+	m.table.SetStyles(tableStyle)
 }
 
 // updateTable populates the table with the current viewPackages.
@@ -100,9 +121,10 @@ func (m *model) updateTable() {
 	for i, pkg := range m.viewPackages {
 		rows[i] = table.Row{
 			pkg.Name,
+			pkg.Version,
 			pkg.Tap,
 			pkg.Desc,
-			pkg.Version,
+			fmt.Sprintf("%d", pkg.InstallCount90d),
 			pkg.Status,
 		}
 	}

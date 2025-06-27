@@ -251,7 +251,7 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 				pkg.Status = "Installed"
 			}
 		} else {
-			pkg.Status = "Not Installed"
+			pkg.Status = "Uninstalled"
 		}
 		packages = append(packages, pkg)
 	}
@@ -279,7 +279,7 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 				pkg.Status = "Installed"
 			}
 		} else {
-			pkg.Status = "Not Installed"
+			pkg.Status = "Uninstalled"
 		}
 		packages = append(packages, pkg)
 	}

@@ -69,13 +69,11 @@ func initialModel() model {
 	// Spinner for loading state
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = spinnerStyle
 
 	// Main table
 	tbl := table.New(
 		table.WithFocused(true),
 	)
-	tbl.SetStyles(tableStyles)
 
 	return model{
 		search:    searchInput,
@@ -105,7 +103,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.help.Width = msg.Width
 		m.updateLayout()
 
 	// Data has been successfully loaded
@@ -114,7 +111,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.allPackages = msg.packages
 		m.filterAndSortPackages()
 		m.updateTable()
-		m.updateViewport()
+		m.updateLayout()
 
 	// An error occurred during data loading
 	case dataLoadingErr:
@@ -174,6 +171,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Help
 			case key.Matches(msg, m.keys.Help):
 				m.help.ShowAll = !m.help.ShowAll
+				m.updateLayout()
 
 			// Search
 			case key.Matches(msg, m.keys.FocusSearch):
