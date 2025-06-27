@@ -30,6 +30,7 @@ type Package struct {
 	Homepage              string
 	License               string
 	Dependencies          []string
+	BuildDependencies     []string
 	Dependents            []string
 	InstallCount90d       int
 	IsCask                bool
@@ -47,10 +48,11 @@ type apiFormula struct {
 	Versions struct {
 		Stable string `json:"stable"`
 	} `json:"versions"`
-	Homepage     string   `json:"homepage"`
-	License      string   `json:"license"`
-	Dependencies []string `json:"dependencies"`
-	Tap          string   `json:"tap"`
+	Homepage          string   `json:"homepage"`
+	License           string   `json:"license"`
+	Dependencies      []string `json:"dependencies"`
+	BuildDependencies []string `json:"build_dependencies"`
+	Tap               string   `json:"tap"`
 }
 
 type apiCask struct {
@@ -231,14 +233,15 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 	// Add formulaes to packages
 	for _, f := range formulae {
 		pkg := Package{
-			Name:         f.Name,
-			Tap:          f.Tap,
-			Version:      f.Versions.Stable,
-			Desc:         f.Desc,
-			Homepage:     f.Homepage,
-			License:      f.License,
-			Dependencies: f.Dependencies,
-			IsCask:       false,
+			Name:              f.Name,
+			Tap:               f.Tap,
+			Version:           f.Versions.Stable,
+			Desc:              f.Desc,
+			Homepage:          f.Homepage,
+			License:           f.License,
+			Dependencies:      f.Dependencies,
+			BuildDependencies: f.BuildDependencies,
+			IsCask:            false,
 		}
 		pkg.InstallCount90d = analyticsMap[pkg.Name]
 		if inst, ok := installedMap[pkg.Name]; ok {

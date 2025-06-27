@@ -212,7 +212,7 @@ func (m *model) updateViewport() {
 	if len(pkg.Dependencies) > 0 {
 		for _, dep := range pkg.Dependencies {
 			depPkg := m.getPackage(dep)
-			if depPkg.IsInstalled {
+			if depPkg != nil && depPkg.IsInstalled {
 				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
 			} else {
 				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
@@ -220,6 +220,18 @@ func (m *model) updateViewport() {
 		}
 	} else {
 		b.WriteString("  None\n")
+	}
+
+	if len(pkg.BuildDependencies) > 0 {
+		b.WriteString("\nBuild Dependencies:\n")
+		for _, dep := range pkg.BuildDependencies {
+			depPkg := m.getPackage(dep)
+			if depPkg != nil && depPkg.IsInstalled {
+				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
+			} else {
+				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
+			}
+		}
 	}
 
 	if pkg.IsInstalled && len(pkg.Dependents) > 0 {
