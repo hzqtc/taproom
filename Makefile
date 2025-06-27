@@ -17,7 +17,7 @@ clean:
 	rm -f $(BINARY_NAME)
 
 install: build
-	GOBIN = $(GOBIN) go install
+	GOBIN=$(GOBIN) go install
 
 fmt:
 	gofmt -w -s $(SRC)
