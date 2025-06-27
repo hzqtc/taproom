@@ -14,9 +14,10 @@ import (
 
 // --- Constants & Data Structures ---
 const (
-	apiFormulaURL      = "https://formulae.brew.sh/api/formula.json"
-	apiCaskURL         = "https://formulae.brew.sh/api/cask.json"
-	apiAnalytics90dURL = "https://formulae.brew.sh/api/analytics/install-on-request/90d.json"
+	apiFormulaURL             = "https://formulae.brew.sh/api/formula.json"
+	apiCaskURL                = "https://formulae.brew.sh/api/cask.json"
+	apiFormulaAnalytics90dURL = "https://formulae.brew.sh/api/analytics/install-on-request/90d.json"
+	apiCaskAnalytics90dURL    = "https://formulae.brew.sh/api/analytics/cask-install/90d.json"
 )
 
 // Package holds all combined information for a formula or cask.
@@ -69,6 +70,7 @@ type apiCask struct {
 type apiAnalytics struct {
 	Items []struct {
 		Formula string `json:"formula"`
+		Cask    string `json:"cask"`
 		Count   string `json:"count"`
 	} `json:"items"`
 }
@@ -108,28 +110,33 @@ type dataLoadingErr struct{ err error }
 func loadData() tea.Msg {
 	formulaeChan := make(chan []apiFormula)
 	casksChan := make(chan []apiCask)
-	analyticsChan := make(chan apiAnalytics)
+	formulaAnalyticsChan := make(chan apiAnalytics)
+	caskAnalyticsChan := make(chan apiAnalytics)
 	installedChan := make(chan brewInfo)
-	errChan := make(chan error, 4)
+	errChan := make(chan error, 5)
 
 	go fetchJSON(apiFormulaURL, &[]apiFormula{}, formulaeChan, errChan)
 	go fetchJSON(apiCaskURL, &[]apiCask{}, casksChan, errChan)
-	go fetchJSON(apiAnalytics90dURL, &apiAnalytics{}, analyticsChan, errChan)
+	go fetchJSON(apiFormulaAnalytics90dURL, &apiAnalytics{}, formulaAnalyticsChan, errChan)
+	go fetchJSON(apiCaskAnalytics90dURL, &apiAnalytics{}, caskAnalyticsChan, errChan)
 	go fetchInstalled(installedChan, errChan)
 
 	var allFormulae []apiFormula
 	var allCasks []apiCask
-	var analyticsData apiAnalytics
+	var formulaAnalyticsData apiAnalytics
+	var caskAnalyticsData apiAnalytics
 	var installedData brewInfo
 
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 5; i++ {
 		select {
 		case f := <-formulaeChan:
 			allFormulae = f
 		case c := <-casksChan:
 			allCasks = c
-		case a := <-analyticsChan:
-			analyticsData = a
+		case fa := <-formulaAnalyticsChan:
+			formulaAnalyticsData = fa
+		case ca := <-caskAnalyticsChan:
+			caskAnalyticsData = ca
 		case inst := <-installedChan:
 			installedData = inst
 		case err := <-errChan:
@@ -137,7 +144,11 @@ func loadData() tea.Msg {
 		}
 	}
 
-	packages := processAllData(allFormulae, allCasks, analyticsData, installedData)
+	// Merge analytics data
+	mergedAnalytics := formulaAnalyticsData
+	mergedAnalytics.Items = append(mergedAnalytics.Items, caskAnalyticsData.Items...)
+
+	packages := processAllData(allFormulae, allCasks, mergedAnalytics, installedData)
 	return dataLoadedMsg{packages: packages}
 }
 
@@ -162,8 +173,7 @@ func fetchJSON[T any](url string, target *T, dataChan chan T, errChan chan error
 	}
 
 	if err := json.Unmarshal(body, &target); err != nil {
-		// NOTE: Appending response body to error to help debug malformed json
-		errChan <- fmt.Errorf("failed to decode json from %s: %w\n%s", url, err, body)
+		errChan <- fmt.Errorf("failed to decode json from %s: %w", url, err)
 		return
 	}
 	dataChan <- *target
@@ -181,8 +191,7 @@ func fetchInstalled(installedChan chan brewInfo, errChan chan error) {
 
 	var info brewInfo
 	if err := json.Unmarshal(output, &info); err != nil {
-		// NOTE: Appending response body to error to help debug malformed json
-		errChan <- fmt.Errorf("failed to decode brew info json: %w\n%s", err, output)
+		errChan <- fmt.Errorf("failed to decode brew info json: %w", err)
 		return
 	}
 	installedChan <- info
@@ -201,7 +210,11 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 	for _, item := range analytics.Items {
 		countStr := strings.ReplaceAll(item.Count, ",", "")
 		count, _ := strconv.Atoi(countStr)
-		analyticsMap[item.Formula] = count
+		name := item.Formula
+		if name == "" {
+			name = item.Cask
+		}
+		analyticsMap[name] = count
 	}
 	for _, f := range installed.Formulae {
 		isDependency := false
@@ -234,7 +247,7 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 			Dependencies: f.Dependencies,
 			IsCask:       false,
 		}
-		pkg.InstallCount90d = analyticsMap[pkg.FullName]
+		pkg.InstallCount90d = analyticsMap[pkg.Name]
 		if inst, ok := installedMap[pkg.FullName]; ok {
 			pkg.IsInstalled, pkg.IsOutdated, pkg.IsPinned, pkg.InstalledAsDependency = true, inst.isOutdated, inst.isPinned, inst.isDependency
 			if inst.isOutdated {
