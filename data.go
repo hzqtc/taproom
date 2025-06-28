@@ -215,6 +215,7 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 		analyticsMap[name] = count
 	}
 
+	// TODO: add installed packages from non-offcial taps
 	installedMap := make(map[string]installedPkg)
 	// Process installed pacakges
 	for _, f := range installed.Formulae {
