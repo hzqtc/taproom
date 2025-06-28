@@ -216,18 +216,19 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 	}
 
 	// TODO: add installed packages from non-offcial taps
-	installedMap := make(map[string]installedPkg)
+	installedFormulaeMap := make(map[string]installedPkg)
 	// Process installed pacakges
 	for _, f := range installed.Formulae {
 		isDependency := false
 		if len(f.Installed) > 0 {
 			isDependency = f.Installed[0].InstalledAsReq
 		}
-		installedMap[f.Name] = installedPkg{f.Installed[0].Version, f.Outdated, f.Pinned, isDependency}
+		installedFormulaeMap[f.Name] = installedPkg{f.Installed[0].Version, f.Outdated, f.Pinned, isDependency}
 	}
+	installedCaskMap := make(map[string]installedPkg)
 	for _, c := range installed.Casks {
 		// Casks can't be pinned or installed as dependencies
-		installedMap[c.Name] = installedPkg{c.InstalledVersion, c.Outdated, false, false}
+		installedCaskMap[c.Name] = installedPkg{c.InstalledVersion, c.Outdated, false, false}
 	}
 
 	packages := make([]Package, 0, len(formulae)+len(casks))
@@ -245,7 +246,7 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 			IsCask:            false,
 		}
 		pkg.InstallCount90d = analyticsMap[pkg.Name]
-		if inst, ok := installedMap[pkg.Name]; ok {
+		if inst, ok := installedFormulaeMap[pkg.Name]; ok {
 			pkg.IsInstalled = true
 			pkg.InstalledVersion = inst.installedVersion
 			pkg.IsOutdated = inst.isOutdated
@@ -278,7 +279,7 @@ func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalyti
 			IsCask:       true,
 		}
 		pkg.InstallCount90d = analyticsMap[pkg.Name]
-		if inst, ok := installedMap[pkg.Name]; ok {
+		if inst, ok := installedCaskMap[pkg.Name]; ok {
 			pkg.IsInstalled = true
 			pkg.InstalledVersion = inst.installedVersion
 			pkg.IsOutdated = inst.isOutdated
