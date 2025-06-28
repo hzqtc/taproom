@@ -14,8 +14,8 @@ const (
 	colVersionWidth  = 15
 	colTapWidth      = 15
 	colDescWidthMin  = 30
-	colInstallsWidth = 12
-	colStatusWidth   = 25
+	colInstallsWidth = 8
+	colStatusWidth   = 15
 
 	outputMaxLines = 10
 )
@@ -174,25 +174,26 @@ func (m *model) renderHelp() string {
 
 // updateLayout recalculates component dimensions based on window size.
 func (m *model) updateLayout() {
+	// 2, 4, 6 are used to account for border, margin and prompt width (search box only)
 	outputStyle = outputStyle.Copy().Width(m.width - 2)
 	helpStyle = helpStyle.Copy().Width(m.width - 2)
 	m.search.Width = m.width - 6
-	tableWidth := m.search.Width - viewportWidth - 5 // 5 column separators
+	tableWidth := m.width - viewportWidth - 4
+
+	m.viewport.Width = viewportWidth
+	m.table.SetWidth(tableWidth)
 
 	searchHeight := lipgloss.Height(searchStyle.Render(m.search.View()))
 	helpHeight := lipgloss.Height(m.renderHelp())
 	outputHeight := lipgloss.Height(m.renderOutput())
 	mainHeight := m.height - helpHeight - searchHeight - outputHeight - 4
 
-	m.table.SetWidth(tableWidth)
 	m.table.SetHeight(mainHeight)
-
-	m.viewport.Width = viewportWidth
 	m.viewport.Height = mainHeight
 
 	// Dynamically adjust the width of the description column.
 	otherColsWidth := colNameWidth + colVersionWidth + colTapWidth + colInstallsWidth + colStatusWidth
-	descWidth := tableWidth - otherColsWidth - 5 // Account for 5 column separators
+	descWidth := tableWidth - otherColsWidth - 12 // 12 is purely a magic number, not sure why
 	if descWidth < colDescWidthMin {
 		descWidth = colDescWidthMin
 	}
@@ -201,7 +202,7 @@ func (m *model) updateLayout() {
 		{Title: "Version", Width: colVersionWidth},
 		{Title: "Tap", Width: colTapWidth},
 		{Title: "Description", Width: descWidth},
-		{Title: "90d Installs", Width: colInstallsWidth},
+		{Title: "Installs", Width: colInstallsWidth},
 		{Title: "Status", Width: colStatusWidth},
 	})
 
@@ -234,7 +235,7 @@ func (m *model) updateTable() {
 			version,
 			pkg.Tap,
 			pkg.Desc,
-			fmt.Sprintf("%d", pkg.InstallCount90d),
+			fmt.Sprintf("%*d", colInstallsWidth, pkg.InstallCount90d),
 			pkg.Status,
 		}
 	}
