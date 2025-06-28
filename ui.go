@@ -16,6 +16,8 @@ const (
 	colDescWidthMin  = 30
 	colInstallsWidth = 12
 	colStatusWidth   = 25
+
+	outputMaxLines = 10
 )
 
 // --- Styles ---
@@ -59,6 +61,8 @@ var (
 			BorderForeground(borderColor).
 			Margin(1 /* top */, 0 /* horizontal */, 0 /* bottom */)
 
+	outputStyle = baseStyle.Copy()
+
 	spinnerStyle = lipgloss.NewStyle().
 			Foreground(highlightColor)
 )
@@ -82,14 +86,33 @@ func (m model) View() string {
 		baseStyle.Render(m.viewport.View()),
 	)
 
-	return lipgloss.JoinVertical(lipgloss.Left,
+	views := []string{
 		searchStyle.Render(m.search.View()),
 		mainContent,
-		m.renderHelp(),
-	)
+	}
+	if output := m.renderOutput(); output != "" {
+		views = append(views, output)
+	}
+	views = append(views, m.renderHelp())
+
+	return lipgloss.JoinVertical(lipgloss.Left, views...)
 }
 
-func (m model) renderHelp() string {
+func (m *model) renderOutput() string {
+	if !m.isExecuting {
+		return ""
+	}
+
+	var output string
+	if len(m.output) > outputMaxLines {
+		output = strings.Join(m.output[len(m.output)-outputMaxLines:], "\n")
+	} else {
+		output = strings.Join(m.output, "\n")
+	}
+	return outputStyle.Render(output)
+}
+
+func (m *model) renderHelp() string {
 	var b strings.Builder
 
 	b.WriteString("General   : ")
@@ -131,26 +154,41 @@ func (m model) renderHelp() string {
 	b.WriteString(": outdated ")
 	b.WriteString(keyStyle.Render("e"))
 	b.WriteString(": explicitly installed")
+	b.WriteString("\n")
+	b.WriteString("Commands  : ")
+	b.WriteString(keyStyle.Render("U"))
+	b.WriteString(": upgrade all ")
+	b.WriteString(keyStyle.Render("u"))
+	b.WriteString(": upgrade selected ")
+	b.WriteString(keyStyle.Render("t"))
+	b.WriteString(": install selected ")
+	b.WriteString(keyStyle.Render("x"))
+	b.WriteString(": uninstall selected ")
+	b.WriteString(keyStyle.Render("p"))
+	b.WriteString(": pin selected ")
+	b.WriteString(keyStyle.Render("P"))
+	b.WriteString(": unpin selected")
 
 	return helpStyle.Render(b.String())
 }
 
 // updateLayout recalculates component dimensions based on window size.
 func (m *model) updateLayout() {
-	availableWidth := m.width - 6
-	m.search.Width = availableWidth
-
-	tableWidth := availableWidth - viewportWidth - 5
+	outputStyle = outputStyle.Copy().Width(m.width - 2)
+	helpStyle = helpStyle.Copy().Width(m.width - 2)
+	m.search.Width = m.width - 6
+	tableWidth := m.search.Width - viewportWidth - 5 // 5 column separators
 
 	searchHeight := lipgloss.Height(searchStyle.Render(m.search.View()))
 	helpHeight := lipgloss.Height(m.renderHelp())
-	mainHeight := m.height - helpHeight - searchHeight - 4
-
-	m.viewport.Width = viewportWidth
-	m.viewport.Height = mainHeight
+	outputHeight := lipgloss.Height(m.renderOutput())
+	mainHeight := m.height - helpHeight - searchHeight - outputHeight - 4
 
 	m.table.SetWidth(tableWidth)
 	m.table.SetHeight(mainHeight)
+
+	m.viewport.Width = viewportWidth
+	m.viewport.Height = mainHeight
 
 	// Dynamically adjust the width of the description column.
 	otherColsWidth := colNameWidth + colVersionWidth + colTapWidth + colInstallsWidth + colStatusWidth

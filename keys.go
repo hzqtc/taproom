@@ -28,6 +28,14 @@ type keyMap struct {
 	FilterInstalled key.Binding
 	FilterOutdated  key.Binding
 	FilterExplicit  key.Binding
+
+	// Brew Commands
+	Upgrade    key.Binding
+	UpgradeAll key.Binding
+	Install    key.Binding
+	Remove     key.Binding
+	Pin        key.Binding
+	Unpin      key.Binding
 }
 
 // defaultKeyMap returns a map of default keybindings.
@@ -57,5 +65,13 @@ func defaultKeyMap() keyMap {
 		FilterInstalled: key.NewBinding(key.WithKeys("i")),
 		FilterOutdated:  key.NewBinding(key.WithKeys("o")),
 		FilterExplicit:  key.NewBinding(key.WithKeys("e")),
+
+		// Brew Commands
+		Upgrade:    key.NewBinding(key.WithKeys("u")),
+		UpgradeAll: key.NewBinding(key.WithKeys("U")),
+		Install:    key.NewBinding(key.WithKeys("t")),
+		Remove:     key.NewBinding(key.WithKeys("x")),
+		Pin:        key.NewBinding(key.WithKeys("p")),
+		Unpin:      key.NewBinding(key.WithKeys("P")),
 	}
 }

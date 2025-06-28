@@ -55,6 +55,11 @@ type model struct {
 
 	// Keybindings
 	keys keyMap
+
+	// Command execution
+	isExecuting bool
+	output      []string
+	cmdChan     chan tea.Msg
 }
 
 // initialModel creates the starting state of the application.
@@ -122,8 +127,42 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 
+	// Command execution start
+	case commandStartMsg:
+		m.isExecuting = true
+		m.output = []string{}
+
+	// Command execution message with channel
+	case commandExecMsg:
+		m.cmdChan = msg.ch
+		cmds = append(cmds, waitForOutput(m.cmdChan))
+
+	// Command execution output
+	case commandOutputMsg:
+		m.output = append(m.output, msg.line)
+		m.updateLayout()
+		cmds = append(cmds, waitForOutput(m.cmdChan))
+
+	// Command execution finish
+	case commandFinishMsg:
+		m.isExecuting = false
+		m.cmdChan = nil
+		if msg.err != nil {
+			m.errorMsg = msg.err.Error()
+		} else if msg.stderr != "" {
+			m.errorMsg = msg.stderr
+		} else {
+			// TODO: Refresh data after successful command
+		}
+		m.updateLayout()
+
 	// A key was pressed
 	case tea.KeyMsg:
+		// When a command is running, ignore keys
+		if m.isExecuting {
+			return m, cmd
+		}
+
 		// If the search bar is focused, handle input there.
 		if m.search.Focused() {
 			switch {
@@ -141,6 +180,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, cmd)
 			}
 		} else { // Otherwise, handle global keybindings.
+			// Get the selected package
+			var selectedPkg *Package
+			if len(m.viewPackages) > 0 {
+				selectedPkg = &m.viewPackages[m.table.Cursor()]
+			}
+
 			switch {
 			case key.Matches(msg, m.keys.Quit):
 				return m, tea.Quit
@@ -203,13 +248,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewMode = viewExplicitlyInstalled
 				m.filterAndSortPackages()
 				m.updateTable()
+
+				// Commands
+			case key.Matches(msg, m.keys.UpgradeAll):
+				cmds = append(cmds, upgradeAllPackages())
+			case key.Matches(msg, m.keys.Upgrade):
+				if selectedPkg != nil && selectedPkg.IsOutdated && !selectedPkg.IsPinned {
+					cmds = append(cmds, upgradePackage(selectedPkg))
+				}
+			case key.Matches(msg, m.keys.Install):
+				if selectedPkg != nil && !selectedPkg.IsInstalled {
+					cmds = append(cmds, installPackage(selectedPkg))
+				}
+			case key.Matches(msg, m.keys.Remove):
+				if selectedPkg != nil && selectedPkg.IsInstalled {
+					cmds = append(cmds, uninstallPackage(selectedPkg))
+				}
+			case key.Matches(msg, m.keys.Pin):
+				if selectedPkg != nil && selectedPkg.IsInstalled && !selectedPkg.IsPinned {
+					cmds = append(cmds, pinPackage(selectedPkg))
+				}
+			case key.Matches(msg, m.keys.Unpin):
+				if selectedPkg != nil && selectedPkg.IsPinned {
+					cmds = append(cmds, unpinPackage(selectedPkg))
+				}
 			}
 		}
 	}
-
-	// Update the viewport model.
-	m.viewport, cmd = m.viewport.Update(msg)
-	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
