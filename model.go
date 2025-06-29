@@ -147,10 +147,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case commandFinishMsg:
 		m.isExecuting = false
 		m.cmdChan = nil
-		if msg.err != nil {
-			m.errorMsg = msg.err.Error()
-		} else if msg.stderr != "" {
+		if msg.stderr != "" {
 			m.errorMsg = msg.stderr
+		} else if msg.err != nil {
+			m.errorMsg = msg.err.Error()
 		} else {
 			// TODO: Refresh data after successful command
 		}
@@ -265,7 +265,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					cmds = append(cmds, uninstallPackage(selectedPkg))
 				}
 			case key.Matches(msg, m.keys.Pin):
-				if selectedPkg != nil && selectedPkg.IsInstalled && !selectedPkg.IsPinned {
+				if selectedPkg != nil && selectedPkg.IsInstalled && !selectedPkg.IsCask && !selectedPkg.IsPinned {
 					cmds = append(cmds, pinPackage(selectedPkg))
 				}
 			case key.Matches(msg, m.keys.Unpin):
