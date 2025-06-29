@@ -35,8 +35,8 @@ const (
 // model holds the entire state of the application.
 type model struct {
 	// Package data
-	allPackages  []Package // The complete list of all packages
-	viewPackages []Package // The filtered and sorted list of packages to display
+	allPackages  []Package  // The complete list of all packages
+	viewPackages []*Package // The filtered and sorted list of packages to display
 
 	// UI Components from the bubbles library
 	table    table.Model
@@ -152,7 +152,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if msg.err != nil {
 			m.errorMsg = msg.err.Error()
 		} else {
-			// TODO: Refresh data after successful command
+			// Command was successful, update package state
+			if msg.action == actionUpgradeAll {
+				// Do a full reload for 'upgrade all' since it's the simplest
+				// TODO: maybe we can just re-fetch installed packages
+				m.viewMode = viewAll
+				m.search.SetValue("")
+				m.isLoading = true
+				cmds = append(cmds, loadData)
+			} else {
+				// Otherwise update package according to the executed command and refresh table.
+				m.updatePackageForAction(msg.action, msg.pkg)
+				m.filterAndSortPackages()
+				m.updateTable()
+			}
 		}
 		m.updateLayout()
 
@@ -183,7 +196,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			var selectedPkg *Package
 			if len(m.viewPackages) > 0 && m.table.Cursor() >= 0 {
-				selectedPkg = &m.viewPackages[m.table.Cursor()]
+				selectedPkg = m.viewPackages[m.table.Cursor()]
 			}
 
 			switch {
@@ -284,9 +297,9 @@ func (m *model) getPackage(name string) *Package {
 		return nil
 	}
 
-	for _, pkg := range m.allPackages {
-		if pkg.Name == name {
-			return &pkg
+	for i := range m.allPackages {
+		if m.allPackages[i].Name == name {
+			return &m.allPackages[i]
 		}
 	}
 	return nil
@@ -294,10 +307,11 @@ func (m *model) getPackage(name string) *Package {
 
 // filterAndSortPackages updates the viewPackages based on current filters and sort mode.
 func (m *model) filterAndSortPackages() {
-	m.viewPackages = []Package{}
+	m.viewPackages = []*Package{}
 	searchQuery := strings.ToLower(m.search.Value())
 
-	for _, pkg := range m.allPackages {
+	for i := range m.allPackages {
+		pkg := &m.allPackages[i]
 		if searchQuery != "" &&
 			!strings.Contains(strings.ToLower(pkg.Name), searchQuery) &&
 			!strings.Contains(strings.ToLower(pkg.Desc), searchQuery) {
@@ -334,4 +348,28 @@ func (m *model) filterAndSortPackages() {
 			return m.viewPackages[i].InstallCount90d > m.viewPackages[j].InstallCount90d
 		})
 	}
+}
+
+func (m *model) updatePackageForAction(action commandAction, pkg *Package) {
+	switch action {
+	case actionUpgrade:
+		pkg.InstalledVersion = pkg.Version
+		pkg.IsOutdated = false
+	case actionInstall:
+		pkg.IsInstalled = true
+		pkg.InstalledVersion = pkg.Version
+	case actionUninstall:
+		pkg.IsInstalled = false
+		pkg.InstalledVersion = ""
+		pkg.IsOutdated = false
+		pkg.IsPinned = false
+		pkg.InstalledAsDependency = false
+	case actionPin:
+		pkg.IsPinned = true
+	case actionUnpin:
+		pkg.IsPinned = false
+	}
+
+	// After updating fields, we need to update the Status field as well.
+	pkg.Status = getPackageStatus(pkg)
 }

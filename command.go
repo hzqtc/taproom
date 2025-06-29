@@ -16,9 +16,23 @@ import (
 type commandStartMsg struct{}
 type commandExecMsg struct{ ch chan tea.Msg }
 type commandOutputMsg struct{ line string }
+
+type commandAction string
+
+const (
+	actionUpgradeAll commandAction = "upgradeAll"
+	actionUpgrade    commandAction = "upgrade"
+	actionInstall    commandAction = "install"
+	actionUninstall  commandAction = "uninstall"
+	actionPin        commandAction = "pin"
+	actionUnpin      commandAction = "unpin"
+)
+
 type commandFinishMsg struct {
 	err    error
 	stderr string
+	action commandAction
+	pkg    *Package // nil for upgradeAll
 }
 
 // --- Command Functions ---
@@ -35,7 +49,7 @@ func waitForOutput(ch chan tea.Msg) tea.Cmd {
 	}
 }
 
-func execute(args ...string) tea.Cmd {
+func execute(action commandAction, pkg *Package, args ...string) tea.Cmd {
 	return func() tea.Msg {
 		ch := make(chan tea.Msg)
 
@@ -45,18 +59,18 @@ func execute(args ...string) tea.Cmd {
 
 			stdout, err := cmd.StdoutPipe()
 			if err != nil {
-				ch <- commandFinishMsg{err: fmt.Errorf("failed to get stdout pipe: %w", err)}
+				ch <- commandFinishMsg{err: fmt.Errorf("failed to get stdout pipe: %w", err), action: action, pkg: pkg}
 				return
 			}
 
 			stderr, err := cmd.StderrPipe()
 			if err != nil {
-				ch <- commandFinishMsg{err: fmt.Errorf("failed to get stderr pipe: %w", err)}
+				ch <- commandFinishMsg{err: fmt.Errorf("failed to get stderr pipe: %w", err), action: action, pkg: pkg}
 				return
 			}
 
 			if err := cmd.Start(); err != nil {
-				ch <- commandFinishMsg{err: fmt.Errorf("failed to start command: %w", err)}
+				ch <- commandFinishMsg{err: fmt.Errorf("failed to start command: %w", err), action: action, pkg: pkg}
 				return
 			}
 
@@ -80,7 +94,7 @@ func execute(args ...string) tea.Cmd {
 			cmdErr := cmd.Wait()
 			wg.Wait()
 
-			ch <- commandFinishMsg{err: cmdErr, stderr: stderrBuf.String()}
+			ch <- commandFinishMsg{err: cmdErr, stderr: stderrBuf.String(), action: action, pkg: pkg}
 		}()
 
 		return commandExecMsg{ch: ch}
@@ -88,7 +102,7 @@ func execute(args ...string) tea.Cmd {
 }
 
 func upgradeAllPackages() tea.Cmd {
-	return tea.Batch(startCommand(), execute("upgrade"))
+	return tea.Batch(startCommand(), execute(actionUpgradeAll, nil, "upgrade"))
 }
 
 func upgradePackage(pkg *Package) tea.Cmd {
@@ -97,7 +111,7 @@ func upgradePackage(pkg *Package) tea.Cmd {
 		args = append(args, "--cask")
 	}
 	args = append(args, pkg.Name)
-	return tea.Batch(startCommand(), execute(args...))
+	return tea.Batch(startCommand(), execute(actionUpgrade, pkg, args...))
 }
 
 func installPackage(pkg *Package) tea.Cmd {
@@ -106,7 +120,7 @@ func installPackage(pkg *Package) tea.Cmd {
 		args = append(args, "--cask")
 	}
 	args = append(args, pkg.Name)
-	return tea.Batch(startCommand(), execute(args...))
+	return tea.Batch(startCommand(), execute(actionInstall, pkg, args...))
 }
 
 func uninstallPackage(pkg *Package) tea.Cmd {
@@ -115,13 +129,13 @@ func uninstallPackage(pkg *Package) tea.Cmd {
 		args = append(args, "--cask")
 	}
 	args = append(args, pkg.Name)
-	return tea.Batch(startCommand(), execute(args...))
+	return tea.Batch(startCommand(), execute(actionUninstall, pkg, args...))
 }
 
 func pinPackage(pkg *Package) tea.Cmd {
-	return tea.Batch(startCommand(), execute("pin", pkg.Name))
+	return tea.Batch(startCommand(), execute(actionPin, pkg, "pin", pkg.Name))
 }
 
 func unpinPackage(pkg *Package) tea.Cmd {
-	return tea.Batch(startCommand(), execute("unpin", pkg.Name))
+	return tea.Batch(startCommand(), execute(actionUnpin, pkg, "unpin", pkg.Name))
 }
