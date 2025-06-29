@@ -35,7 +35,7 @@ const (
 // model holds the entire state of the application.
 type model struct {
 	// Package data
-	allPackages  []Package  // The complete list of all packages
+	allPackages  []Package  // The complete list of all packages, sorted by name
 	viewPackages []*Package // The filtered and sorted list of packages to display
 
 	// UI Components from the bubbles library
@@ -298,15 +298,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) getPackage(name string) *Package {
-	if name == "" {
-		return nil
+	index := sort.Search(len(m.allPackages), func(i int) bool {
+		return m.allPackages[i].Name >= name
+	})
+
+	if index < len(m.allPackages) && m.allPackages[index].Name == name {
+		return &m.allPackages[index]
 	}
 
-	for i := range m.allPackages {
-		if m.allPackages[i].Name == name {
-			return &m.allPackages[i]
-		}
-	}
 	return nil
 }
 
@@ -344,11 +343,8 @@ func (m *model) filterAndSortPackages() {
 		}
 	}
 
-	if m.sortMode == sortByName {
-		sort.Slice(m.viewPackages, func(i, j int) bool {
-			return m.viewPackages[i].Name < m.viewPackages[j].Name
-		})
-	} else if m.sortMode == sortByPopularity {
+	// No need to sort by name becuase m.allPackages are sorted by name
+	if m.sortMode == sortByPopularity {
 		sort.Slice(m.viewPackages, func(i, j int) bool {
 			return m.viewPackages[i].InstallCount90d > m.viewPackages[j].InstallCount90d
 		})

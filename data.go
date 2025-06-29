@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -284,6 +285,11 @@ func processAllData(
 			}
 		}
 	}
+
+	// Sort all packages by name for faster lookups later.
+	sort.Slice(packages, func(i, j int) bool {
+		return packages[i].Name < packages[j].Name
+	})
 
 	return packages
 }
