@@ -57,7 +57,7 @@ type apiFormula struct {
 	Pinned            bool     `json:"pinned"`
 	Installed         []struct {
 		Version        string `json:"version"`
-		InstalledAsReq bool   `json:"installed_as_dependency"`
+		InstalledAsDep bool   `json:"installed_as_dependency"`
 	} `json:"installed"`
 }
 
@@ -244,7 +244,7 @@ func processAllData(
 	packages := make([]Package, 0, len(installed.Formulae)+len(installed.Casks)+len(formulae)+len(casks))
 	// Process installed formulae
 	for _, f := range installed.Formulae {
-		packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name]))
+		packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name], true))
 		installedFormulae[f.Name] = struct{}{}
 		for _, dep := range f.Dependencies {
 			formulaDependentsMap[dep] = append(formulaDependentsMap[dep], f.Name)
@@ -252,7 +252,7 @@ func processAllData(
 	}
 	// Process installed casks
 	for _, c := range installed.Casks {
-		packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name]))
+		packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name], true))
 		installedCasks[c.Name] = struct{}{}
 		for _, dep := range c.Dependencies.Formulae {
 			formulaDependentsMap[dep] = append(formulaDependentsMap[dep], c.Name)
@@ -264,13 +264,13 @@ func processAllData(
 	// Add formulaes to packages, except for installed formulae
 	for _, f := range formulae {
 		if _, installed := installedFormulae[f.Name]; !installed {
-			packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name]))
+			packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name], false))
 		}
 	}
 	// Add casks to packages, except for installed casks
 	for _, c := range casks {
 		if _, installed := installedCasks[c.Name]; !installed {
-			packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name]))
+			packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name], false))
 		}
 	}
 
@@ -288,7 +288,7 @@ func processAllData(
 	return packages
 }
 
-func packageFromFormula(f *apiFormula, installs int) Package {
+func packageFromFormula(f *apiFormula, installs int, installed bool) Package {
 	pkg := Package{
 		Name:              f.Name,
 		Tap:               f.Tap,
@@ -301,20 +301,20 @@ func packageFromFormula(f *apiFormula, installs int) Package {
 		InstallCount90d:   installs,
 		IsCask:            false,
 	}
-	if len(f.Installed) > 0 {
+	if installed {
 		inst := f.Installed[0]
 		pkg.IsInstalled = true
 		pkg.InstalledVersion = inst.Version
 		pkg.IsOutdated = f.Outdated
 		pkg.IsPinned = f.Pinned
-		pkg.InstalledAsDependency = !inst.InstalledAsReq
+		pkg.InstalledAsDependency = inst.InstalledAsDep
 	}
 	pkg.Status = getPackageStatus(&pkg)
 
 	return pkg
 }
 
-func packageFromCask(c *apiCask, installs int) Package {
+func packageFromCask(c *apiCask, installs int, installed bool) Package {
 	pkg := Package{
 		Name:            c.Name,
 		Tap:             c.Tap,
@@ -325,7 +325,7 @@ func packageFromCask(c *apiCask, installs int) Package {
 		InstallCount90d: installs,
 		IsCask:          true,
 	}
-	if c.InstalledVersion != "" {
+	if installed {
 		pkg.IsInstalled = true
 		pkg.InstalledVersion = c.InstalledVersion
 		pkg.IsOutdated = c.Outdated

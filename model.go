@@ -158,6 +158,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// A key was pressed
 	case tea.KeyMsg:
+		// TODO: allow switching focus betwen panels using Tab and scrolling in the view port
 		// When a command is running, ignore keys
 		if m.isExecuting {
 			return m, cmd
@@ -179,10 +180,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateTable()
 				cmds = append(cmds, cmd)
 			}
-		} else { // Otherwise, handle global keybindings.
-			// Get the selected package
+		} else {
 			var selectedPkg *Package
-			if len(m.viewPackages) > 0 {
+			if len(m.viewPackages) > 0 && m.table.Cursor() >= 0 {
 				selectedPkg = &m.viewPackages[m.table.Cursor()]
 			}
 
