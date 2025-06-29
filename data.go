@@ -34,16 +34,17 @@ type Package struct {
 	Dependents            []string
 	InstallCount90d       int
 	IsCask                bool
-	Status                string
 	IsInstalled           bool
 	IsOutdated            bool
 	IsPinned              bool
 	InstalledAsDependency bool
+	Status                string
 }
 
 // Structs for parsing Homebrew API JSON
 type apiFormula struct {
 	Name     string `json:"name"`
+	Tap      string `json:"tap"`
 	Desc     string `json:"desc"`
 	Versions struct {
 		Stable string `json:"stable"`
@@ -52,11 +53,17 @@ type apiFormula struct {
 	License           string   `json:"license"`
 	Dependencies      []string `json:"dependencies"`
 	BuildDependencies []string `json:"build_dependencies"`
-	Tap               string   `json:"tap"`
+	Outdated          bool     `json:"outdated"`
+	Pinned            bool     `json:"pinned"`
+	Installed         []struct {
+		Version        string `json:"version"`
+		InstalledAsReq bool   `json:"installed_as_dependency"`
+	} `json:"installed"`
 }
 
 type apiCask struct {
 	Name         string `json:"token"`
+	Tap          string `json:"tap"`
 	Desc         string `json:"desc"`
 	Version      string `json:"version"`
 	Homepage     string `json:"homepage"`
@@ -64,44 +71,28 @@ type apiCask struct {
 		Formulae []string `json:"formula"`
 		Casks    []string `json:"cask"`
 	} `json:"depends_on"`
-	Tap string `json:"tap"`
+	Outdated         bool   `json:"outdated"`
+	InstalledVersion string `json:"installed"`
 }
 
-type apiAnalytics struct {
+type apiFormulaAnalytics struct {
 	Items []struct {
-		Formula string `json:"formula"`
-		Cask    string `json:"cask"`
-		Count   string `json:"count"`
+		Name  string `json:"formula"`
+		Count string `json:"count"`
+	} `json:"items"`
+}
+
+type apiCaskAnalytics struct {
+	Items []struct {
+		Name  string `json:"cask"`
+		Count string `json:"count"`
 	} `json:"items"`
 }
 
 // Structs for parsing `brew info --json=v2 --installed`
-type brewInfo struct {
-	Formulae []installedFormula `json:"formulae"`
-	Casks    []installedCask    `json:"casks"`
-}
-
-type installedPkg struct {
-	installedVersion string
-	isOutdated       bool
-	isPinned         bool
-	isDependency     bool
-}
-
-type installedFormula struct {
-	Name      string `json:"name"`
-	Outdated  bool   `json:"outdated"`
-	Pinned    bool   `json:"pinned"`
-	Installed []struct {
-		Version        string `json:"version"`
-		InstalledAsReq bool   `json:"installed_as_dependency"`
-	} `json:"installed"`
-}
-
-type installedCask struct {
-	Name             string `json:"token"`
-	Outdated         bool   `json:"outdated"`
-	InstalledVersion string `json:"installed"`
+type installedInfo struct {
+	Formulae []apiFormula `json:"formulae"`
+	Casks    []apiCask    `json:"casks"`
 }
 
 // --- Data Fetching & Processing Logic ---
@@ -114,22 +105,42 @@ type dataLoadingErr struct{ err error }
 func loadData() tea.Msg {
 	formulaeChan := make(chan []apiFormula)
 	casksChan := make(chan []apiCask)
-	formulaAnalyticsChan := make(chan apiAnalytics)
-	caskAnalyticsChan := make(chan apiAnalytics)
-	installedChan := make(chan brewInfo)
+	formulaAnalyticsChan := make(chan apiFormulaAnalytics)
+	caskAnalyticsChan := make(chan apiCaskAnalytics)
+	installedChan := make(chan installedInfo)
 	errChan := make(chan error, 5)
 
-	go fetchJSON(apiFormulaURL, &[]apiFormula{}, formulaeChan, errChan)
-	go fetchJSON(apiCaskURL, &[]apiCask{}, casksChan, errChan)
-	go fetchJSON(apiFormulaAnalytics90dURL, &apiAnalytics{}, formulaAnalyticsChan, errChan)
-	go fetchJSON(apiCaskAnalytics90dURL, &apiAnalytics{}, caskAnalyticsChan, errChan)
+	go fetchJSON(
+		apiFormulaURL,
+		&[]apiFormula{},
+		formulaeChan,
+		errChan,
+	)
+	go fetchJSON(
+		apiCaskURL,
+		&[]apiCask{},
+		casksChan,
+		errChan,
+	)
+	go fetchJSON(
+		apiFormulaAnalytics90dURL,
+		&apiFormulaAnalytics{},
+		formulaAnalyticsChan,
+		errChan,
+	)
+	go fetchJSON(
+		apiCaskAnalytics90dURL,
+		&apiCaskAnalytics{},
+		caskAnalyticsChan,
+		errChan,
+	)
 	go fetchInstalled(installedChan, errChan)
 
 	var allFormulae []apiFormula
 	var allCasks []apiCask
-	var formulaAnalyticsData apiAnalytics
-	var caskAnalyticsData apiAnalytics
-	var installedData brewInfo
+	var formulaAnalytics apiFormulaAnalytics
+	var caskAnalytics apiCaskAnalytics
+	var allInstalled installedInfo
 
 	for i := 0; i < 5; i++ {
 		select {
@@ -138,21 +149,23 @@ func loadData() tea.Msg {
 		case c := <-casksChan:
 			allCasks = c
 		case fa := <-formulaAnalyticsChan:
-			formulaAnalyticsData = fa
+			formulaAnalytics = fa
 		case ca := <-caskAnalyticsChan:
-			caskAnalyticsData = ca
+			caskAnalytics = ca
 		case inst := <-installedChan:
-			installedData = inst
+			allInstalled = inst
 		case err := <-errChan:
 			return dataLoadingErr{err}
 		}
 	}
 
-	// Merge analytics data
-	mergedAnalytics := formulaAnalyticsData
-	mergedAnalytics.Items = append(mergedAnalytics.Items, caskAnalyticsData.Items...)
-
-	packages := processAllData(allFormulae, allCasks, mergedAnalytics, installedData)
+	packages := processAllData(
+		allInstalled,
+		allFormulae,
+		allCasks,
+		formulaAnalytics,
+		caskAnalytics,
+	)
 	return dataLoadedMsg{packages: packages}
 }
 
@@ -184,16 +197,16 @@ func fetchJSON[T any](url string, target *T, dataChan chan T, errChan chan error
 }
 
 // fetchInstalled runs the `brew info` command and parses its JSON output.
-func fetchInstalled(installedChan chan brewInfo, errChan chan error) {
+func fetchInstalled(installedChan chan installedInfo, errChan chan error) {
 	cmd := exec.Command("brew", "info", "--json=v2", "--installed")
 	output, err := cmd.Output()
 	if err != nil {
 		// Not a fatal error if brew is not installed or no packages are installed.
-		installedChan <- brewInfo{}
+		installedChan <- installedInfo{}
 		return
 	}
 
-	var info brewInfo
+	var info installedInfo
 	if err := json.Unmarshal(output, &info); err != nil {
 		errChan <- fmt.Errorf("failed to decode brew info json: %w", err)
 		return
@@ -202,118 +215,139 @@ func fetchInstalled(installedChan chan brewInfo, errChan chan error) {
 }
 
 // processAllData merges all data sources into a single slice of Package.
-func processAllData(formulae []apiFormula, casks []apiCask, analytics apiAnalytics, installed brewInfo) []Package {
-	analyticsMap := make(map[string]int)
-	// Process analytics data which would be added to Package struct later
-	for _, item := range analytics.Items {
+func processAllData(
+	installed installedInfo,
+	formulae []apiFormula,
+	casks []apiCask,
+	formulaAnalytics apiFormulaAnalytics,
+	caskAnalytics apiCaskAnalytics,
+) []Package {
+	formulaAnalyticsMap := make(map[string]int)
+	caskAnalyticsMap := make(map[string]int)
+	// Process analytics data to be used to constuct Package struct
+	for _, item := range formulaAnalytics.Items {
 		countStr := strings.ReplaceAll(item.Count, ",", "")
 		count, _ := strconv.Atoi(countStr)
-		name := item.Formula
-		if name == "" {
-			name = item.Cask
-		}
-		analyticsMap[name] = count
+		formulaAnalyticsMap[item.Name] = count
+	}
+	for _, item := range caskAnalytics.Items {
+		countStr := strings.ReplaceAll(item.Count, ",", "")
+		count, _ := strconv.Atoi(countStr)
+		caskAnalyticsMap[item.Name] = count
 	}
 
-	// TODO: add installed packages from non-offcial taps
-	installedFormulaeMap := make(map[string]installedPkg)
-	// Process installed pacakges
+	formulaDependentsMap := make(map[string][]string) // formula name to packages that depends on it
+	caskDependentsMap := make(map[string][]string)    // cask name to packages that depends on it
+	installedFormulae := make(map[string]struct{})    // track installed formulae to avoid duplicate
+	installedCasks := make(map[string]struct{})       // track installed casks to avoid duplicate
+
+	packages := make([]Package, 0, len(installed.Formulae)+len(installed.Casks)+len(formulae)+len(casks))
+	// Process installed formulae
 	for _, f := range installed.Formulae {
-		isDependency := false
-		if len(f.Installed) > 0 {
-			isDependency = f.Installed[0].InstalledAsReq
+		packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name]))
+		installedFormulae[f.Name] = struct{}{}
+		for _, dep := range f.Dependencies {
+			formulaDependentsMap[dep] = append(formulaDependentsMap[dep], f.Name)
 		}
-		installedFormulaeMap[f.Name] = installedPkg{f.Installed[0].Version, f.Outdated, f.Pinned, isDependency}
 	}
-	installedCaskMap := make(map[string]installedPkg)
+	// Process installed casks
 	for _, c := range installed.Casks {
-		// Casks can't be pinned or installed as dependencies
-		installedCaskMap[c.Name] = installedPkg{c.InstalledVersion, c.Outdated, false, false}
+		packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name]))
+		installedCasks[c.Name] = struct{}{}
+		for _, dep := range c.Dependencies.Formulae {
+			formulaDependentsMap[dep] = append(formulaDependentsMap[dep], c.Name)
+		}
+		for _, dep := range c.Dependencies.Casks {
+			caskDependentsMap[dep] = append(caskDependentsMap[dep], c.Name)
+		}
 	}
-
-	packages := make([]Package, 0, len(formulae)+len(casks))
-	// Add formulaes to packages
+	// Add formulaes to packages, except for installed formulae
 	for _, f := range formulae {
-		pkg := Package{
-			Name:              f.Name,
-			Tap:               f.Tap,
-			Version:           f.Versions.Stable,
-			Desc:              f.Desc,
-			Homepage:          f.Homepage,
-			License:           f.License,
-			Dependencies:      f.Dependencies,
-			BuildDependencies: f.BuildDependencies,
-			IsCask:            false,
+		if _, installed := installedFormulae[f.Name]; !installed {
+			packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name]))
 		}
-		pkg.InstallCount90d = analyticsMap[pkg.Name]
-		if inst, ok := installedFormulaeMap[pkg.Name]; ok {
-			pkg.IsInstalled = true
-			pkg.InstalledVersion = inst.installedVersion
-			pkg.IsOutdated = inst.isOutdated
-			pkg.IsPinned = inst.isPinned
-			pkg.InstalledAsDependency = inst.isDependency
-			if inst.isPinned {
-				pkg.Status = "Pinned"
-			} else if inst.isOutdated {
-				pkg.Status = "Outdated"
-			} else if pkg.InstalledAsDependency {
-				pkg.Status = "Installed (Dep)"
-			} else {
-				pkg.Status = "Installed"
-			}
-		} else {
-			pkg.Status = "Uninstalled"
-		}
-		packages = append(packages, pkg)
 	}
-
-	// Add casks to packages
+	// Add casks to packages, except for installed casks
 	for _, c := range casks {
-		pkg := Package{
-			Name:         c.Name,
-			Tap:          c.Tap,
-			Version:      c.Version,
-			Desc:         c.Desc,
-			Homepage:     c.Homepage,
-			Dependencies: append(c.Dependencies.Formulae, c.Dependencies.Casks...),
-			IsCask:       true,
-		}
-		pkg.InstallCount90d = analyticsMap[pkg.Name]
-		if inst, ok := installedCaskMap[pkg.Name]; ok {
-			pkg.IsInstalled = true
-			pkg.InstalledVersion = inst.installedVersion
-			pkg.IsOutdated = inst.isOutdated
-			pkg.IsPinned = inst.isPinned
-			pkg.InstalledAsDependency = inst.isDependency
-			if inst.isOutdated {
-				pkg.Status = "Outdated"
-			} else {
-				pkg.Status = "Installed"
-			}
-		} else {
-			pkg.Status = "Uninstalled"
-		}
-		packages = append(packages, pkg)
-	}
-
-	// Build reverse dependency map for installed packages
-	dependentsMap := make(map[string][]string)
-	for _, pkg := range packages {
-		if pkg.IsInstalled {
-			for _, depName := range pkg.Dependencies {
-				dependentsMap[depName] = append(dependentsMap[depName], pkg.Name)
-			}
+		if _, installed := installedCasks[c.Name]; !installed {
+			packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name]))
 		}
 	}
 
 	// Populate dependents for each installed package
 	for i, pkg := range packages {
 		if pkg.IsInstalled {
-			if dependents, ok := dependentsMap[pkg.Name]; ok {
-				packages[i].Dependents = dependents
+			if pkg.IsCask {
+				packages[i].Dependents = caskDependentsMap[pkg.Name]
+			} else {
+				packages[i].Dependents = formulaDependentsMap[pkg.Name]
 			}
 		}
 	}
 
 	return packages
+}
+
+func packageFromFormula(f *apiFormula, installs int) Package {
+	pkg := Package{
+		Name:              f.Name,
+		Tap:               f.Tap,
+		Version:           f.Versions.Stable,
+		Desc:              f.Desc,
+		Homepage:          f.Homepage,
+		License:           f.License,
+		Dependencies:      f.Dependencies,
+		BuildDependencies: f.BuildDependencies,
+		InstallCount90d:   installs,
+		IsCask:            false,
+	}
+	if len(f.Installed) > 0 {
+		inst := f.Installed[0]
+		pkg.IsInstalled = true
+		pkg.InstalledVersion = inst.Version
+		pkg.IsOutdated = f.Outdated
+		pkg.IsPinned = f.Pinned
+		pkg.InstalledAsDependency = !inst.InstalledAsReq
+	}
+	pkg.Status = getPackageStatus(&pkg)
+
+	return pkg
+}
+
+func packageFromCask(c *apiCask, installs int) Package {
+	pkg := Package{
+		Name:            c.Name,
+		Tap:             c.Tap,
+		Version:         c.Version,
+		Desc:            c.Desc,
+		Homepage:        c.Homepage,
+		Dependencies:    append(c.Dependencies.Formulae, c.Dependencies.Casks...),
+		InstallCount90d: installs,
+		IsCask:          true,
+	}
+	if c.InstalledVersion != "" {
+		pkg.IsInstalled = true
+		pkg.InstalledVersion = c.InstalledVersion
+		pkg.IsOutdated = c.Outdated
+		// Casks can't be pinned or installed as dependencies
+		pkg.IsPinned = false
+		pkg.InstalledAsDependency = false
+	}
+	pkg.Status = getPackageStatus(&pkg)
+
+	return pkg
+}
+
+func getPackageStatus(pkg *Package) string {
+	if pkg.IsPinned {
+		return "Pinned"
+	} else if pkg.IsOutdated {
+		return "Outdated"
+	} else if pkg.InstalledAsDependency {
+		return "Installed (Dep)"
+	} else if pkg.IsInstalled {
+		return "Installed"
+	} else {
+		return "Uninstalled"
+	}
 }
