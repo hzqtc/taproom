@@ -61,6 +61,11 @@ var (
 			BorderForeground(borderColor).
 			Margin(1 /* top */, 0 /* horizontal */, 0 /* bottom */)
 
+	viewStyle = baseStyle.Copy().
+			Width(viewportWidth).
+			Padding(0, 1).
+			Margin(1, 0)
+
 	outputStyle = baseStyle.Copy()
 
 	spinnerStyle = lipgloss.NewStyle().
@@ -86,8 +91,14 @@ func (m model) View() string {
 		baseStyle.Render(m.viewport.View()),
 	)
 
-	views := []string{
+	topContent := lipgloss.JoinHorizontal(
+		lipgloss.Top,
 		searchStyle.Render(m.search.View()),
+		viewStyle.Render(fmt.Sprintf("Viewing: %s", m.viewMode.String())),
+	)
+
+	views := []string{
+		topContent,
 		mainContent,
 	}
 	if output := m.renderOutput(); output != "" {
@@ -176,10 +187,12 @@ func (m *model) renderHelp() string {
 
 // updateLayout recalculates component dimensions based on window size.
 func (m *model) updateLayout() {
-	// 2, 4, 6 are used to account for border, margin and prompt width (search box only)
+	// 2, 4, 6, 8 are used to account for border, margin and prompt width (search box only)
 	outputStyle = outputStyle.Copy().Width(m.width - 2)
 	helpStyle = helpStyle.Copy().Width(m.width - 2)
-	m.search.Width = m.width - 6
+
+	m.search.Width = m.width - viewportWidth - 8
+
 	tableWidth := m.width - viewportWidth - 4
 
 	m.viewport.Width = viewportWidth
@@ -194,6 +207,7 @@ func (m *model) updateLayout() {
 	m.viewport.Height = mainHeight
 
 	// Dynamically adjust the width of the description column.
+	// TODO: hide Tap, Version, Deswcription, Installs columns progressively on small screens
 	otherColsWidth := colNameWidth + colVersionWidth + colTapWidth + colInstallsWidth + colStatusWidth
 	descWidth := tableWidth - otherColsWidth - 12 // 12 is purely a magic number, not sure why
 	if descWidth < colDescWidthMin {

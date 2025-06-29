@@ -24,6 +24,25 @@ const (
 	viewExplicitlyInstalled
 )
 
+func (v viewMode) String() string {
+	switch v {
+	case viewAll:
+		return "All"
+	case viewFormulae:
+		return "Formulae"
+	case viewCasks:
+		return "Casks"
+	case viewInstalled:
+		return "Installed"
+	case viewOutdated:
+		return "Outdated"
+	case viewExplicitlyInstalled:
+		return "Installed (no deps)"
+	default:
+		return "Unknown"
+	}
+}
+
 // sortMode defines the current sorting method for the package list.
 type sortMode int
 
