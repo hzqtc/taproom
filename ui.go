@@ -302,26 +302,21 @@ func (m *model) updateViewport() {
 				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
 			} else {
 				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
+				// For uninstall dependencies, show all recursive uninstalled dependencies
+				recursiveMissingDeps := m.getRecursiveMissingDeps(dep)
+				for _, d := range recursiveMissingDeps {
+					if p := m.getPackage(d); !p.IsInstalled {
+						b.WriteString(fmt.Sprintf("    %s %s\n", uninstalledStyle.Render("✗"), d))
+					}
+				}
 			}
 		}
 	} else {
 		b.WriteString("  None\n")
 	}
 
-	if len(pkg.BuildDependencies) > 0 {
-		b.WriteString("\nBuild Dependencies:\n")
-		for _, dep := range pkg.BuildDependencies {
-			depPkg := m.getPackage(dep)
-			if depPkg != nil && depPkg.IsInstalled {
-				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
-			} else {
-				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
-			}
-		}
-	}
-
 	if pkg.IsInstalled && len(pkg.Dependents) > 0 {
-		b.WriteString("\nRequired By:\n")
+		b.WriteString("\nRequired By (installed):\n")
 		for _, dep := range pkg.Dependents {
 			b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
 		}
@@ -330,4 +325,18 @@ func (m *model) updateViewport() {
 	vpStyle := lipgloss.NewStyle().Width(viewportWidth)
 	m.viewport.SetContent(vpStyle.Render(b.String()))
 	m.viewport.GotoTop() // Reset scroll position
+}
+
+func (m *model) getRecursiveMissingDeps(pkgName string) []string {
+	pkg := m.getPackage(pkgName)
+	if pkg.IsInstalled {
+		return []string{}
+	} else {
+		deps := pkg.Dependencies
+		depsCopy := append([]string{}, deps...)
+		for _, dep := range depsCopy {
+			deps = append(deps, m.getRecursiveMissingDeps(dep)...)
+		}
+		return deps
+	}
 }
