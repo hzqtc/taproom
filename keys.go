@@ -13,7 +13,8 @@ type keyMap struct {
 	GoToBottom key.Binding
 
 	// General
-	Quit key.Binding
+	Refresh key.Binding
+	Quit    key.Binding
 
 	// Search
 	FocusSearch key.Binding
@@ -50,7 +51,8 @@ func defaultKeyMap() keyMap {
 		GoToBottom: key.NewBinding(key.WithKeys("G", "end")),
 
 		// General
-		Quit: key.NewBinding(key.WithKeys("q", "ctrl+c")),
+		Refresh: key.NewBinding(key.WithKeys("r")),
+		Quit:    key.NewBinding(key.WithKeys("q", "ctrl+c")),
 
 		// Search
 		FocusSearch: key.NewBinding(key.WithKeys("/")),

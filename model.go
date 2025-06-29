@@ -171,10 +171,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// A key was pressed
 	case tea.KeyMsg:
-		// TODO: allow switching focus betwen panels using Tab and scrolling in the view port
 		// When a command is running, ignore keys
 		if m.isExecuting {
-			return m, cmd
+			break
 		}
 
 		// If the search bar is focused, handle input there.
@@ -200,6 +199,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			switch {
+			//General
+			// TODO: allow switching focus betwen panels using Tab and scrolling in the view port
+			case key.Matches(msg, m.keys.Refresh):
+				m.search.SetValue("")
+				m.isLoading = true
+				cmds = append(cmds, loadData)
 			case key.Matches(msg, m.keys.Quit):
 				return m, tea.Quit
 
@@ -226,7 +231,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Search
 			case key.Matches(msg, m.keys.FocusSearch):
 				m.search.Focus()
-				return m, textinput.Blink
+				cmds = append(cmds, textinput.Blink)
 
 			// Sorting & Filtering
 			case key.Matches(msg, m.keys.ToggleSort):

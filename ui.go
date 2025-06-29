@@ -118,6 +118,8 @@ func (m *model) renderHelp() string {
 	b.WriteString("General   : ")
 	b.WriteString(keyStyle.Render("q"))
 	b.WriteString(": quit ")
+	b.WriteString(keyStyle.Render("r"))
+	b.WriteString(": refresh ")
 	b.WriteString(keyStyle.Render("/"))
 	b.WriteString(": search ")
 	b.WriteString(keyStyle.Render("Esc"))
