@@ -331,13 +331,22 @@ func (m *model) getPackage(name string) *Package {
 // filterAndSortPackages updates the viewPackages based on current filters and sort mode.
 func (m *model) filterAndSortPackages() {
 	m.viewPackages = []*Package{}
-	searchQuery := strings.ToLower(m.search.Value())
 
+	// Search with user query then filter by view mode
+	searchQuery := strings.ToLower(m.search.Value())
+	// Split query to tokens and match each token separately
+	tokens := strings.Fields(searchQuery)
 	for i := range m.allPackages {
 		pkg := &m.allPackages[i]
-		if searchQuery != "" &&
-			!strings.Contains(strings.ToLower(pkg.Name), searchQuery) &&
-			!strings.Contains(strings.ToLower(pkg.Desc), searchQuery) {
+		matches := true
+		// Requires a package's name or its description to contain all tokens in the query
+		for _, t := range tokens {
+			if !strings.Contains(strings.ToLower(pkg.Name), t) && !strings.Contains(strings.ToLower(pkg.Desc), t) {
+				matches = false
+				break
+			}
+		}
+		if !matches {
 			continue
 		}
 
