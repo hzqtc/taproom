@@ -4,21 +4,39 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // --- Constants & Data Structures ---
+var cacheDir = func() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Printf("warning: could not determine home directory, using relative path for cache: %v", err)
+		return ".cache"
+	}
+	return filepath.Join(home, ".cache", "taproom")
+}()
+
 const (
 	apiFormulaURL             = "https://formulae.brew.sh/api/formula.json"
 	apiCaskURL                = "https://formulae.brew.sh/api/cask.json"
 	apiFormulaAnalytics90dURL = "https://formulae.brew.sh/api/analytics/install-on-request/90d.json"
 	apiCaskAnalytics90dURL    = "https://formulae.brew.sh/api/analytics/cask-install/90d.json"
+	formulaeFile              = "formula.json"
+	casksFile                 = "cask.json"
+	formulaeAnalyticsFile     = "formulae-analytics.json"
+	casksAnalyticsFile        = "casks-analytics.json"
+	cacheDuration             = 24 * time.Hour
 )
 
 // Package holds all combined information for a formula or cask.
@@ -111,26 +129,30 @@ func loadData() tea.Msg {
 	installedChan := make(chan installedInfo)
 	errChan := make(chan error, 5)
 
-	go fetchJSON(
+	go fetchJSONWithCache(
 		apiFormulaURL,
+		formulaeFile,
 		&[]apiFormula{},
 		formulaeChan,
 		errChan,
 	)
-	go fetchJSON(
+	go fetchJSONWithCache(
 		apiCaskURL,
+		casksFile,
 		&[]apiCask{},
 		casksChan,
 		errChan,
 	)
-	go fetchJSON(
+	go fetchJSONWithCache(
 		apiFormulaAnalytics90dURL,
+		formulaeAnalyticsFile,
 		&apiFormulaAnalytics{},
 		formulaAnalyticsChan,
 		errChan,
 	)
-	go fetchJSON(
+	go fetchJSONWithCache(
 		apiCaskAnalytics90dURL,
+		casksAnalyticsFile,
 		&apiCaskAnalytics{},
 		caskAnalyticsChan,
 		errChan,
@@ -170,8 +192,27 @@ func loadData() tea.Msg {
 	return dataLoadedMsg{packages: packages}
 }
 
-// fetchJSON is a generic function to fetch and decode JSON from a URL.
-func fetchJSON[T any](url string, target *T, dataChan chan T, errChan chan error) {
+// fetchJSONWithCache is a generic function to fetch and decode JSON from a URL, with caching.
+func fetchJSONWithCache[T any](url, filename string, target *T, dataChan chan T, errChan chan error) {
+	cachePath := filepath.Join(cacheDir, filename)
+
+	// Attempt to load from cache first
+	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < cacheDuration {
+		file, err := os.Open(cachePath)
+		if err == nil {
+			defer file.Close()
+			body, err := io.ReadAll(file)
+			if err == nil {
+				if err := json.Unmarshal(body, &target); err == nil {
+					log.Printf("Loaded %s from cache file %s", url, filename)
+					dataChan <- *target
+					return
+				}
+			}
+		}
+	}
+
+	// If cache is invalid or missing, fetch from URL
 	resp, err := http.Get(url)
 	if err != nil {
 		errChan <- fmt.Errorf("failed to fetch %s: %w", url, err)
@@ -190,10 +231,19 @@ func fetchJSON[T any](url string, target *T, dataChan chan T, errChan chan error
 		return
 	}
 
+	// Save to cache
+	if err := os.MkdirAll(cacheDir, 0755); err == nil {
+		if err := os.WriteFile(cachePath, body, 0644); err != nil {
+			// Log caching error but don't fail the request
+			log.Printf("Failed to write to cache at %s: %w", cachePath, err)
+		}
+	}
+
 	if err := json.Unmarshal(body, &target); err != nil {
 		errChan <- fmt.Errorf("failed to decode json from %s: %w", url, err)
 		return
 	}
+	log.Printf("Downloaded %s", url)
 	dataChan <- *target
 }
 

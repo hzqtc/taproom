@@ -174,7 +174,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Command was successful, update package state
 			if msg.action == actionUpgradeAll {
 				// Do a full reload for 'upgrade all' since it's the simplest
-				// TODO: maybe we can just re-fetch installed packages
+				// Most data should be cached and only installed packages are refreshed
 				m.viewMode = viewAll
 				m.search.SetValue("")
 				m.isLoading = true
