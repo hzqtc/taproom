@@ -377,6 +377,7 @@ func packageFromCask(c *apiCask, installs int, installed bool) Package {
 		Version:         c.Version,
 		Desc:            c.Desc,
 		Homepage:        c.Homepage,
+		License:         "N/A",
 		Dependencies:    append(c.Dependencies.Formulae, c.Dependencies.Casks...),
 		InstallCount90d: installs,
 		IsCask:          true,
