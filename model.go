@@ -51,6 +51,18 @@ const (
 	sortByPopularity
 )
 
+// columnName is a type for identifying table columns.
+type columnName int
+
+const (
+	colName columnName = iota
+	colVersion
+	colTap
+	colDescription
+	colInstalls
+	colStatus
+)
+
 // model holds the entire state of the application.
 type model struct {
 	// Package data
@@ -64,13 +76,14 @@ type model struct {
 	spinner  spinner.Model
 
 	// State
-	isLoading  bool
-	loadingMsg string
-	viewMode   viewMode
-	sortMode   sortMode
-	errorMsg   string
-	width      int
-	height     int
+	isLoading      bool
+	loadingMsg     string
+	viewMode       viewMode
+	sortMode       sortMode
+	errorMsg       string
+	width          int
+	height         int
+	visibleColumns []columnName
 
 	// Keybindings
 	keys keyMap
@@ -96,6 +109,7 @@ func initialModel() model {
 	tbl := table.New(
 		table.WithFocused(true),
 	)
+	tbl.SetStyles(getTableStyles())
 
 	return model{
 		search:    searchInput,
@@ -125,14 +139,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.updateLayout()
+		m.updateTable()
 
 	// Data has been successfully loaded
 	case dataLoadedMsg:
 		m.isLoading = false
 		m.allPackages = msg.packages
 		m.filterAndSortPackages()
-		m.updateTable()
 		m.updateLayout()
+		m.updateTable()
 
 	// An error occurred during data loading
 	case dataLoadingErr:

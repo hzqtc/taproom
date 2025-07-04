@@ -235,7 +235,7 @@ func fetchJSONWithCache[T any](url, filename string, target *T, dataChan chan T,
 	if err := os.MkdirAll(cacheDir, 0755); err == nil {
 		if err := os.WriteFile(cachePath, body, 0644); err != nil {
 			// Log caching error but don't fail the request
-			log.Printf("Failed to write to cache at %s: %w", cachePath, err)
+			log.Printf("Failed to write to cache at %s: %+v", cachePath, err)
 		}
 	}
 

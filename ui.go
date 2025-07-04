@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"slices"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -9,13 +11,15 @@ import (
 )
 
 const (
-	viewportWidth    = 30
+	viewportWidth = 30
+
 	colNameWidth     = 15
 	colVersionWidth  = 15
 	colTapWidth      = 15
-	colDescWidthMin  = 30
+	colDescWidth     = 30
 	colInstallsWidth = 8
 	colStatusWidth   = 15
+	colSpacing       = 2
 
 	outputMaxLines = 10
 )
@@ -185,6 +189,21 @@ func (m *model) renderHelp() string {
 	return helpStyle.Render(b.String())
 }
 
+func getTableStyles() table.Styles {
+	tableStyles := table.DefaultStyles()
+	tableStyles.Header = tableStyles.Header.
+		Foreground(headerColor).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		BorderBottom(true).
+		Bold(true)
+	tableStyles.Selected = tableStyles.Selected.
+		Foreground(highlightForegroudColor).
+		Background(highlightColor).
+		Bold(true)
+	return tableStyles
+}
+
 // updateLayout recalculates component dimensions based on window size.
 func (m *model) updateLayout() {
 	// 2, 4, 6, 8 are used to account for border, margin and prompt width (search box only)
@@ -206,54 +225,110 @@ func (m *model) updateLayout() {
 	m.table.SetHeight(mainHeight)
 	m.viewport.Height = mainHeight
 
-	// Dynamically adjust the width of the description column.
-	// TODO: hide Tap, Version, Deswcription, Installs columns progressively on small screens
-	otherColsWidth := colNameWidth + colVersionWidth + colTapWidth + colInstallsWidth + colStatusWidth
-	descWidth := tableWidth - otherColsWidth - 12 // 12 is purely a magic number, not sure why
-	if descWidth < colDescWidthMin {
-		descWidth = colDescWidthMin
-	}
-	m.table.SetColumns([]table.Column{
-		{Title: "Name", Width: colNameWidth},
-		{Title: "Version", Width: colVersionWidth},
-		{Title: "Tap", Width: colTapWidth},
-		{Title: "Description", Width: descWidth},
-		{Title: "Installs", Width: colInstallsWidth},
-		{Title: "Status", Width: colStatusWidth},
-	})
+	colNames, remainingWidth := getVisibleCols(tableWidth)
+	m.visibleColumns = colNames
+	columns := getTableCols(colNames, remainingWidth)
 
-	tableStyle := table.DefaultStyles()
-	tableStyle.Header = tableStyle.Header.
-		Foreground(headerColor).
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor).
-		BorderBottom(true).
-		Bold(true)
-	tableStyle.Selected = tableStyle.Selected.
-		Foreground(highlightForegroudColor).
-		Background(highlightColor).
-		Bold(true)
-	m.table.SetStyles(tableStyle)
+	if len(m.table.Columns()) != len(columns) {
+		// Clear data when number of columns changes, this needs to be before SetColumns()
+		m.table.SetRows([]table.Row{})
+	}
+	m.table.SetColumns(columns)
+}
+
+// Dynamically determine visible columns based on table width
+// Returns the visible columns and unused width
+func getVisibleCols(tableWidth int) ([]columnName, int) {
+	// name column is always visible
+	visibleCols := []columnName{colName}
+	colsWidth := colNameWidth + colSpacing
+
+	// Add other columns: prefer the ones take less space, then by importance
+	if tableWidth > colsWidth+colInstallsWidth+colSpacing {
+		visibleCols = append(visibleCols, colInstalls)
+		colsWidth += colInstallsWidth + colSpacing
+	}
+	if tableWidth > colsWidth+colStatusWidth+colSpacing {
+		visibleCols = append(visibleCols, colStatus)
+		colsWidth += colStatusWidth + colSpacing
+	}
+	if tableWidth > colsWidth+colVersionWidth+colSpacing {
+		visibleCols = append(visibleCols, colVersion)
+		colsWidth += colVersionWidth + colSpacing
+	}
+	if tableWidth > colsWidth+colTapWidth+colSpacing {
+		visibleCols = append(visibleCols, colTap)
+		colsWidth += colTapWidth + colSpacing
+	}
+	if tableWidth > colsWidth+colDescWidth+colSpacing {
+		visibleCols = append(visibleCols, colDescription)
+		colsWidth += colDescWidth + colSpacing
+	}
+	// sort visible columns by their order in the iota
+	sort.Slice(visibleCols, func(i, j int) bool {
+		return visibleCols[i] < visibleCols[j]
+	})
+	return visibleCols, tableWidth - colsWidth
+}
+
+// Build the columns for the table view
+func getTableCols(colNames []columnName, remainingWidth int) []table.Column {
+	columns := []table.Column{}
+	for _, col := range colNames {
+		switch col {
+		case colName:
+			if slices.Contains(colNames, colDescription) {
+				columns = append(columns, table.Column{Title: "Name", Width: colNameWidth})
+			} else {
+				// If desc column is not visible, the name column takes all remaining width
+				columns = append(columns, table.Column{Title: "Name", Width: colNameWidth + remainingWidth})
+				remainingWidth = 0
+			}
+		case colVersion:
+			columns = append(columns, table.Column{Title: "Version", Width: colVersionWidth})
+		case colTap:
+			columns = append(columns, table.Column{Title: "Tap", Width: colTapWidth})
+		case colDescription:
+			// If desc column is visible, it takes all remaining width
+			columns = append(columns, table.Column{Title: "Description", Width: colDescWidth + remainingWidth})
+			remainingWidth = 0
+		case colInstalls:
+			columns = append(columns, table.Column{Title: "Installs", Width: colInstallsWidth})
+		case colStatus:
+			columns = append(columns, table.Column{Title: "Status", Width: colStatusWidth})
+		}
+	}
+	return columns
 }
 
 // updateTable populates the table with the current viewPackages.
 func (m *model) updateTable() {
 	rows := make([]table.Row, len(m.viewPackages))
 	for i, pkg := range m.viewPackages {
-		version := pkg.Version
-		if pkg.IsPinned {
-			version = fmt.Sprintf("%s (Pin)", pkg.InstalledVersion)
-		} else if pkg.IsOutdated {
-			version = fmt.Sprintf("%s (New)", pkg.Version)
+		rowData := []string{}
+		for _, col := range m.visibleColumns {
+			switch col {
+			case colName:
+				rowData = append(rowData, pkg.Name)
+			case colVersion:
+				version := pkg.Version
+				if pkg.IsPinned {
+					version = fmt.Sprintf("%s (Pin)", pkg.InstalledVersion)
+				} else if pkg.IsOutdated {
+					version = fmt.Sprintf("%s (New)", pkg.Version)
+				}
+				rowData = append(rowData, version)
+			case colTap:
+				rowData = append(rowData, pkg.Tap)
+			case colDescription:
+				rowData = append(rowData, pkg.Desc)
+			case colInstalls:
+				rowData = append(rowData, fmt.Sprintf("%*d", colInstallsWidth, pkg.InstallCount90d))
+			case colStatus:
+				rowData = append(rowData, pkg.Status)
+			}
 		}
-		rows[i] = table.Row{
-			pkg.Name,
-			version,
-			pkg.Tap,
-			pkg.Desc,
-			fmt.Sprintf("%*d", colInstallsWidth, pkg.InstallCount90d),
-			pkg.Status,
-		}
+		rows[i] = table.Row(rowData)
 	}
 	m.table.SetRows(rows)
 
@@ -275,7 +350,8 @@ func (m *model) updateViewport() {
 	// Ensure selected index is valid
 	selectedIndex := m.table.Cursor()
 	if selectedIndex < 0 || selectedIndex >= len(m.viewPackages) {
-		selectedIndex = 0
+		m.viewport.SetContent("No packages selected.")
+		return
 	}
 
 	pkg := m.viewPackages[selectedIndex]
