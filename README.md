@@ -3,6 +3,8 @@
 `taproom` is a cozy terminal user interface (TUI) for Homebrew. It provides a fast and fluid way to explore formulae and casks directly in your
 terminal. `taproom` is inspired by [`boldbrew`](https://github.com/Valkyrie00/bold-brew).
 
+![](https://raw.github.com/hzqtc/taproom/master/screenshot.png)
+
 ## ✨ Features
 
 *   **Table View:** All or selected formula or cask.
