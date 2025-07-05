@@ -33,6 +33,7 @@ var (
 	borderColor             = lipgloss.Color("240")
 	focusedBorderColor      = highlightColor
 	installedColor          = lipgloss.Color("#22C55E")
+	deprecatedColor         = lipgloss.Color("#FBBF24")
 	uninstalledColor        = lipgloss.Color("#EF4444")
 	pinnedColor             = lipgloss.Color("#B57EDC")
 
@@ -42,6 +43,9 @@ var (
 
 	installedStyle = lipgloss.NewStyle().
 			Foreground(installedColor)
+
+	deprecatedStyle = lipgloss.NewStyle().
+			Foreground(deprecatedColor)
 
 	uninstalledStyle = lipgloss.NewStyle().
 				Foreground(uninstalledColor)
@@ -328,6 +332,60 @@ func getTableCols(colNames []columnName, remainingWidth int) []table.Column {
 	return columns
 }
 
+func getSimpleVersion(pkg *Package) string {
+	if pkg.IsOutdated {
+		return fmt.Sprintf("%s (New)", pkg.Version)
+	} else if pkg.IsPinned {
+		return fmt.Sprintf("%s (Pin)", pkg.InstalledVersion)
+	} else {
+		return pkg.Version
+	}
+}
+
+func getFormattedVersion(pkg *Package) string {
+	if pkg.IsOutdated {
+		return fmt.Sprintf("%s -> %s", pkg.InstalledVersion, pkg.Version)
+	} else if pkg.IsPinned {
+		return fmt.Sprintf("%s (Pinned)", pkg.InstalledVersion)
+	} else {
+		return pkg.Version
+	}
+}
+
+func getSimpleStatus(pkg *Package) string {
+	if pkg.IsDisabled {
+		return "Disabled"
+	} else if pkg.IsDeprecated {
+		return "Deprecated"
+	} else if pkg.IsPinned {
+		return "Pinned"
+	} else if pkg.IsOutdated {
+		return "Outdated"
+	} else if pkg.InstalledAsDependency {
+		return "Installed (Dep)"
+	} else if pkg.IsInstalled {
+		return "Installed"
+	} else {
+		return "Uninstalled"
+	}
+}
+
+func getFormattedStatus(pkg *Package) string {
+	var statusSymbol string
+	if pkg.IsDisabled || pkg.IsDeprecated {
+		statusSymbol = deprecatedStyle.Render("")
+	} else if pkg.IsPinned {
+		statusSymbol = pinnedStyle.Render("")
+	} else if pkg.IsOutdated {
+		statusSymbol = outdatedStyle.Render("")
+	} else if pkg.IsInstalled {
+		statusSymbol = installedStyle.Render("✓")
+	} else {
+		statusSymbol = uninstalledStyle.Render("✗")
+	}
+	return fmt.Sprintf("%s %s\n", statusSymbol, getSimpleStatus(pkg))
+}
+
 // updateTable populates the table with the current viewPackages.
 func (m *model) updateTable() {
 	rows := make([]table.Row, len(m.viewPackages))
@@ -338,13 +396,7 @@ func (m *model) updateTable() {
 			case colName:
 				rowData = append(rowData, pkg.Name)
 			case colVersion:
-				version := pkg.Version
-				if pkg.IsPinned {
-					version = fmt.Sprintf("%s (Pin)", pkg.InstalledVersion)
-				} else if pkg.IsOutdated {
-					version = fmt.Sprintf("%s (New)", pkg.Version)
-				}
-				rowData = append(rowData, version)
+				rowData = append(rowData, getSimpleVersion(pkg))
 			case colTap:
 				rowData = append(rowData, pkg.Tap)
 			case colDescription:
@@ -352,7 +404,7 @@ func (m *model) updateTable() {
 			case colInstalls:
 				rowData = append(rowData, fmt.Sprintf("%*d", colInstallsWidth, pkg.InstallCount90d))
 			case colStatus:
-				rowData = append(rowData, pkg.Status)
+				rowData = append(rowData, getSimpleStatus(pkg))
 			}
 		}
 		rows[i] = table.Row(rowData)
@@ -383,34 +435,14 @@ func (m *model) updateViewport() {
 
 	pkg := m.viewPackages[selectedIndex]
 
-	version := pkg.Version
-	if pkg.IsOutdated {
-		version = fmt.Sprintf("%s -> %s", pkg.InstalledVersion, pkg.Version)
-	} else if pkg.IsPinned {
-		version = fmt.Sprintf("%s (Pin)", pkg.InstalledVersion)
-	}
-
-	status := pkg.Status
-	statusSymbol := ""
-	if pkg.IsPinned {
-		statusSymbol = pinnedStyle.Render("")
-	} else if pkg.IsOutdated {
-		statusSymbol = outdatedStyle.Render("")
-	} else if pkg.IsInstalled {
-		statusSymbol = installedStyle.Render("✓")
-	} else {
-		statusSymbol = uninstalledStyle.Render("✗")
-	}
-	status = fmt.Sprintf("%s %s\n", statusSymbol, status)
-
 	var b strings.Builder
 	b.WriteString(headerStyle.Render(pkg.Name))
 	b.WriteString(fmt.Sprintf("\n%s\n\n", pkg.Desc))
-	b.WriteString(fmt.Sprintf("Version: %s\n", version))
+	b.WriteString(fmt.Sprintf("Version: %s\n", getFormattedVersion(pkg)))
 	b.WriteString(fmt.Sprintf("Tap: %s\n", pkg.Tap))
 	b.WriteString(fmt.Sprintf("Homepage: %s\n", pkg.Homepage))
 	b.WriteString(fmt.Sprintf("License: %s\n\n", pkg.License))
-	b.WriteString(fmt.Sprintf("Status: %s\n", status))
+	b.WriteString(fmt.Sprintf("Status: %s\n", getFormattedStatus(pkg)))
 	b.WriteString(fmt.Sprintf("90-Day Installs: %d\n\n", pkg.InstallCount90d))
 
 	b.WriteString("Dependencies:\n")
@@ -444,20 +476,6 @@ func (m *model) updateViewport() {
 	vpStyle := lipgloss.NewStyle().Width(viewportWidth)
 	m.viewport.SetContent(vpStyle.Render(b.String()))
 	m.viewport.GotoTop() // Reset scroll position
-}
-
-func (m *model) getRecursiveMissingDeps(pkgName string) []string {
-	pkg := m.getPackage(pkgName)
-	if pkg.IsInstalled {
-		return []string{}
-	} else {
-		deps := pkg.Dependencies
-		depsCopy := append([]string{}, deps...)
-		for _, dep := range depsCopy {
-			deps = append(deps, m.getRecursiveMissingDeps(dep)...)
-		}
-		return deps
-	}
 }
 
 func sortAndUniq(input []string) []string {

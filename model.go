@@ -455,7 +455,18 @@ func (m *model) updatePackageForAction(action commandAction, pkg *Package) {
 	case actionUnpin:
 		pkg.IsPinned = false
 	}
+}
 
-	// After updating fields, we need to update the Status field as well.
-	pkg.Status = getPackageStatus(pkg)
+func (m *model) getRecursiveMissingDeps(pkgName string) []string {
+	pkg := m.getPackage(pkgName)
+	if pkg.IsInstalled {
+		return []string{}
+	} else {
+		deps := pkg.Dependencies
+		depsCopy := append([]string{}, deps...)
+		for _, dep := range depsCopy {
+			deps = append(deps, m.getRecursiveMissingDeps(dep)...)
+		}
+		return deps
+	}
 }

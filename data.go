@@ -56,8 +56,9 @@ type Package struct {
 	IsInstalled           bool
 	IsOutdated            bool
 	IsPinned              bool
+	IsDeprecated          bool
+	IsDisabled            bool
 	InstalledAsDependency bool
-	Status                string
 }
 
 // Structs for parsing Homebrew API JSON
@@ -74,6 +75,8 @@ type apiFormula struct {
 	BuildDependencies []string `json:"build_dependencies"`
 	Outdated          bool     `json:"outdated"`
 	Pinned            bool     `json:"pinned"`
+	Deprecated        bool     `json:"deprecated"`
+	Disabled          bool     `json:"disabled"`
 	Installed         []struct {
 		Version        string `json:"version"`
 		InstalledAsDep bool   `json:"installed_as_dependency"`
@@ -91,6 +94,8 @@ type apiCask struct {
 		Casks    []string `json:"cask"`
 	} `json:"depends_on"`
 	Outdated         bool   `json:"outdated"`
+	Deprecated       bool   `json:"deprecated"`
+	Disabled         bool   `json:"disabled"`
 	InstalledVersion string `json:"installed"`
 }
 
@@ -356,6 +361,8 @@ func packageFromFormula(f *apiFormula, installs int, installed bool) Package {
 		BuildDependencies: f.BuildDependencies,
 		InstallCount90d:   installs,
 		IsCask:            false,
+		IsDeprecated:      f.Deprecated,
+		IsDisabled:        f.Disabled,
 	}
 	if installed {
 		inst := f.Installed[0]
@@ -365,7 +372,6 @@ func packageFromFormula(f *apiFormula, installs int, installed bool) Package {
 		pkg.IsPinned = f.Pinned
 		pkg.InstalledAsDependency = inst.InstalledAsDep
 	}
-	pkg.Status = getPackageStatus(&pkg)
 
 	return pkg
 }
@@ -381,6 +387,8 @@ func packageFromCask(c *apiCask, installs int, installed bool) Package {
 		Dependencies:    append(c.Dependencies.Formulae, c.Dependencies.Casks...),
 		InstallCount90d: installs,
 		IsCask:          true,
+		IsDeprecated:    c.Deprecated,
+		IsDisabled:      c.Disabled,
 	}
 	if installed {
 		pkg.IsInstalled = true
@@ -390,21 +398,6 @@ func packageFromCask(c *apiCask, installs int, installed bool) Package {
 		pkg.IsPinned = false
 		pkg.InstalledAsDependency = false
 	}
-	pkg.Status = getPackageStatus(&pkg)
 
 	return pkg
-}
-
-func getPackageStatus(pkg *Package) string {
-	if pkg.IsPinned {
-		return "Pinned"
-	} else if pkg.IsOutdated {
-		return "Outdated"
-	} else if pkg.InstalledAsDependency {
-		return "Installed (Dep)"
-	} else if pkg.IsInstalled {
-		return "Installed"
-	} else {
-		return "Uninstalled"
-	}
 }
