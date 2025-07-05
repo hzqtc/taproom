@@ -22,6 +22,7 @@ const (
 	viewInstalled
 	viewOutdated
 	viewExplicitlyInstalled
+	viewNonDisabled
 )
 
 func (v viewMode) String() string {
@@ -38,6 +39,8 @@ func (v viewMode) String() string {
 		return "Outdated"
 	case viewExplicitlyInstalled:
 		return "Installed (no deps)"
+	case viewNonDisabled:
+		return "Hiding disabled"
 	default:
 		return "Unknown"
 	}
@@ -325,6 +328,10 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		m.viewMode = viewExplicitlyInstalled
 		m.filterAndSortPackages()
 		m.updateTable()
+	case key.Matches(msg, m.keys.FilterDisabled):
+		m.viewMode = viewNonDisabled
+		m.filterAndSortPackages()
+		m.updateTable()
 
 		// Commands
 	case key.Matches(msg, m.keys.UpgradeAll):
@@ -421,6 +428,8 @@ func (m *model) filterAndSortPackages() {
 			passesFilter = pkg.IsOutdated
 		case viewExplicitlyInstalled:
 			passesFilter = pkg.IsInstalled && !pkg.InstalledAsDependency
+		case viewNonDisabled:
+			passesFilter = !pkg.IsDisabled && !pkg.IsDeprecated
 		}
 
 		if passesFilter {

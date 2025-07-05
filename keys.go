@@ -20,6 +20,7 @@ type keyMap struct {
 	FilterInstalled key.Binding
 	FilterOutdated  key.Binding
 	FilterExplicit  key.Binding
+	FilterDisabled  key.Binding
 
 	// Brew Commands
 	Upgrade    key.Binding
@@ -49,6 +50,7 @@ func defaultKeyMap() keyMap {
 		FilterInstalled: key.NewBinding(key.WithKeys("i")),
 		FilterOutdated:  key.NewBinding(key.WithKeys("o")),
 		FilterExplicit:  key.NewBinding(key.WithKeys("e")),
+		FilterDisabled:  key.NewBinding(key.WithKeys("d")),
 
 		// Brew Commands
 		Upgrade:    key.NewBinding(key.WithKeys("u")),
