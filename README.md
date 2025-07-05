@@ -31,12 +31,6 @@ To get a local copy up and running, follow these simple steps.
 *   [Go](https://go.dev/doc/install)
 *   [Homebrew](https://brew.sh/) (for fetching package information)
 
-### Run
-
-```sh
-go install github.com/hzqtc/taproom
-```
-
 ### Build
 
 1.  Navigate to the project directory.
