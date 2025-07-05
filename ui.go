@@ -67,7 +67,8 @@ var (
 
 	tableStyle = baseStyle.Copy()
 
-	viewportStyle = baseStyle.Copy()
+	viewportStyle = baseStyle.Copy().
+			Padding(0, 1)
 
 	viewModeStyle = baseStyle.Copy().
 			Width(viewportWidth).
@@ -240,7 +241,7 @@ func (m *model) updateLayout() {
 
 	tableWidth := m.width - viewportWidth - 4
 
-	m.viewport.Width = viewportWidth
+	m.viewport.Width = viewportWidth - 2
 	m.table.SetWidth(tableWidth)
 
 	searchHeight := lipgloss.Height(searchStyle.Render(m.search.View()))
