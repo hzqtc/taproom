@@ -235,10 +235,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.search.Focus()
 				m.updateFocusBorder()
 				cmds = append(cmds, textinput.Blink)
-			case key.Matches(msg, m.keys.ClearSearch):
-				m.search.SetValue("")
-				m.filterAndSortPackages()
-				m.updateTable()
 			case key.Matches(msg, m.keys.Refresh):
 				m.search.SetValue("")
 				m.isLoading = true
@@ -261,11 +257,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) handleSearchInputKeys(msg tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
 	switch {
-	case key.Matches(msg, m.keys.ExitSearch):
+	case key.Matches(msg, m.keys.Enter):
 		m.search.Blur()
 		m.focusMode = focusTable
 		m.updateFocusBorder()
-	case key.Matches(msg, m.keys.ClearSearch):
+	case key.Matches(msg, m.keys.Esc):
 		m.search.Blur()
 		m.focusMode = focusTable
 		m.updateFocusBorder()
@@ -288,6 +284,14 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 	}
 
 	switch {
+	case key.Matches(msg, m.keys.Enter):
+		m.focusMode = focusDetail
+		m.updateFocusBorder()
+	case key.Matches(msg, m.keys.Esc):
+		m.search.SetValue("")
+		m.filterAndSortPackages()
+		m.updateTable()
+
 	// Sorting & Filtering
 	case key.Matches(msg, m.keys.ToggleSort):
 		if m.sortMode == sortByName {
@@ -359,7 +363,13 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 
 func (m *model) handleViewportKeys(msg tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
-	m.viewport, cmd = m.viewport.Update(msg)
+	switch {
+	case key.Matches(msg, m.keys.Esc):
+		m.focusMode = focusTable
+		m.updateFocusBorder()
+	default:
+		m.viewport, cmd = m.viewport.Update(msg)
+	}
 	return cmd
 }
 

@@ -6,13 +6,11 @@ import "github.com/charmbracelet/bubbles/key"
 type keyMap struct {
 	// General
 	SwitchFocus key.Binding
+	FocusSearch key.Binding
+	Enter       key.Binding
+	Esc         key.Binding
 	Refresh     key.Binding
 	Quit        key.Binding
-
-	// Search
-	FocusSearch key.Binding
-	ClearSearch key.Binding
-	ExitSearch  key.Binding
 
 	// Filtering & Sorting
 	ToggleSort      key.Binding
@@ -37,13 +35,11 @@ func defaultKeyMap() keyMap {
 	return keyMap{
 		// General
 		SwitchFocus: key.NewBinding(key.WithKeys("tab")),
+		FocusSearch: key.NewBinding(key.WithKeys("/")),
+		Enter:       key.NewBinding(key.WithKeys("enter")),
+		Esc:         key.NewBinding(key.WithKeys("esc")),
 		Refresh:     key.NewBinding(key.WithKeys("r")),
 		Quit:        key.NewBinding(key.WithKeys("q", "ctrl+c")),
-
-		// Search
-		FocusSearch: key.NewBinding(key.WithKeys("/")),
-		ClearSearch: key.NewBinding(key.WithKeys("esc")),
-		ExitSearch:  key.NewBinding(key.WithKeys("enter")),
 
 		// Sorting & Filtering
 		ToggleSort:      key.NewBinding(key.WithKeys("s")),
