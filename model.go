@@ -63,6 +63,17 @@ const (
 	colStatus
 )
 
+// focusMode defines which component is currently focused
+type focusMode int
+
+const focusModeLen = 3
+
+const (
+	focusTable focusMode = iota
+	focusDetail
+	focusSearch
+)
+
 // model holds the entire state of the application.
 type model struct {
 	// Package data
@@ -78,6 +89,7 @@ type model struct {
 	// State
 	isLoading      bool
 	loadingMsg     string
+	focusMode      focusMode
 	viewMode       viewMode
 	sortMode       sortMode
 	errorMsg       string
@@ -205,130 +217,150 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// A key was pressed
 	case tea.KeyMsg:
-		// When a command is running, ignore keys
-		if m.isExecuting {
-			break
-		}
-
-		// If the search bar is focused, handle input there.
-		if m.search.Focused() {
+		if m.focusMode == focusSearch {
+			cmds = append(cmds, m.handleSearchInputKeys(msg))
+		} else {
+			// General keys when focus is not on search
 			switch {
-			case key.Matches(msg, m.keys.ExitSearch):
-				m.search.Blur()
+			case key.Matches(msg, m.keys.SwitchFocus):
+				// Tab switches focus between table and viewport
+				if m.focusMode == focusTable {
+					m.focusMode = focusDetail
+				} else if m.focusMode == focusDetail {
+					m.focusMode = focusTable
+				}
+				m.updateFocusBorder()
+			case key.Matches(msg, m.keys.FocusSearch):
+				m.focusMode = focusSearch
+				m.search.Focus()
+				m.updateFocusBorder()
+				cmds = append(cmds, textinput.Blink)
 			case key.Matches(msg, m.keys.ClearSearch):
-				m.search.Blur()
 				m.search.SetValue("")
 				m.filterAndSortPackages()
 				m.updateTable()
-			default:
-				m.search, cmd = m.search.Update(msg)
-				m.filterAndSortPackages()
-				m.updateTable()
-				cmds = append(cmds, cmd)
-			}
-		} else {
-			var selectedPkg *Package
-			if len(m.viewPackages) > 0 && m.table.Cursor() >= 0 {
-				selectedPkg = m.viewPackages[m.table.Cursor()]
-			}
-
-			switch {
-			//General
-			// TODO: allow switching focus betwen panels using Tab and scrolling in the view port
 			case key.Matches(msg, m.keys.Refresh):
 				m.search.SetValue("")
 				m.isLoading = true
 				cmds = append(cmds, loadData)
 			case key.Matches(msg, m.keys.Quit):
 				return m, tea.Quit
-
-			// Navigation
-			case key.Matches(msg, m.keys.Up):
-				m.table.MoveUp(1)
-				m.updateViewport()
-			case key.Matches(msg, m.keys.Down):
-				m.table.MoveDown(1)
-				m.updateViewport()
-			case key.Matches(msg, m.keys.PageUp):
-				m.table.MoveUp(m.table.Height())
-				m.updateViewport()
-			case key.Matches(msg, m.keys.PageDown):
-				m.table.MoveDown(m.table.Height())
-				m.updateViewport()
-			case key.Matches(msg, m.keys.GoToTop):
-				m.table.SetCursor(0)
-				m.updateViewport()
-			case key.Matches(msg, m.keys.GoToBottom):
-				m.table.SetCursor(len(m.viewPackages) - 1)
-				m.updateViewport()
-
-			// Search
-			case key.Matches(msg, m.keys.FocusSearch):
-				m.search.Focus()
-				cmds = append(cmds, textinput.Blink)
-
-			// Sorting & Filtering
-			case key.Matches(msg, m.keys.ToggleSort):
-				if m.sortMode == sortByName {
-					m.sortMode = sortByPopularity
-				} else {
-					m.sortMode = sortByName
-				}
-				m.filterAndSortPackages()
-				m.updateTable()
-			case key.Matches(msg, m.keys.FilterAll):
-				m.viewMode = viewAll
-				m.filterAndSortPackages()
-				m.updateTable()
-			case key.Matches(msg, m.keys.FilterFormulae):
-				m.viewMode = viewFormulae
-				m.filterAndSortPackages()
-				m.updateTable()
-			case key.Matches(msg, m.keys.FilterCasks):
-				m.viewMode = viewCasks
-				m.filterAndSortPackages()
-				m.updateTable()
-			case key.Matches(msg, m.keys.FilterInstalled):
-				m.viewMode = viewInstalled
-				m.filterAndSortPackages()
-				m.updateTable()
-			case key.Matches(msg, m.keys.FilterOutdated):
-				m.viewMode = viewOutdated
-				m.filterAndSortPackages()
-				m.updateTable()
-			case key.Matches(msg, m.keys.FilterExplicit):
-				m.viewMode = viewExplicitlyInstalled
-				m.filterAndSortPackages()
-				m.updateTable()
-
-				// Commands
-			case key.Matches(msg, m.keys.UpgradeAll):
-				cmds = append(cmds, upgradeAllPackages())
-			case key.Matches(msg, m.keys.Upgrade):
-				if selectedPkg != nil && selectedPkg.IsOutdated && !selectedPkg.IsPinned {
-					cmds = append(cmds, upgradePackage(selectedPkg))
-				}
-			case key.Matches(msg, m.keys.Install):
-				if selectedPkg != nil && !selectedPkg.IsInstalled {
-					cmds = append(cmds, installPackage(selectedPkg))
-				}
-			case key.Matches(msg, m.keys.Remove):
-				if selectedPkg != nil && selectedPkg.IsInstalled {
-					cmds = append(cmds, uninstallPackage(selectedPkg))
-				}
-			case key.Matches(msg, m.keys.Pin):
-				if selectedPkg != nil && selectedPkg.IsInstalled && !selectedPkg.IsCask && !selectedPkg.IsPinned {
-					cmds = append(cmds, pinPackage(selectedPkg))
-				}
-			case key.Matches(msg, m.keys.Unpin):
-				if selectedPkg != nil && selectedPkg.IsPinned {
-					cmds = append(cmds, unpinPackage(selectedPkg))
+			default:
+				if m.focusMode == focusDetail {
+					cmds = append(cmds, m.handleViewportKeys(msg))
+				} else if m.focusMode == focusTable {
+					cmds = append(cmds, m.handleTableKeys(msg))
 				}
 			}
 		}
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m *model) handleSearchInputKeys(msg tea.KeyMsg) tea.Cmd {
+	var cmd tea.Cmd
+	switch {
+	case key.Matches(msg, m.keys.ExitSearch):
+		m.search.Blur()
+		m.focusMode = focusTable
+		m.updateFocusBorder()
+	case key.Matches(msg, m.keys.ClearSearch):
+		m.search.Blur()
+		m.focusMode = focusTable
+		m.updateFocusBorder()
+		m.search.SetValue("")
+		m.filterAndSortPackages()
+		m.updateTable()
+	default:
+		m.search, cmd = m.search.Update(msg)
+		m.filterAndSortPackages()
+		m.updateTable()
+	}
+	return cmd
+}
+
+func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
+	var cmd tea.Cmd
+	var selectedPkg *Package
+	if len(m.viewPackages) > 0 && m.table.Cursor() >= 0 {
+		selectedPkg = m.viewPackages[m.table.Cursor()]
+	}
+
+	switch {
+	// Sorting & Filtering
+	case key.Matches(msg, m.keys.ToggleSort):
+		if m.sortMode == sortByName {
+			m.sortMode = sortByPopularity
+		} else {
+			m.sortMode = sortByName
+		}
+		m.filterAndSortPackages()
+		m.updateTable()
+	case key.Matches(msg, m.keys.FilterAll):
+		m.viewMode = viewAll
+		m.filterAndSortPackages()
+		m.updateTable()
+	case key.Matches(msg, m.keys.FilterFormulae):
+		m.viewMode = viewFormulae
+		m.filterAndSortPackages()
+		m.updateTable()
+	case key.Matches(msg, m.keys.FilterCasks):
+		m.viewMode = viewCasks
+		m.filterAndSortPackages()
+		m.updateTable()
+	case key.Matches(msg, m.keys.FilterInstalled):
+		m.viewMode = viewInstalled
+		m.filterAndSortPackages()
+		m.updateTable()
+	case key.Matches(msg, m.keys.FilterOutdated):
+		m.viewMode = viewOutdated
+		m.filterAndSortPackages()
+		m.updateTable()
+	case key.Matches(msg, m.keys.FilterExplicit):
+		m.viewMode = viewExplicitlyInstalled
+		m.filterAndSortPackages()
+		m.updateTable()
+
+		// Commands
+	case key.Matches(msg, m.keys.UpgradeAll):
+		if !m.isExecuting {
+			cmd = upgradeAllPackages()
+		}
+	case key.Matches(msg, m.keys.Upgrade):
+		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsOutdated && !selectedPkg.IsPinned {
+			cmd = upgradePackage(selectedPkg)
+		}
+	case key.Matches(msg, m.keys.Install):
+		if !m.isExecuting && selectedPkg != nil && !selectedPkg.IsInstalled {
+			cmd = installPackage(selectedPkg)
+		}
+	case key.Matches(msg, m.keys.Remove):
+		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsInstalled {
+			cmd = uninstallPackage(selectedPkg)
+		}
+	case key.Matches(msg, m.keys.Pin):
+		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsInstalled && !selectedPkg.IsCask && !selectedPkg.IsPinned {
+			cmd = pinPackage(selectedPkg)
+		}
+	case key.Matches(msg, m.keys.Unpin):
+		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsPinned {
+			cmd = unpinPackage(selectedPkg)
+		}
+
+	default:
+		// Let table itself handle the rest of keys
+		m.table, cmd = m.table.Update(msg)
+		m.updateViewport()
+	}
+
+	return cmd
+}
+
+func (m *model) handleViewportKeys(msg tea.KeyMsg) tea.Cmd {
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	return cmd
 }
 
 func (m *model) getPackage(name string) *Package {

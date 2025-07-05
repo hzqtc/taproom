@@ -31,6 +31,7 @@ var (
 	highlightColor          = headerColor
 	highlightForegroudColor = lipgloss.Color("#2E2E2E")
 	borderColor             = lipgloss.Color("240")
+	focusedBorderColor      = highlightColor
 	installedColor          = lipgloss.Color("#22C55E")
 	uninstalledColor        = lipgloss.Color("#EF4444")
 	pinnedColor             = lipgloss.Color("#B57EDC")
@@ -57,15 +58,18 @@ var (
 
 	helpStyle = lipgloss.NewStyle().
 			Padding(1 /* top */, 2 /* horizontal */, 0 /* bottom */)
+
 	keyStyle = lipgloss.NewStyle().
 			Foreground(highlightColor)
 
-	searchStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(borderColor).
+	searchStyle = baseStyle.Copy().
 			Margin(1 /* top */, 0 /* horizontal */, 0 /* bottom */)
 
-	viewStyle = baseStyle.Copy().
+	tableStyle = baseStyle.Copy()
+
+	viewportStyle = baseStyle.Copy()
+
+	viewModeStyle = baseStyle.Copy().
 			Width(viewportWidth).
 			Padding(0, 1).
 			Margin(1, 0)
@@ -91,14 +95,14 @@ func (m model) View() string {
 
 	mainContent := lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		baseStyle.Render(m.table.View()),
-		baseStyle.Render(m.viewport.View()),
+		tableStyle.Render(m.table.View()),
+		viewportStyle.Render(m.viewport.View()),
 	)
 
 	topContent := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		searchStyle.Render(m.search.View()),
-		viewStyle.Render(fmt.Sprintf("Viewing: %s", m.viewMode.String())),
+		viewModeStyle.Render(fmt.Sprintf("Viewing: %s", m.viewMode.String())),
 	)
 
 	views := []string{
@@ -130,19 +134,20 @@ func (m *model) renderOutput() string {
 func (m *model) renderHelp() string {
 	var b strings.Builder
 
+	// TODO: update help based on current focused component
 	b.WriteString("General   : ")
 	b.WriteString(keyStyle.Render("q"))
 	b.WriteString(": quit ")
 	b.WriteString(keyStyle.Render("r"))
 	b.WriteString(": refresh ")
+	b.WriteString(keyStyle.Render("Tab"))
+	b.WriteString(": switch focus ")
 	b.WriteString(keyStyle.Render("/"))
 	b.WriteString(": search ")
 	b.WriteString(keyStyle.Render("Esc"))
 	b.WriteString(": clear search ")
 	b.WriteString(keyStyle.Render("Enter"))
-	b.WriteString(": exit focus ")
-	b.WriteString(keyStyle.Render("s"))
-	b.WriteString(": sort by name/popularity")
+	b.WriteString(": exit search")
 	b.WriteString("\n")
 	b.WriteString("Navigation: ")
 	b.WriteString(keyStyle.Render("j/↓"))
@@ -158,7 +163,9 @@ func (m *model) renderHelp() string {
 	b.WriteString(keyStyle.Render("G"))
 	b.WriteString(": go to bottom")
 	b.WriteString("\n")
-	b.WriteString("Filters   : ")
+	b.WriteString("Table     : ")
+	b.WriteString(keyStyle.Render("s"))
+	b.WriteString(": sort by name/popularity ")
 	b.WriteString(keyStyle.Render("a"))
 	b.WriteString(": all ")
 	b.WriteString(keyStyle.Render("f"))
@@ -204,8 +211,27 @@ func getTableStyles() table.Styles {
 	return tableStyles
 }
 
+func (m *model) updateFocusBorder() {
+	switch m.focusMode {
+	case focusSearch:
+		searchStyle = searchStyle.Copy().BorderForeground(focusedBorderColor)
+		tableStyle = tableStyle.Copy().BorderForeground(borderColor)
+		viewportStyle = viewportStyle.Copy().BorderForeground(borderColor)
+	case focusTable:
+		searchStyle = searchStyle.Copy().BorderForeground(borderColor)
+		tableStyle = tableStyle.Copy().BorderForeground(focusedBorderColor)
+		viewportStyle = viewportStyle.Copy().BorderForeground(borderColor)
+	case focusDetail:
+		searchStyle = searchStyle.Copy().BorderForeground(borderColor)
+		tableStyle = tableStyle.Copy().BorderForeground(borderColor)
+		viewportStyle = viewportStyle.Copy().BorderForeground(focusedBorderColor)
+	}
+}
+
 // updateLayout recalculates component dimensions based on window size.
 func (m *model) updateLayout() {
+	m.updateFocusBorder()
+
 	// 2, 4, 6, 8 are used to account for border, margin and prompt width (search box only)
 	outputStyle = outputStyle.Copy().Width(m.width - 2)
 	helpStyle = helpStyle.Copy().Width(m.width - 2)
