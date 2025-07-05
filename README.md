@@ -24,14 +24,24 @@ terminal. `taproom` is inspired by [`boldbrew`](https://github.com/Valkyrie00/bo
 
 ## 🚀 Getting Started
 
-To get a local copy up and running, follow these simple steps.
+### Install from pre-built binary
 
-### Prerequisites
+`gromgit` maintains a [formula](https://github.com/gromgit/homebrew-brewtils/blob/main/Formula/taproom.rb):
+
+```
+brew install gromgit/brewtils/taproom
+```
+
+### Build from source
+
+To build from source, follow these simple steps:
+
+#### Prerequisites
 
 *   [Go](https://go.dev/doc/install)
 *   [Homebrew](https://brew.sh/) (for fetching package information)
 
-### Build
+#### Build
 
 1.  Navigate to the project directory.
 2.  Build the binary:
