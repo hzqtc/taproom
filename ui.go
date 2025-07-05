@@ -422,7 +422,7 @@ func (m *model) updateViewport() {
 			} else {
 				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
 				// For uninstall dependencies, show all recursive uninstalled dependencies
-				recursiveMissingDeps := m.getRecursiveMissingDeps(dep)
+				recursiveMissingDeps := sortAndUniq(m.getRecursiveMissingDeps(dep))
 				for _, d := range recursiveMissingDeps {
 					if p := m.getPackage(d); !p.IsInstalled {
 						b.WriteString(fmt.Sprintf("    %s %s\n", uninstalledStyle.Render("✗"), d))
@@ -458,4 +458,22 @@ func (m *model) getRecursiveMissingDeps(pkgName string) []string {
 		}
 		return deps
 	}
+}
+
+func sortAndUniq(input []string) []string {
+	if len(input) == 0 {
+		return input
+	}
+
+	sort.Slice(input, func(i, j int) bool {
+		return input[i] < input[j]
+	})
+
+	result := []string{input[0]}
+	for i := 1; i < len(input); i++ {
+		if input[i] != input[i-1] {
+			result = append(result, input[i])
+		}
+	}
+	return result
 }
