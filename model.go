@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/pkg/browser"
 )
 
 // viewMode defines which subset of packages is currently being viewed.
@@ -323,7 +324,11 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		m.filterAndSortPackages()
 		m.updateTable()
 
-		// Commands
+	// Commands
+	case key.Matches(msg, m.keys.OpenHomePage):
+		if selectedPkg != nil && selectedPkg.Homepage != "" {
+			browser.OpenURL(selectedPkg.Homepage)
+		}
 	case key.Matches(msg, m.keys.UpgradeAll):
 		outdatedPkgs := m.getOutdatedPackages()
 		if !m.isExecuting && len(outdatedPkgs) > 0 {

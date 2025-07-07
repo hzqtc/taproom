@@ -192,6 +192,8 @@ func (m *model) renderHelp() string {
 	b.WriteString(": hide disabled/deprecated")
 	b.WriteString("\n")
 	b.WriteString("Commands     : ")
+	b.WriteString(keyStyle.Render("b"))
+	b.WriteString(": open home page ")
 	b.WriteString(keyStyle.Render("U"))
 	b.WriteString(": upgrade all ")
 	b.WriteString(keyStyle.Render("u"))

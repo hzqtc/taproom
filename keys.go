@@ -22,13 +22,14 @@ type keyMap struct {
 	FilterExplicit  key.Binding
 	FilterDisabled  key.Binding
 
-	// Brew Commands
-	Upgrade    key.Binding
-	UpgradeAll key.Binding
-	Install    key.Binding
-	Remove     key.Binding
-	Pin        key.Binding
-	Unpin      key.Binding
+	// Package Commands
+	OpenHomePage key.Binding
+	Upgrade      key.Binding
+	UpgradeAll   key.Binding
+	Install      key.Binding
+	Remove       key.Binding
+	Pin          key.Binding
+	Unpin        key.Binding
 }
 
 // defaultKeyMap returns a map of default keybindings.
@@ -52,12 +53,13 @@ func defaultKeyMap() keyMap {
 		FilterExplicit:  key.NewBinding(key.WithKeys("e")),
 		FilterDisabled:  key.NewBinding(key.WithKeys("d")),
 
-		// Brew Commands
-		Upgrade:    key.NewBinding(key.WithKeys("u")),
-		UpgradeAll: key.NewBinding(key.WithKeys("U")),
-		Install:    key.NewBinding(key.WithKeys("t")),
-		Remove:     key.NewBinding(key.WithKeys("x")),
-		Pin:        key.NewBinding(key.WithKeys("p")),
-		Unpin:      key.NewBinding(key.WithKeys("P")),
+		// Package Commands
+		OpenHomePage: key.NewBinding(key.WithKeys("b")),
+		Upgrade:      key.NewBinding(key.WithKeys("u")),
+		UpgradeAll:   key.NewBinding(key.WithKeys("U")),
+		Install:      key.NewBinding(key.WithKeys("t")),
+		Remove:       key.NewBinding(key.WithKeys("x")),
+		Pin:          key.NewBinding(key.WithKeys("p")),
+		Unpin:        key.NewBinding(key.WithKeys("P")),
 	}
 }
