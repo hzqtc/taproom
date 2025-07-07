@@ -18,6 +18,7 @@ import (
 )
 
 // --- Constants & Data Structures ---
+// TODO: make caching configurable
 var cacheDir = func() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -36,7 +37,7 @@ const (
 	casksFile                 = "cask.json"
 	formulaeAnalyticsFile     = "formulae-analytics.json"
 	casksAnalyticsFile        = "casks-analytics.json"
-	cacheDuration             = 24 * time.Hour
+	cacheDuration             = 1 * time.Hour
 )
 
 // Package holds all combined information for a formula or cask.
