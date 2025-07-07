@@ -450,8 +450,7 @@ func (m *model) updateViewport() {
 	b.WriteString("Dependencies:\n")
 	if len(pkg.Dependencies) > 0 {
 		for _, dep := range pkg.Dependencies {
-			depPkg := m.getPackage(dep)
-			if depPkg != nil && depPkg.IsInstalled {
+			if depPkg := m.getPackage(dep); depPkg != nil && depPkg.IsInstalled {
 				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
 			} else {
 				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
@@ -468,10 +467,14 @@ func (m *model) updateViewport() {
 		b.WriteString("  None\n")
 	}
 
-	if pkg.IsInstalled && len(pkg.Dependents) > 0 {
-		b.WriteString("\nRequired By (installed):\n")
+	if len(pkg.Dependents) > 0 {
+		b.WriteString("\nRequired By:\n")
 		for _, dep := range pkg.Dependents {
-			b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
+			if depPkg := m.getPackage(dep); depPkg != nil && depPkg.IsInstalled {
+				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
+			} else {
+				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
+			}
 		}
 	}
 

@@ -321,23 +321,30 @@ func processAllData(
 	for _, f := range formulae {
 		if _, installed := installedFormulae[f.Name]; !installed {
 			packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name], false))
+			for _, dep := range f.Dependencies {
+				formulaDependentsMap[dep] = append(formulaDependentsMap[dep], f.Name)
+			}
 		}
 	}
 	// Add casks to packages, except for installed casks
 	for _, c := range casks {
 		if _, installed := installedCasks[c.Name]; !installed {
 			packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name], false))
+			for _, dep := range c.Dependencies.Formulae {
+				formulaDependentsMap[dep] = append(formulaDependentsMap[dep], c.Name)
+			}
+			for _, dep := range c.Dependencies.Casks {
+				caskDependentsMap[dep] = append(caskDependentsMap[dep], c.Name)
+			}
 		}
 	}
 
-	// Populate dependents for each installed package
+	// Populate dependents
 	for i, pkg := range packages {
-		if pkg.IsInstalled {
-			if pkg.IsCask {
-				packages[i].Dependents = caskDependentsMap[pkg.Name]
-			} else {
-				packages[i].Dependents = formulaDependentsMap[pkg.Name]
-			}
+		if pkg.IsCask {
+			packages[i].Dependents = sortAndUniq(caskDependentsMap[pkg.Name])
+		} else {
+			packages[i].Dependents = sortAndUniq(formulaDependentsMap[pkg.Name])
 		}
 	}
 
@@ -357,7 +364,7 @@ func packageFromFormula(f *apiFormula, installs int, installed bool) Package {
 		Desc:              f.Desc,
 		Homepage:          f.Homepage,
 		License:           f.License,
-		Dependencies:      f.Dependencies,
+		Dependencies:      sortAndUniq(f.Dependencies),
 		BuildDependencies: f.BuildDependencies,
 		InstallCount90d:   installs,
 		IsCask:            false,
@@ -384,7 +391,7 @@ func packageFromCask(c *apiCask, installs int, installed bool) Package {
 		Desc:            c.Desc,
 		Homepage:        c.Homepage,
 		License:         "N/A",
-		Dependencies:    append(c.Dependencies.Formulae, c.Dependencies.Casks...),
+		Dependencies:    sortAndUniq(append(c.Dependencies.Formulae, c.Dependencies.Casks...)),
 		InstallCount90d: installs,
 		IsCask:          true,
 		IsDeprecated:    c.Deprecated,
