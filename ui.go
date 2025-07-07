@@ -33,8 +33,8 @@ var (
 	borderColor             = lipgloss.Color("240")
 	focusedBorderColor      = highlightColor
 	installedColor          = lipgloss.Color("#22C55E")
-	deprecatedColor         = lipgloss.Color("#FBBF24")
-	uninstalledColor        = lipgloss.Color("#EF4444")
+	deprecatedColor         = lipgloss.Color("#EF4444")
+	uninstalledColor        = lipgloss.Color("#FBBF24")
 	pinnedColor             = lipgloss.Color("#B57EDC")
 
 	baseStyle = lipgloss.NewStyle().
