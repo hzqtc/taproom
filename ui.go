@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	// TODO: make view port wider on large screens
 	viewportWidth = 30
 
 	colNameWidth     = 15
@@ -73,6 +74,10 @@ var (
 
 	viewportStyle = baseStyle.Copy().
 			Padding(0, 1)
+
+	// The content style for viewport, width-2 to account for padding
+	vpContentStyle = lipgloss.NewStyle().
+			Width(viewportWidth - 2)
 
 	viewModeStyle = baseStyle.Copy().
 			Width(viewportWidth).
@@ -246,9 +251,9 @@ func (m *model) updateLayout() {
 	m.search.Width = m.width - viewportWidth - 8
 
 	tableWidth := m.width - viewportWidth - 4
+	m.table.SetWidth(tableWidth)
 
 	m.viewport.Width = viewportWidth - 2
-	m.table.SetWidth(tableWidth)
 
 	searchHeight := lipgloss.Height(searchStyle.Render(m.search.View()))
 	helpHeight := lipgloss.Height(m.renderHelp())
@@ -478,9 +483,8 @@ func (m *model) updateViewport() {
 		}
 	}
 
-	vpStyle := lipgloss.NewStyle().Width(viewportWidth)
-	m.viewport.SetContent(vpStyle.Render(b.String()))
-	m.viewport.GotoTop() // Reset scroll position
+	m.viewport.SetContent(vpContentStyle.Render(b.String()))
+	m.viewport.GotoTop()
 }
 
 func sortAndUniq(input []string) []string {
