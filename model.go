@@ -202,19 +202,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.errorMsg = msg.err.Error()
 		} else {
 			// Command was successful, update package state
-			if msg.action == actionUpgradeAll {
-				// Do a full reload for 'upgrade all' since it's the simplest
-				// Most data should be cached and only installed packages are refreshed
-				m.viewMode = viewAll
-				m.search.SetValue("")
-				m.isLoading = true
-				cmds = append(cmds, loadData)
-			} else {
-				// Otherwise update package according to the executed command and refresh table.
-				m.updatePackageForAction(msg.action, msg.pkg)
-				m.filterAndSortPackages()
-				m.updateTable()
-			}
+			m.updatePackageForAction(msg.action, msg.pkgs)
+			m.filterAndSortPackages()
+			m.updateTable()
 		}
 		m.updateLayout()
 
@@ -335,8 +325,9 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 
 		// Commands
 	case key.Matches(msg, m.keys.UpgradeAll):
-		if !m.isExecuting {
-			cmd = upgradeAllPackages()
+		outdatedPkgs := m.getOutdatedPackages()
+		if !m.isExecuting && len(outdatedPkgs) > 0 {
+			cmd = upgradeAllPackages(outdatedPkgs)
 		}
 	case key.Matches(msg, m.keys.Upgrade):
 		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsOutdated && !selectedPkg.IsPinned {
@@ -445,24 +436,69 @@ func (m *model) filterAndSortPackages() {
 	}
 }
 
-func (m *model) updatePackageForAction(action commandAction, pkg *Package) {
+func (m *model) getOutdatedPackages() []*Package {
+	outdatedPackages := []*Package{}
+	for i := range m.allPackages {
+		if pkg := &m.allPackages[i]; pkg.IsOutdated {
+			outdatedPackages = append(outdatedPackages, pkg)
+		}
+	}
+	return outdatedPackages
+}
+
+func (m *model) markInstalled(pkg *Package) {
+	pkg.IsInstalled = true
+	pkg.IsOutdated = false
+	pkg.InstalledVersion = pkg.Version
+}
+
+func (m *model) markInstalledAsDep(pkg *Package) {
+	m.markInstalled(pkg)
+	pkg.InstalledAsDependency = true
+}
+
+func (m *model) markUninstalled(pkg *Package) {
+	pkg.IsInstalled = false
+	pkg.InstalledVersion = ""
+	pkg.IsOutdated = false
+	pkg.IsPinned = false
+	pkg.InstalledAsDependency = false
+}
+
+func (m *model) markPinned(pkg *Package) {
+	pkg.IsPinned = true
+}
+
+func (m *model) markUnpinned(pkg *Package) {
+	pkg.IsPinned = false
+}
+
+func (m *model) updatePackageForAction(action commandAction, pkgs []*Package) {
 	switch action {
-	case actionUpgrade:
-		pkg.InstalledVersion = pkg.Version
-		pkg.IsOutdated = false
+	case actionUpgradeAll, actionUpgrade:
+		for _, pkg := range pkgs {
+			m.markInstalled(pkg)
+		}
 	case actionInstall:
-		pkg.IsInstalled = true
-		pkg.InstalledVersion = pkg.Version
+		for _, pkg := range pkgs {
+			m.markInstalled(pkg)
+			// Also mark uninstalled dependencies as installed
+			for _, depName := range m.getRecursiveMissingDeps(pkg.Name) {
+				m.markInstalled(m.getPackage(depName))
+			}
+		}
 	case actionUninstall:
-		pkg.IsInstalled = false
-		pkg.InstalledVersion = ""
-		pkg.IsOutdated = false
-		pkg.IsPinned = false
-		pkg.InstalledAsDependency = false
+		for _, pkg := range pkgs {
+			m.markUninstalled(pkg)
+		}
 	case actionPin:
-		pkg.IsPinned = true
+		for _, pkg := range pkgs {
+			m.markPinned(pkg)
+		}
 	case actionUnpin:
-		pkg.IsPinned = false
+		for _, pkg := range pkgs {
+			m.markUnpinned(pkg)
+		}
 	}
 }
 
