@@ -11,17 +11,26 @@ import (
 )
 
 const (
-	// TODO: make view port wider on large screens
-	viewportWidth = 30
+	viewportWidthMin = 30
 
 	colSymbolWidth   = 2
 	colNameWidth     = 15
 	colVersionWidth  = 15
 	colTapWidth      = 15
 	colDescWidth     = 30
+	colDescWidthMax  = 60
 	colInstallsWidth = 8
 	colStatusWidth   = 15
 	colSpacing       = 2
+
+	tableWidthMax = colSymbolWidth +
+		colNameWidth +
+		colVersionWidth +
+		colTapWidth +
+		colDescWidthMax +
+		colInstallsWidth +
+		colStatusWidth +
+		colSpacing*8
 
 	outputMaxLines = 10
 )
@@ -89,10 +98,10 @@ var (
 
 	// The content style for viewport, width-2 to account for padding
 	vpContentStyle = lipgloss.NewStyle().
-			Width(viewportWidth - 2)
+			Width(viewportWidthMin - 2)
 
 	viewModeStyle = baseStyle.Copy().
-			Width(viewportWidth).
+			Width(viewportWidthMin).
 			Padding(0, 1).
 			Margin(1, 0)
 
@@ -262,12 +271,14 @@ func (m *model) updateLayout() {
 	outputStyle = outputStyle.Copy().Width(m.width - 2)
 	helpStyle = helpStyle.Copy().Width(m.width - 2)
 
+	viewportWidth := max(viewportWidthMin, m.width-tableWidthMax-4)
 	m.search.Width = m.width - viewportWidth - 8
+	viewModeStyle = viewModeStyle.Copy().Width(viewportWidth)
+	m.viewport.Width = viewportWidth - 2
+	vpContentStyle = vpContentStyle.Copy().Width(viewportWidth - 2)
 
 	tableWidth := m.width - viewportWidth - 4
 	m.table.SetWidth(tableWidth)
-
-	m.viewport.Width = viewportWidth - 2
 
 	searchHeight := lipgloss.Height(searchStyle.Render(m.search.View()))
 	helpHeight := lipgloss.Height(m.renderHelp())
@@ -527,4 +538,3 @@ func (m *model) updateViewport() {
 	m.viewport.SetContent(vpContentStyle.Render(b.String()))
 	m.viewport.GotoTop()
 }
-
