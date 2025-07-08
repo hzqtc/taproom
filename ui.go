@@ -502,6 +502,17 @@ func (m *model) updateViewport() {
 		b.WriteString("  None\n")
 	}
 
+	if len(pkg.BuildDependencies) > 0 {
+		b.WriteString("\nBuild Dependencies:\n")
+		for _, dep := range pkg.BuildDependencies {
+			if depPkg := m.getPackage(dep); depPkg != nil && depPkg.IsInstalled {
+				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
+			} else {
+				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
+			}
+		}
+	}
+
 	if len(pkg.Dependents) > 0 {
 		b.WriteString("\nRequired By:\n")
 		for _, dep := range pkg.Dependents {
@@ -517,20 +528,3 @@ func (m *model) updateViewport() {
 	m.viewport.GotoTop()
 }
 
-func sortAndUniq(input []string) []string {
-	if len(input) == 0 {
-		return input
-	}
-
-	sort.Slice(input, func(i, j int) bool {
-		return input[i] < input[j]
-	})
-
-	result := []string{input[0]}
-	for i := 1; i < len(input); i++ {
-		if input[i] != input[i-1] {
-			result = append(result, input[i])
-		}
-	}
-	return result
-}
