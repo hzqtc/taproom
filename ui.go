@@ -465,9 +465,15 @@ func (m *model) updateViewport() {
 	}
 
 	pkg := m.viewPackages[selectedIndex]
+	var pkgSymbol string
+	if pkg.IsCask {
+		pkgSymbol = caskSymbol
+	} else {
+		pkgSymbol = formulaSymbol
+	}
 
 	var b strings.Builder
-	b.WriteString(headerStyle.Render(pkg.Name))
+	b.WriteString(headerStyle.Render(fmt.Sprintf("%s %s", pkgSymbol, pkg.Name)))
 	b.WriteString(fmt.Sprintf("\n%s\n\n", pkg.Desc))
 	b.WriteString(fmt.Sprintf("Version: %s\n", getFormattedVersion(pkg)))
 	b.WriteString(fmt.Sprintf("Tap: %s\n", pkg.Tap))
