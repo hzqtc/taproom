@@ -24,6 +24,11 @@ terminal. `taproom` is inspired by [`boldbrew`](https://github.com/Valkyrie00/bo
 
 ## 🚀 Getting Started
 
+### Prerequisites
+
+*   [Homebrew](https://brew.sh/)
+*   A terminal emulator with a [nerd font](https://www.nerdfonts.com/)
+
 ### Install from pre-built binary
 
 `gromgit` maintains a [formula](https://github.com/gromgit/homebrew-brewtils/blob/main/Formula/taproom.rb):
@@ -36,10 +41,9 @@ brew install gromgit/brewtils/taproom
 
 To build from source, follow these simple steps:
 
-#### Prerequisites
+#### Build dependencies
 
 *   [Go](https://go.dev/doc/install)
-*   [Homebrew](https://brew.sh/) (for fetching package information)
 
 #### Build
 

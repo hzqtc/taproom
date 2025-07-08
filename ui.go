@@ -14,6 +14,7 @@ const (
 	// TODO: make view port wider on large screens
 	viewportWidth = 30
 
+	colSymbolWidth   = 2
 	colNameWidth     = 15
 	colVersionWidth  = 15
 	colTapWidth      = 15
@@ -25,11 +26,22 @@ const (
 	outputMaxLines = 10
 )
 
+const (
+	formulaSymbol = ""
+	caskSymbol    = ""
+
+	disabledSymbol    = ""
+	deprecatedSymbol  = ""
+	uninstalledSymbol = ""
+	installedSymbol   = "✓"
+	outdatedSymbol    = ""
+	pinnedSymbol      = "✗"
+)
+
 // --- Styles ---
 
 var (
-	headerColor             = lipgloss.Color("#FFD580")
-	highlightColor          = headerColor
+	highlightColor          = lipgloss.Color("#FFD580")
 	highlightForegroudColor = lipgloss.Color("#2E2E2E")
 	borderColor             = lipgloss.Color("240")
 	focusedBorderColor      = highlightColor
@@ -58,7 +70,7 @@ var (
 			Foreground(pinnedColor)
 
 	headerStyle = lipgloss.NewStyle().
-			Foreground(headerColor).
+			Foreground(highlightColor).
 			Bold(true)
 
 	helpStyle = lipgloss.NewStyle().
@@ -213,7 +225,7 @@ func (m *model) renderHelp() string {
 func getTableStyles() table.Styles {
 	tableStyles := table.DefaultStyles()
 	tableStyles.Header = tableStyles.Header.
-		Foreground(headerColor).
+		Foreground(highlightColor).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
 		BorderBottom(true).
@@ -265,9 +277,9 @@ func (m *model) updateLayout() {
 	m.table.SetHeight(mainHeight)
 	m.viewport.Height = mainHeight
 
-	colNames, remainingWidth := getVisibleCols(tableWidth)
-	m.visibleColumns = colNames
-	columns := getTableCols(colNames, remainingWidth)
+	cols, remainingWidth := getVisibleCols(tableWidth)
+	m.visibleColumns = cols
+	columns := getTableCols(cols, remainingWidth)
 
 	if len(m.table.Columns()) != len(columns) {
 		// Clear data when number of columns changes, this needs to be before SetColumns()
@@ -279,9 +291,9 @@ func (m *model) updateLayout() {
 // Dynamically determine visible columns based on table width
 // Returns the visible columns and unused width
 func getVisibleCols(tableWidth int) ([]columnName, int) {
-	// name column is always visible
-	visibleCols := []columnName{colName}
-	colsWidth := colNameWidth + colSpacing
+	// symbol and name column is always visible
+	visibleCols := []columnName{colSymbol, colName}
+	colsWidth := colSymbolWidth + colSpacing + colNameWidth + colSpacing
 
 	// Add other columns: prefer the ones take less space, then by importance
 	if tableWidth > colsWidth+colInstallsWidth+colSpacing {
@@ -312,12 +324,14 @@ func getVisibleCols(tableWidth int) ([]columnName, int) {
 }
 
 // Build the columns for the table view
-func getTableCols(colNames []columnName, remainingWidth int) []table.Column {
+func getTableCols(cols []columnName, remainingWidth int) []table.Column {
 	columns := []table.Column{}
-	for _, col := range colNames {
+	for _, col := range cols {
 		switch col {
+		case colSymbol:
+			columns = append(columns, table.Column{Title: " ", Width: colSymbolWidth})
 		case colName:
-			if slices.Contains(colNames, colDescription) {
+			if slices.Contains(cols, colDescription) {
 				columns = append(columns, table.Column{Title: "Name", Width: colNameWidth})
 			} else {
 				// If desc column is not visible, the name column takes all remaining width
@@ -381,16 +395,18 @@ func getSimpleStatus(pkg *Package) string {
 
 func getFormattedStatus(pkg *Package) string {
 	var statusSymbol string
-	if pkg.IsDisabled || pkg.IsDeprecated {
-		statusSymbol = deprecatedStyle.Render("")
+	if pkg.IsDisabled {
+		statusSymbol = deprecatedStyle.Render(disabledSymbol)
+	} else if pkg.IsDeprecated {
+		statusSymbol = deprecatedStyle.Render(deprecatedSymbol)
 	} else if pkg.IsPinned {
-		statusSymbol = pinnedStyle.Render("")
+		statusSymbol = pinnedStyle.Render(pinnedSymbol)
 	} else if pkg.IsOutdated {
-		statusSymbol = outdatedStyle.Render("")
+		statusSymbol = outdatedStyle.Render(outdatedSymbol)
 	} else if pkg.IsInstalled {
-		statusSymbol = installedStyle.Render("✓")
+		statusSymbol = installedStyle.Render(installedSymbol)
 	} else {
-		statusSymbol = uninstalledStyle.Render("✗")
+		statusSymbol = uninstalledStyle.Render(uninstalledSymbol)
 	}
 	return fmt.Sprintf("%s %s\n", statusSymbol, getSimpleStatus(pkg))
 }
@@ -402,6 +418,12 @@ func (m *model) updateTable() {
 		rowData := []string{}
 		for _, col := range m.visibleColumns {
 			switch col {
+			case colSymbol:
+				if pkg.IsCask {
+					rowData = append(rowData, caskSymbol)
+				} else {
+					rowData = append(rowData, formulaSymbol)
+				}
 			case colName:
 				rowData = append(rowData, pkg.Name)
 			case colVersion:

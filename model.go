@@ -59,12 +59,13 @@ const (
 type columnName int
 
 const (
-	colName columnName = iota
-	colVersion
-	colTap
-	colDescription
-	colInstalls
-	colStatus
+	colSymbol      columnName = iota // Symbol to differentiate formula vs cask
+	colName                          // Name of the formula or token of the cask, unique identifier when combine with IsCask
+	colVersion                       // Newest version
+	colTap                           // Homebrew tap
+	colDescription                   // Brief description
+	colInstalls                      // Number of installs in the last 90 days
+	colStatus                        // Calculated status such as deprecated, installed, outdated, pinned
 )
 
 // focusMode defines which component is currently focused
