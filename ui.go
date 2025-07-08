@@ -19,7 +19,7 @@ const (
 	colTapWidth      = 15
 	colDescWidth     = 30
 	colDescWidthMax  = 60
-	colInstallsWidth = 8
+	colInstallsWidth = 10
 	colStatusWidth   = 15
 	colSpacing       = 2
 
@@ -288,9 +288,9 @@ func (m *model) updateLayout() {
 	m.table.SetHeight(mainHeight)
 	m.viewport.Height = mainHeight
 
-	cols, remainingWidth := getVisibleCols(tableWidth)
+	cols, remainingWidth := m.getVisibleCols(tableWidth)
 	m.visibleColumns = cols
-	columns := getTableCols(cols, remainingWidth)
+	columns := m.getTableCols(cols, remainingWidth)
 
 	if len(m.table.Columns()) != len(columns) {
 		// Clear data when number of columns changes, this needs to be before SetColumns()
@@ -301,7 +301,7 @@ func (m *model) updateLayout() {
 
 // Dynamically determine visible columns based on table width
 // Returns the visible columns and unused width
-func getVisibleCols(tableWidth int) ([]columnName, int) {
+func (m *model) getVisibleCols(tableWidth int) ([]columnName, int) {
 	// symbol and name column is always visible
 	visibleCols := []columnName{colSymbol, colName}
 	colsWidth := colSymbolWidth + colSpacing + colNameWidth + colSpacing
@@ -335,19 +335,23 @@ func getVisibleCols(tableWidth int) ([]columnName, int) {
 }
 
 // Build the columns for the table view
-func getTableCols(cols []columnName, remainingWidth int) []table.Column {
+func (m *model) getTableCols(cols []columnName, remainingWidth int) []table.Column {
 	columns := []table.Column{}
 	for _, col := range cols {
 		switch col {
 		case colSymbol:
 			columns = append(columns, table.Column{Title: " ", Width: colSymbolWidth})
 		case colName:
-			if slices.Contains(cols, colDescription) {
-				columns = append(columns, table.Column{Title: "Name", Width: colNameWidth})
-			} else {
+			colWidth := colNameWidth
+			if !slices.Contains(cols, colDescription) {
 				// If desc column is not visible, the name column takes all remaining width
-				columns = append(columns, table.Column{Title: "Name", Width: colNameWidth + remainingWidth})
+				colWidth += remainingWidth
 				remainingWidth = 0
+			}
+			if m.sortMode == sortByName {
+				columns = append(columns, table.Column{Title: "↓ Name", Width: colWidth})
+			} else {
+				columns = append(columns, table.Column{Title: "Name", Width: colWidth})
 			}
 		case colVersion:
 			columns = append(columns, table.Column{Title: "Version", Width: colVersionWidth})
@@ -358,7 +362,11 @@ func getTableCols(cols []columnName, remainingWidth int) []table.Column {
 			columns = append(columns, table.Column{Title: "Description", Width: colDescWidth + remainingWidth})
 			remainingWidth = 0
 		case colInstalls:
-			columns = append(columns, table.Column{Title: "Installs", Width: colInstallsWidth})
+			if m.sortMode == sortByPopularity {
+				columns = append(columns, table.Column{Title: "↓ Installs", Width: colInstallsWidth})
+			} else {
+				columns = append(columns, table.Column{Title: "Installs", Width: colInstallsWidth})
+			}
 		case colStatus:
 			columns = append(columns, table.Column{Title: "Status", Width: colStatusWidth})
 		}

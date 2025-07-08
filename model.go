@@ -294,6 +294,7 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		} else {
 			m.sortMode = sortByName
 		}
+		m.updateLayout() // Needs to update table column header
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterAll):
