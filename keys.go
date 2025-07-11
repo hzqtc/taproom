@@ -13,7 +13,8 @@ type keyMap struct {
 	Quit        key.Binding
 
 	// Filtering & Sorting
-	ToggleSort      key.Binding
+	SortByNext      key.Binding
+	SortByPrev      key.Binding
 	FilterAll       key.Binding
 	FilterFormulae  key.Binding
 	FilterCasks     key.Binding
@@ -44,7 +45,8 @@ func defaultKeyMap() keyMap {
 		Quit:        key.NewBinding(key.WithKeys("q", "ctrl+c")),
 
 		// Sorting & Filtering
-		ToggleSort:      key.NewBinding(key.WithKeys("s")),
+		SortByNext:      key.NewBinding(key.WithKeys("s")),
+		SortByPrev:      key.NewBinding(key.WithKeys("S")),
 		FilterAll:       key.NewBinding(key.WithKeys("a")),
 		FilterFormulae:  key.NewBinding(key.WithKeys("f")),
 		FilterCasks:     key.NewBinding(key.WithKeys("c")),

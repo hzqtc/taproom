@@ -319,10 +319,24 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		m.updateTable()
 
 	// Sorting & Filtering
-	case key.Matches(msg, m.keys.ToggleSort):
+	case key.Matches(msg, m.keys.SortByNext):
 		// Sort by the next sortable and visible column
 		for {
 			m.sortColumn = (m.sortColumn + 1) % totalNumColumns
+			if m.sortColumn.Sortable() && m.isColumnVisible(m.sortColumn) {
+				break
+			}
+		}
+		m.updateLayout() // Needs to update table column header
+		m.filterAndSortPackages()
+		m.updateTable()
+	case key.Matches(msg, m.keys.SortByPrev):
+		// Sort by the previous sortable and visible column
+		for {
+			m.sortColumn = m.sortColumn - 1
+			if m.sortColumn < 0 {
+				m.sortColumn = totalNumColumns - 1
+			}
 			if m.sortColumn.Sortable() && m.isColumnVisible(m.sortColumn) {
 				break
 			}
