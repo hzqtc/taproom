@@ -43,14 +43,16 @@ const (
 	apiCaskURL                = "https://formulae.brew.sh/api/cask.json"
 	apiFormulaAnalytics90dURL = "https://formulae.brew.sh/api/analytics/install-on-request/90d.json"
 	apiCaskAnalytics90dURL    = "https://formulae.brew.sh/api/analytics/cask-install/90d.json"
-	formulaeFile              = "formula.json"
-	casksFile                 = "cask.json"
-	formulaeAnalyticsFile     = "formulae-analytics.json"
-	casksAnalyticsFile        = "casks-analytics.json"
-	formulaeSizesFile         = "formulae-sizes.json"
-	casksSizesFile            = "casks-sizes.json"
-	urlCacheTtl               = 6 * time.Hour
-	pkgSizeCacheTtl           = 24 * time.Hour
+
+	formulaCacheFile           = "formula.json"
+	casksCacheFile             = "cask.json"
+	formulaeAnalyticsCacheFile = "formulae-analytics.json"
+	casksAnalyticsCacheFile    = "casks-analytics.json"
+	formulaeSizesCacheFile     = "formulae-sizes.json"
+	casksSizesCacheFile        = "casks-sizes.json"
+
+	urlCacheTtl      = 6 * time.Hour
+	pkgSizesCacheTtl = 24 * time.Hour
 )
 
 // Package holds all combined information for a formula or cask.
@@ -77,7 +79,7 @@ type Package struct {
 	// TODO: add last updated date
 }
 
-// Structs for parsing Homebrew API JSON
+// Structs for parsing Homebrew API Json
 type apiFormula struct {
 	Name     string `json:"name"`
 	Tap      string `json:"tap"`
@@ -152,30 +154,30 @@ func loadData() tea.Msg {
 	caskSizesChan := make(chan map[string]string)
 	errChan := make(chan error, 7)
 
-	go fetchJSONWithCache(
+	go fetchJsonWithCache(
 		apiFormulaURL,
-		formulaeFile,
+		formulaCacheFile,
 		&[]apiFormula{},
 		formulaeChan,
 		errChan,
 	)
-	go fetchJSONWithCache(
+	go fetchJsonWithCache(
 		apiCaskURL,
-		casksFile,
+		casksCacheFile,
 		&[]apiCask{},
 		casksChan,
 		errChan,
 	)
-	go fetchJSONWithCache(
+	go fetchJsonWithCache(
 		apiFormulaAnalytics90dURL,
-		formulaeAnalyticsFile,
+		formulaeAnalyticsCacheFile,
 		&apiFormulaAnalytics{},
 		formulaAnalyticsChan,
 		errChan,
 	)
-	go fetchJSONWithCache(
+	go fetchJsonWithCache(
 		apiCaskAnalytics90dURL,
-		casksAnalyticsFile,
+		casksAnalyticsCacheFile,
 		&apiCaskAnalytics{},
 		caskAnalyticsChan,
 		errChan,
@@ -225,8 +227,8 @@ func loadData() tea.Msg {
 	return dataLoadedMsg{packages: packages}
 }
 
-// fetchJSONWithCache is a generic function to fetch and decode JSON from a URL, with caching.
-func fetchJSONWithCache[T any](url, filename string, target *T, dataChan chan T, errChan chan error) {
+// fetchJsonWithCache is a generic function to fetch and decode Json from a URL, with caching.
+func fetchJsonWithCache[T any](url, filename string, target *T, dataChan chan T, errChan chan error) {
 	cachePath := filepath.Join(cacheDir, filename)
 
 	// Attempt to load from cache first
@@ -280,7 +282,7 @@ func fetchJSONWithCache[T any](url, filename string, target *T, dataChan chan T,
 	dataChan <- *target
 }
 
-// fetchInstalled runs the `brew info` command and parses its JSON output.
+// fetchInstalled runs the `brew info` command and parses its Json output.
 func fetchInstalled(installedChan chan installedInfo, errChan chan error) {
 	cmd := exec.Command("brew", "info", "--json=v2", "--installed")
 	output, err := cmd.Output()
@@ -298,11 +300,16 @@ func fetchInstalled(installedChan chan installedInfo, errChan chan error) {
 	installedChan <- info
 }
 
-func fetchFormulaSizes(sizesChan chan map[string]string, errChan chan error) {
-	cachePath := filepath.Join(cacheDir, formulaeSizesFile)
+func fetchSizesWithCache(
+	cacheFile string,
+	fetcher func() (map[string]string, error),
+	sizesChan chan map[string]string,
+	errChan chan error,
+) {
+	cachePath := filepath.Join(cacheDir, cacheFile)
 
 	// Attempt to load from cache first
-	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < pkgSizeCacheTtl {
+	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < pkgSizesCacheTtl {
 		file, err := os.Open(cachePath)
 		if err == nil {
 			defer file.Close()
@@ -310,7 +317,7 @@ func fetchFormulaSizes(sizesChan chan map[string]string, errChan chan error) {
 			if err == nil {
 				var sizes map[string]string
 				if err := json.Unmarshal(body, &sizes); err == nil {
-					log.Printf("Loaded formula sizes from cache file %s", formulaeSizesFile)
+					log.Printf("Loaded package sizes from cache file %s", cacheFile)
 					sizesChan <- sizes
 					return
 				}
@@ -318,26 +325,18 @@ func fetchFormulaSizes(sizesChan chan map[string]string, errChan chan error) {
 		}
 	}
 
-	sizes := make(map[string]string)
-	cmd := exec.Command("du", "-h", "-d", "1", fmt.Sprintf("%s/Cellar", brewPrefix))
-	output, err := cmd.Output()
-
-	if err == nil {
-		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-		for _, line := range lines {
-			fields := strings.Fields(line)
-			if len(fields) >= 2 {
-				size := fields[0]
-				name := filepath.Base(fields[1])
-				sizes[name] = size
-			}
-		}
+	// Fetch new data if cache is stale or invalid
+	sizes, err := fetcher()
+	if err != nil {
+		errChan <- err
+		return
 	}
 
 	// Save to cache
 	if body, err := json.Marshal(sizes); err == nil {
 		if err := os.MkdirAll(cacheDir, 0755); err == nil {
 			if err := os.WriteFile(cachePath, body, 0644); err != nil {
+				// Log caching error but don't fail the request
 				log.Printf("Failed to write to cache at %s: %+v", cachePath, err)
 			}
 		}
@@ -346,70 +345,66 @@ func fetchFormulaSizes(sizesChan chan map[string]string, errChan chan error) {
 	sizesChan <- sizes
 }
 
-func fetchCaskSizes(sizesChan chan map[string]string, errChan chan error) {
-	cachePath := filepath.Join(cacheDir, casksSizesFile)
+func fetchFormulaSizes(sizesChan chan map[string]string, errChan chan error) {
+	fetcher := func() (map[string]string, error) {
+		sizes := make(map[string]string)
+		cmd := exec.Command("du", "-h", "-d", "1", fmt.Sprintf("%s/Cellar", brewPrefix))
+		output, err := cmd.Output()
 
-	// Attempt to load from cache first
-	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < pkgSizeCacheTtl {
-		file, err := os.Open(cachePath)
 		if err == nil {
-			defer file.Close()
-			body, err := io.ReadAll(file)
-			if err == nil {
-				var sizes map[string]string
-				if err := json.Unmarshal(body, &sizes); err == nil {
-					log.Printf("Loaded cask sizes from cache file %s", casksSizesFile)
-					sizesChan <- sizes
-					return
+			lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+			for _, line := range lines {
+				fields := strings.Fields(line)
+				if len(fields) >= 2 {
+					size := fields[0]
+					name := filepath.Base(fields[1])
+					sizes[name] = size
 				}
 			}
 		}
+		return sizes, nil
 	}
+	fetchSizesWithCache(formulaeSizesCacheFile, fetcher, sizesChan, errChan)
+}
 
-	sizes := make(map[string]string)
+func fetchCaskSizes(sizesChan chan map[string]string, errChan chan error) {
+	fetcher := func() (map[string]string, error) {
+		sizes := make(map[string]string)
 
-	// Step 1: Run `brew list --cask`
-	listCmd := exec.Command("brew", "list", "--cask")
-	listOutput, err := listCmd.Output()
-	if err != nil {
-		errChan <- fmt.Errorf("Error running brew list --cask: %w", err)
-		return
-	}
-
-	// Step 2: Split output into cask names
-	caskNames := strings.Fields(string(listOutput))
-	if len(caskNames) == 0 {
-		sizesChan <- sizes
-		return
-	}
-
-	// Step 3: Run `brew info --cask <name1> <name2> ...`
-	infoCmd := exec.Command("brew", append([]string{"info", "--cask"}, caskNames...)...)
-	infoOutput, err := infoCmd.Output()
-	if err != nil {
-		errChan <- fmt.Errorf("Error running brew info: %w", err)
-		return
-	}
-
-	// Step 4: Extract cask name to app size
-	re := regexp.MustCompile(regexp.QuoteMeta(brewPrefix) + `/Caskroom/([^/]+)/[^ )]+ \(([^)]+)\)`)
-	matches := re.FindAllStringSubmatch(string(infoOutput), -1)
-	for _, match := range matches {
-		appName := match[1]
-		appSize := match[2]
-		sizes[appName] = appSize
-	}
-
-	// Save to cache
-	if body, err := json.Marshal(sizes); err == nil {
-		if err := os.MkdirAll(cacheDir, 0755); err == nil {
-			if err := os.WriteFile(cachePath, body, 0644); err != nil {
-				log.Printf("Failed to write to cache at %s: %+v", cachePath, err)
-			}
+		// Step 1: Run `brew list --cask`
+		listCmd := exec.Command("brew", "list", "--cask")
+		listOutput, err := listCmd.Output()
+		if err != nil {
+			return sizes, fmt.Errorf("error running brew list --cask: %w", err)
 		}
-	}
 
-	sizesChan <- sizes
+		// Step 2: Split output into cask names
+		caskNames := strings.Fields(string(listOutput))
+		if len(caskNames) == 0 {
+			return sizes, nil
+		}
+
+		// Step 3: Run `brew info --cask <name1> <name2> ...`
+		infoCmd := exec.Command("brew", append([]string{"info", "--cask"}, caskNames...)...)
+		infoOutput, err := infoCmd.Output()
+		if err != nil {
+			return sizes, fmt.Errorf("error running brew info: %w", err)
+		}
+
+		// Step 4: Extract cask name to app size
+		// Try to match following lines from brew info output:
+		// /opt/homebrew/Caskroom/(cask name)/(version) (size)
+		re := regexp.MustCompile(regexp.QuoteMeta(brewPrefix) + `/Caskroom/([^/]+)/[^ )]+ \(([^)]+)\)`)
+		matches := re.FindAllStringSubmatch(string(infoOutput), -1)
+		for _, match := range matches {
+			appName := match[1]
+			appSize := match[2]
+			sizes[appName] = appSize
+		}
+
+		return sizes, nil
+	}
+	fetchSizesWithCache(casksSizesCacheFile, fetcher, sizesChan, errChan)
 }
 
 // processAllData merges all data sources into a single slice of Package.
