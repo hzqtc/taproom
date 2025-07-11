@@ -23,7 +23,7 @@ import (
 var cacheDir = func() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		log.Printf("could not determine home directory, using relative path for cache: %v\n", err)
+		log.Printf("could not determine home directory, using relative path for cache: %+v\n", err)
 		return ".cache"
 	}
 	return filepath.Join(home, ".cache", "taproom")
@@ -32,7 +32,7 @@ var cacheDir = func() string {
 var brewPrefix = func() string {
 	brewPrefixBytes, err := exec.Command("brew", "--prefix").Output()
 	if err != nil {
-		log.Printf("failed to identify brew prefix: %v\n", err)
+		log.Printf("failed to identify brew prefix: %+v\n", err)
 		return ""
 	}
 	return strings.TrimSpace(string(brewPrefixBytes))
@@ -47,7 +47,10 @@ const (
 	casksFile                 = "cask.json"
 	formulaeAnalyticsFile     = "formulae-analytics.json"
 	casksAnalyticsFile        = "casks-analytics.json"
-	cacheDuration             = 1 * time.Hour
+	formulaeSizesFile         = "formulae-sizes.json"
+	casksSizesFile            = "casks-sizes.json"
+	urlCacheTtl               = 6 * time.Hour
+	pkgSizeCacheTtl           = 24 * time.Hour
 )
 
 // Package holds all combined information for a formula or cask.
@@ -227,7 +230,7 @@ func fetchJSONWithCache[T any](url, filename string, target *T, dataChan chan T,
 	cachePath := filepath.Join(cacheDir, filename)
 
 	// Attempt to load from cache first
-	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < cacheDuration {
+	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < urlCacheTtl {
 		file, err := os.Open(cachePath)
 		if err == nil {
 			defer file.Close()
@@ -296,6 +299,25 @@ func fetchInstalled(installedChan chan installedInfo, errChan chan error) {
 }
 
 func fetchFormulaSizes(sizesChan chan map[string]string, errChan chan error) {
+	cachePath := filepath.Join(cacheDir, formulaeSizesFile)
+
+	// Attempt to load from cache first
+	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < pkgSizeCacheTtl {
+		file, err := os.Open(cachePath)
+		if err == nil {
+			defer file.Close()
+			body, err := io.ReadAll(file)
+			if err == nil {
+				var sizes map[string]string
+				if err := json.Unmarshal(body, &sizes); err == nil {
+					log.Printf("Loaded formula sizes from cache file %s", formulaeSizesFile)
+					sizesChan <- sizes
+					return
+				}
+			}
+		}
+	}
+
 	sizes := make(map[string]string)
 	cmd := exec.Command("du", "-h", "-d", "1", fmt.Sprintf("%s/Cellar", brewPrefix))
 	output, err := cmd.Output()
@@ -312,10 +334,38 @@ func fetchFormulaSizes(sizesChan chan map[string]string, errChan chan error) {
 		}
 	}
 
+	// Save to cache
+	if body, err := json.Marshal(sizes); err == nil {
+		if err := os.MkdirAll(cacheDir, 0755); err == nil {
+			if err := os.WriteFile(cachePath, body, 0644); err != nil {
+				log.Printf("Failed to write to cache at %s: %+v", cachePath, err)
+			}
+		}
+	}
+
 	sizesChan <- sizes
 }
 
 func fetchCaskSizes(sizesChan chan map[string]string, errChan chan error) {
+	cachePath := filepath.Join(cacheDir, casksSizesFile)
+
+	// Attempt to load from cache first
+	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < pkgSizeCacheTtl {
+		file, err := os.Open(cachePath)
+		if err == nil {
+			defer file.Close()
+			body, err := io.ReadAll(file)
+			if err == nil {
+				var sizes map[string]string
+				if err := json.Unmarshal(body, &sizes); err == nil {
+					log.Printf("Loaded cask sizes from cache file %s", casksSizesFile)
+					sizesChan <- sizes
+					return
+				}
+			}
+		}
+	}
+
 	sizes := make(map[string]string)
 
 	// Step 1: Run `brew list --cask`
@@ -348,7 +398,15 @@ func fetchCaskSizes(sizesChan chan map[string]string, errChan chan error) {
 		appName := match[1]
 		appSize := match[2]
 		sizes[appName] = appSize
-		log.Printf("%s: %s\n", appName, appSize)
+	}
+
+	// Save to cache
+	if body, err := json.Marshal(sizes); err == nil {
+		if err := os.MkdirAll(cacheDir, 0755); err == nil {
+			if err := os.WriteFile(cachePath, body, 0644); err != nil {
+				log.Printf("Failed to write to cache at %s: %+v", cachePath, err)
+			}
+		}
 	}
 
 	sizesChan <- sizes
