@@ -59,12 +59,9 @@ const (
 	colInstalls                      // Number of installs in the last 90 days
 	colSize                          // Size of the package on disk
 	colStatus                        // Calculated status such as deprecated, installed, outdated, pinned
+
+	totalNumColumns
 )
-
-const totalNumColumns = 8
-
-// TODO: make tap & status column sortable
-var sortableColumns = []columnName{colName, colInstalls, colSize}
 
 func (v columnName) String() string {
 	switch v {
@@ -87,6 +84,18 @@ func (v columnName) String() string {
 	default:
 		return "Unknown"
 	}
+}
+
+func (v columnName) Sortable() bool {
+	return v == colName || v == colTap || v == colInstalls || v == colSize || v == colStatus
+}
+
+func (v columnName) ReverseSort() bool {
+	return v == colInstalls || v == colSize
+}
+
+func (v columnName) RightAligned() bool {
+	return v == colInstalls || v == colSize
 }
 
 // focusMode defines which component is currently focused
@@ -314,7 +323,7 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		// Sort by the next sortable and visible column
 		for {
 			m.sortColumn = (m.sortColumn + 1) % totalNumColumns
-			if m.isColumnSortable(m.sortColumn) && m.isColumnVisible(m.sortColumn) {
+			if m.sortColumn.Sortable() && m.isColumnVisible(m.sortColumn) {
 				break
 			}
 		}
@@ -399,15 +408,6 @@ func (m *model) isColumnVisible(c columnName) bool {
 	return false
 }
 
-func (m *model) isColumnSortable(c columnName) bool {
-	for _, col := range sortableColumns {
-		if c == col {
-			return true
-		}
-	}
-	return false
-}
-
 func (m *model) handleViewportKeys(msg tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
 	switch {
@@ -480,6 +480,10 @@ func (m *model) filterAndSortPackages() {
 	switch m.sortColumn {
 	case colName:
 		// No need to sort by name becuase m.allPackages are sorted by name
+	case colTap:
+		sort.Slice(m.viewPackages, func(i, j int) bool {
+			return m.viewPackages[i].Tap < m.viewPackages[j].Tap
+		})
 	case colInstalls:
 		sort.Slice(m.viewPackages, func(i, j int) bool {
 			return m.viewPackages[i].InstallCount90d > m.viewPackages[j].InstallCount90d
@@ -487,6 +491,10 @@ func (m *model) filterAndSortPackages() {
 	case colSize:
 		sort.Slice(m.viewPackages, func(i, j int) bool {
 			return m.viewPackages[i].Size > m.viewPackages[j].Size
+		})
+	case colStatus:
+		sort.Slice(m.viewPackages, func(i, j int) bool {
+			return m.viewPackages[i].Status() < m.viewPackages[j].Status()
 		})
 	}
 }

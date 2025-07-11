@@ -80,6 +80,34 @@ type Package struct {
 	InstalledDate         string
 }
 
+const (
+	statusDisabled       = "Disabled"
+	statusDeprecated     = "Deprecated"
+	statusPinned         = "Pinned"
+	statusOutdated       = "Outdated"
+	statusInstalledAsDep = "Installed (Dep)"
+	statusInstalled      = "Installed"
+	statusUninstalled    = "Uninstalled"
+)
+
+func (pkg *Package) Status() string {
+	if pkg.IsDisabled {
+		return statusDisabled
+	} else if pkg.IsDeprecated {
+		return statusDeprecated
+	} else if pkg.IsPinned {
+		return statusPinned
+	} else if pkg.IsOutdated {
+		return statusOutdated
+	} else if pkg.InstalledAsDependency {
+		return statusInstalledAsDep
+	} else if pkg.IsInstalled {
+		return statusInstalled
+	} else {
+		return statusUninstalled
+	}
+}
+
 // Structs for parsing Homebrew API Json
 type apiFormula struct {
 	Name     string `json:"name"`

@@ -291,7 +291,7 @@ func (m *model) updateLayout() {
 
 	cols, remainingWidth := m.getVisibleCols(tableWidth)
 	m.visibleColumns = cols
-	columns := m.getTableCols(cols, remainingWidth)
+	columns := m.getTableCols(remainingWidth)
 
 	if len(m.table.Columns()) != len(columns) {
 		// Clear data when number of columns changes, this needs to be before SetColumns()
@@ -323,37 +323,35 @@ func (m *model) getVisibleCols(tableWidth int) ([]columnName, int) {
 }
 
 // Build the columns for the table view
-func (m *model) getTableCols(cols []columnName, remainingWidth int) []table.Column {
+func (m *model) getTableCols(remainingWidth int) []table.Column {
 	columns := []table.Column{}
-	for _, col := range cols {
+	for _, col := range m.visibleColumns {
 		colTitle := col.String()
 		colWidth := colWidthMap[col]
-		switch col {
-		case colName:
-			if !slices.Contains(cols, colDescription) {
-				// If desc column is not visible, the name column takes all remaining width
+		// Add sort indicator
+		if col == m.sortColumn {
+			if col.ReverseSort() {
+				colTitle = fmt.Sprintf("↓ %s", colTitle)
+			} else {
+				colTitle = fmt.Sprintf("↑ %s", colTitle)
+			}
+		}
+		// Right align columns
+		if col.RightAligned() {
+			colTitle = fmt.Sprintf("%*s", colWidth, colTitle)
+		}
+		// Adjust column width to use remainingWidth
+		// If desc column is not visible, the name column takes all remaining width
+		if col == colName {
+			if !slices.Contains(m.visibleColumns, colDescription) {
 				colWidth += remainingWidth
 				remainingWidth = 0
 			}
-			if m.sortColumn == colName {
-				colTitle = fmt.Sprintf("↑ %s", colTitle)
-			}
-		case colDescription:
-			// If desc column is visible, it takes all remaining width
+		}
+		// If desc column is visible, it takes all remaining width
+		if col == colDescription {
 			colWidth += remainingWidth
 			remainingWidth = 0
-		case colInstalls:
-			if m.sortColumn == colInstalls {
-				colTitle = fmt.Sprintf("↓ %s", colTitle)
-			}
-			// Right align column
-			colTitle = fmt.Sprintf("%*s", colWidth, colTitle)
-		case colSize:
-			if m.sortColumn == colSize {
-				colTitle = fmt.Sprintf("↓ %s", colTitle)
-			}
-			// Right align column
-			colTitle = fmt.Sprintf("%*s", colWidth, colTitle)
 		}
 		columns = append(columns, table.Column{Title: colTitle, Width: colWidth})
 	}
@@ -380,24 +378,6 @@ func getFormattedVersion(pkg *Package) string {
 	}
 }
 
-func getSimpleStatus(pkg *Package) string {
-	if pkg.IsDisabled {
-		return "Disabled"
-	} else if pkg.IsDeprecated {
-		return "Deprecated"
-	} else if pkg.IsPinned {
-		return "Pinned"
-	} else if pkg.IsOutdated {
-		return "Outdated"
-	} else if pkg.InstalledAsDependency {
-		return "Installed (Dep)"
-	} else if pkg.IsInstalled {
-		return "Installed"
-	} else {
-		return "Uninstalled"
-	}
-}
-
 func getFormattedStatus(pkg *Package) string {
 	var statusSymbol string
 	if pkg.IsDisabled {
@@ -413,7 +393,7 @@ func getFormattedStatus(pkg *Package) string {
 	} else {
 		statusSymbol = uninstalledStyle.Render(uninstalledSymbol)
 	}
-	return fmt.Sprintf("%s %s", statusSymbol, getSimpleStatus(pkg))
+	return fmt.Sprintf("%s %s", statusSymbol, pkg.Status())
 }
 
 // updateTable populates the table with the current viewPackages.
@@ -446,7 +426,7 @@ func (m *model) updateTable() {
 					rowData = append(rowData, fmt.Sprintf("%*s", colWidthMap[colSize], "N/A"))
 				}
 			case colStatus:
-				rowData = append(rowData, getSimpleStatus(pkg))
+				rowData = append(rowData, pkg.Status())
 			}
 		}
 		rows[i] = table.Row(rowData)
