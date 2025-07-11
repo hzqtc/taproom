@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,10 +23,19 @@ import (
 var cacheDir = func() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		log.Printf("warning: could not determine home directory, using relative path for cache: %v", err)
+		log.Printf("could not determine home directory, using relative path for cache: %v\n", err)
 		return ".cache"
 	}
 	return filepath.Join(home, ".cache", "taproom")
+}()
+
+var brewPrefix = func() string {
+	brewPrefixBytes, err := exec.Command("brew", "--prefix").Output()
+	if err != nil {
+		log.Printf("failed to identify brew prefix: %v\n", err)
+		return ""
+	}
+	return strings.TrimSpace(string(brewPrefixBytes))
 }()
 
 const (
@@ -136,8 +146,8 @@ func loadData() tea.Msg {
 	caskAnalyticsChan := make(chan apiCaskAnalytics)
 	installedChan := make(chan installedInfo)
 	formulaSizesChan := make(chan map[string]string)
-	// TODO: add sizes for installed casks
-	errChan := make(chan error, 6)
+	caskSizesChan := make(chan map[string]string)
+	errChan := make(chan error, 7)
 
 	go fetchJSONWithCache(
 		apiFormulaURL,
@@ -169,6 +179,7 @@ func loadData() tea.Msg {
 	)
 	go fetchInstalled(installedChan, errChan)
 	go fetchFormulaSizes(formulaSizesChan, errChan)
+	go fetchCaskSizes(caskSizesChan, errChan)
 
 	var allFormulae []apiFormula
 	var allCasks []apiCask
@@ -176,6 +187,7 @@ func loadData() tea.Msg {
 	var caskAnalytics apiCaskAnalytics
 	var allInstalled installedInfo
 	var formulaSizes map[string]string
+	var caskSizes map[string]string
 
 	for i := 0; i < cap(errChan); i++ {
 		select {
@@ -191,6 +203,8 @@ func loadData() tea.Msg {
 			allInstalled = inst
 		case sizes := <-formulaSizesChan:
 			formulaSizes = sizes
+		case sizes := <-caskSizesChan:
+			caskSizes = sizes
 		case err := <-errChan:
 			return dataLoadingErr{err}
 		}
@@ -203,6 +217,7 @@ func loadData() tea.Msg {
 		formulaAnalytics,
 		caskAnalytics,
 		formulaSizes,
+		caskSizes,
 	)
 	return dataLoadedMsg{packages: packages}
 }
@@ -281,14 +296,7 @@ func fetchInstalled(installedChan chan installedInfo, errChan chan error) {
 }
 
 func fetchFormulaSizes(sizesChan chan map[string]string, errChan chan error) {
-	brewPrefixBytes, err := exec.Command("brew", "--prefix").Output()
-	if err != nil {
-		errChan <- fmt.Errorf("failed to identify brew prefix: %w", err)
-		return
-	}
-	brewPrefix := strings.TrimSpace(string(brewPrefixBytes))
-
-	pkgSizes := make(map[string]string)
+	sizes := make(map[string]string)
 	cmd := exec.Command("du", "-h", "-d", "1", fmt.Sprintf("%s/Cellar", brewPrefix))
 	output, err := cmd.Output()
 
@@ -299,12 +307,51 @@ func fetchFormulaSizes(sizesChan chan map[string]string, errChan chan error) {
 			if len(fields) >= 2 {
 				size := fields[0]
 				name := filepath.Base(fields[1])
-				pkgSizes[name] = size
+				sizes[name] = size
 			}
 		}
 	}
 
-	sizesChan <- pkgSizes
+	sizesChan <- sizes
+}
+
+func fetchCaskSizes(sizesChan chan map[string]string, errChan chan error) {
+	sizes := make(map[string]string)
+
+	// Step 1: Run `brew list --cask`
+	listCmd := exec.Command("brew", "list", "--cask")
+	listOutput, err := listCmd.Output()
+	if err != nil {
+		errChan <- fmt.Errorf("Error running brew list --cask: %w", err)
+		return
+	}
+
+	// Step 2: Split output into cask names
+	caskNames := strings.Fields(string(listOutput))
+	if len(caskNames) == 0 {
+		sizesChan <- sizes
+		return
+	}
+
+	// Step 3: Run `brew info --cask <name1> <name2> ...`
+	infoCmd := exec.Command("brew", append([]string{"info", "--cask"}, caskNames...)...)
+	infoOutput, err := infoCmd.Output()
+	if err != nil {
+		errChan <- fmt.Errorf("Error running brew info: %w", err)
+		return
+	}
+
+	// Step 4: Extract cask name to app size
+	re := regexp.MustCompile(regexp.QuoteMeta(brewPrefix) + `/Caskroom/([^/]+)/[^ )]+ \(([^)]+)\)`)
+	matches := re.FindAllStringSubmatch(string(infoOutput), -1)
+	for _, match := range matches {
+		appName := match[1]
+		appSize := match[2]
+		sizes[appName] = appSize
+		log.Printf("%s: %s\n", appName, appSize)
+	}
+
+	sizesChan <- sizes
 }
 
 // processAllData merges all data sources into a single slice of Package.
@@ -315,6 +362,7 @@ func processAllData(
 	formulaAnalytics apiFormulaAnalytics,
 	caskAnalytics apiCaskAnalytics,
 	formulaSizes map[string]string,
+	caskSizes map[string]string,
 ) []Package {
 	formulaAnalyticsMap := make(map[string]int)
 	caskAnalyticsMap := make(map[string]int)
@@ -338,8 +386,7 @@ func processAllData(
 	packages := make([]Package, 0, len(installed.Formulae)+len(installed.Casks)+len(formulae)+len(casks))
 	// Process installed formulae
 	for _, f := range installed.Formulae {
-		pkg := packageFromFormula(&f, formulaAnalyticsMap[f.Name], true, formulaSizes[f.Name])
-		packages = append(packages, pkg)
+		packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name], true, formulaSizes[f.Name]))
 		installedFormulae[f.Name] = struct{}{}
 		for _, dep := range f.Dependencies {
 			formulaDependentsMap[dep] = append(formulaDependentsMap[dep], f.Name)
@@ -347,7 +394,7 @@ func processAllData(
 	}
 	// Process installed casks
 	for _, c := range installed.Casks {
-		packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name], true))
+		packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name], true, caskSizes[c.Name]))
 		installedCasks[c.Name] = struct{}{}
 		for _, dep := range c.Dependencies.Formulae {
 			formulaDependentsMap[dep] = append(formulaDependentsMap[dep], c.Name)
@@ -368,7 +415,7 @@ func processAllData(
 	// Add casks to packages, except for installed casks
 	for _, c := range casks {
 		if _, installed := installedCasks[c.Name]; !installed {
-			packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name], false))
+			packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name], false, ""))
 			for _, dep := range c.Dependencies.Formulae {
 				formulaDependentsMap[dep] = append(formulaDependentsMap[dep], c.Name)
 			}
@@ -423,7 +470,7 @@ func packageFromFormula(f *apiFormula, installs int, installed bool, installedSi
 	return pkg
 }
 
-func packageFromCask(c *apiCask, installs int, installed bool) Package {
+func packageFromCask(c *apiCask, installs int, installed bool, installedSize string) Package {
 	pkg := Package{
 		Name:            c.Name,
 		Tap:             c.Tap,
@@ -444,6 +491,7 @@ func packageFromCask(c *apiCask, installs int, installed bool) Package {
 		// Casks can't be pinned or installed as dependencies
 		pkg.IsPinned = false
 		pkg.InstalledAsDependency = false
+		pkg.Size = installedSize
 	}
 
 	return pkg

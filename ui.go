@@ -20,7 +20,7 @@ const (
 	colDescWidth     = 30
 	colDescWidthMax  = 60
 	colInstallsWidth = 10
-	colSizeWidth     = 6
+	colSizeWidth     = 8
 	colStatusWidth   = 15
 	colSpacing       = 2
 
@@ -369,12 +369,27 @@ func (m *model) getTableCols(cols []columnName, remainingWidth int) []table.Colu
 			remainingWidth = 0
 		case colInstalls:
 			if m.sortMode == sortByPopularity {
-				columns = append(columns, table.Column{Title: "↓ Installs", Width: colInstallsWidth})
+				columns = append(
+					columns,
+					table.Column{
+						Title: fmt.Sprintf("%*s", colInstallsWidth, "↓ Installs"),
+						Width: colInstallsWidth,
+					},
+				)
 			} else {
-				columns = append(columns, table.Column{Title: "Installs", Width: colInstallsWidth})
+				columns = append(
+					columns,
+					table.Column{
+						Title: fmt.Sprintf("%*s", colInstallsWidth, "Installs"),
+						Width: colInstallsWidth,
+					},
+				)
 			}
 		case colSize:
-			columns = append(columns, table.Column{Title: "Size", Width: colSizeWidth})
+			columns = append(
+				columns,
+				table.Column{Title: fmt.Sprintf("%*s", colSizeWidth, "Size"), Width: colSizeWidth},
+			)
 		case colStatus:
 			columns = append(columns, table.Column{Title: "Status", Width: colStatusWidth})
 		}
@@ -462,7 +477,7 @@ func (m *model) updateTable() {
 			case colInstalls:
 				rowData = append(rowData, fmt.Sprintf("%*d", colInstallsWidth, pkg.InstallCount90d))
 			case colSize:
-				rowData = append(rowData, pkg.Size)
+				rowData = append(rowData, fmt.Sprintf("%*s", colSizeWidth, pkg.Size))
 			case colStatus:
 				rowData = append(rowData, getSimpleStatus(pkg))
 			}
