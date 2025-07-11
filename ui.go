@@ -198,7 +198,7 @@ func (m *model) renderHelp() string {
 	b.WriteString("\n")
 	b.WriteString("Filter & Sort: ")
 	b.WriteString(keyStyle.Render("s"))
-	b.WriteString(": sort by name/popularity ")
+	b.WriteString(": sort ")
 	b.WriteString(keyStyle.Render("a"))
 	b.WriteString(": all ")
 	b.WriteString(keyStyle.Render("f"))
@@ -355,7 +355,7 @@ func (m *model) getTableCols(cols []columnName, remainingWidth int) []table.Colu
 				remainingWidth = 0
 			}
 			if m.sortMode == sortByName {
-				columns = append(columns, table.Column{Title: "↓ Name", Width: colWidth})
+				columns = append(columns, table.Column{Title: "↑ Name", Width: colWidth})
 			} else {
 				columns = append(columns, table.Column{Title: "Name", Width: colWidth})
 			}
@@ -386,10 +386,17 @@ func (m *model) getTableCols(cols []columnName, remainingWidth int) []table.Colu
 				)
 			}
 		case colSize:
-			columns = append(
-				columns,
-				table.Column{Title: fmt.Sprintf("%*s", colSizeWidth, "Size"), Width: colSizeWidth},
-			)
+			if m.sortMode == sortBySize {
+				columns = append(
+					columns,
+					table.Column{Title: fmt.Sprintf("%*s", colSizeWidth, "↓ Size"), Width: colSizeWidth},
+				)
+			} else {
+				columns = append(
+					columns,
+					table.Column{Title: fmt.Sprintf("%*s", colSizeWidth, "Size"), Width: colSizeWidth},
+				)
+			}
 		case colStatus:
 			columns = append(columns, table.Column{Title: "Status", Width: colStatusWidth})
 		}
@@ -477,7 +484,11 @@ func (m *model) updateTable() {
 			case colInstalls:
 				rowData = append(rowData, fmt.Sprintf("%*d", colInstallsWidth, pkg.InstallCount90d))
 			case colSize:
-				rowData = append(rowData, fmt.Sprintf("%*s", colSizeWidth, pkg.Size))
+				if pkg.IsInstalled {
+					rowData = append(rowData, fmt.Sprintf("%*s", colSizeWidth, pkg.FormattedSize))
+				} else {
+					rowData = append(rowData, fmt.Sprintf("%*s", colSizeWidth, "N/A"))
+				}
 			case colStatus:
 				rowData = append(rowData, getSimpleStatus(pkg))
 			}
@@ -525,7 +536,7 @@ func (m *model) updateViewport() {
 	b.WriteString(fmt.Sprintf("License: %s\n", pkg.License))
 	b.WriteString(fmt.Sprintf("Installs (90d): %d\n", pkg.InstallCount90d))
 	if pkg.IsInstalled {
-		b.WriteString(fmt.Sprintf("Size: %s\n", pkg.Size))
+		b.WriteString(fmt.Sprintf("Size: %s\n", pkg.FormattedSize))
 	}
 
 	b.WriteString(fmt.Sprintf("\nStatus: %s\n", getFormattedStatus(pkg)))

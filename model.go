@@ -50,10 +50,10 @@ func (v viewMode) String() string {
 // sortMode defines the current sorting method for the package list.
 type sortMode int
 
-// TODO: add sort by size
 const (
 	sortByName sortMode = iota
 	sortByPopularity
+	sortBySize
 )
 
 // columnName is a type for identifying table columns.
@@ -291,11 +291,7 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 
 	// Sorting & Filtering
 	case key.Matches(msg, m.keys.ToggleSort):
-		if m.sortMode == sortByName {
-			m.sortMode = sortByPopularity
-		} else {
-			m.sortMode = sortByName
-		}
+		m.sortMode = (m.sortMode + 1) % 3
 		m.updateLayout() // Needs to update table column header
 		m.filterAndSortPackages()
 		m.updateTable()
@@ -438,9 +434,14 @@ func (m *model) filterAndSortPackages() {
 	}
 
 	// No need to sort by name becuase m.allPackages are sorted by name
-	if m.sortMode == sortByPopularity {
+	switch m.sortMode {
+	case sortByPopularity:
 		sort.Slice(m.viewPackages, func(i, j int) bool {
 			return m.viewPackages[i].InstallCount90d > m.viewPackages[j].InstallCount90d
+		})
+	case sortBySize:
+		sort.Slice(m.viewPackages, func(i, j int) bool {
+			return m.viewPackages[i].Size > m.viewPackages[j].Size
 		})
 	}
 }

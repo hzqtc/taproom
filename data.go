@@ -75,9 +75,9 @@ type Package struct {
 	IsDeprecated          bool
 	IsDisabled            bool
 	InstalledAsDependency bool
-	Size                  string
+	Size                  int64  // Size in bytes
+	FormattedSize         string // Formated size like 24.5MB, 230KB
 	InstalledDate         string
-	// TODO: add last updated date
 }
 
 // Structs for parsing Homebrew API Json
@@ -153,8 +153,8 @@ func loadData() tea.Msg {
 	formulaAnalyticsChan := make(chan apiFormulaAnalytics)
 	caskAnalyticsChan := make(chan apiCaskAnalytics)
 	installedChan := make(chan installedInfo)
-	formulaSizesChan := make(chan map[string]string)
-	caskSizesChan := make(chan map[string]string)
+	formulaSizesChan := make(chan map[string]int64)
+	caskSizesChan := make(chan map[string]int64)
 	errChan := make(chan error, 7)
 
 	go fetchJsonWithCache(
@@ -194,8 +194,8 @@ func loadData() tea.Msg {
 	var formulaAnalytics apiFormulaAnalytics
 	var caskAnalytics apiCaskAnalytics
 	var allInstalled installedInfo
-	var formulaSizes map[string]string
-	var caskSizes map[string]string
+	var formulaSizes map[string]int64
+	var caskSizes map[string]int64
 
 	for i := 0; i < cap(errChan); i++ {
 		select {
@@ -305,8 +305,8 @@ func fetchInstalled(installedChan chan installedInfo, errChan chan error) {
 
 func fetchSizesWithCache(
 	cacheFile string,
-	fetcher func() (map[string]string, error),
-	sizesChan chan map[string]string,
+	fetcher func() (map[string]int64, error),
+	sizesChan chan map[string]int64,
 	errChan chan error,
 ) {
 	cachePath := filepath.Join(cacheDir, cacheFile)
@@ -318,7 +318,7 @@ func fetchSizesWithCache(
 			defer file.Close()
 			body, err := io.ReadAll(file)
 			if err == nil {
-				var sizes map[string]string
+				var sizes map[string]int64
 				if err := json.Unmarshal(body, &sizes); err == nil {
 					log.Printf("Loaded package sizes from cache file %s", cacheFile)
 					sizesChan <- sizes
@@ -348,10 +348,11 @@ func fetchSizesWithCache(
 	sizesChan <- sizes
 }
 
-func fetchFormulaSizes(sizesChan chan map[string]string, errChan chan error) {
-	fetcher := func() (map[string]string, error) {
-		sizes := make(map[string]string)
-		cmd := exec.Command("du", "-h", "-d", "1", fmt.Sprintf("%s/Cellar", brewPrefix))
+func fetchFormulaSizes(sizesChan chan map[string]int64, errChan chan error) {
+	fetcher := func() (map[string]int64, error) {
+		sizes := make(map[string]int64)
+		// -k flag instructs du to output in KB
+		cmd := exec.Command("du", "-k", "-d", "1", fmt.Sprintf("%s/Cellar", brewPrefix))
 		output, err := cmd.Output()
 
 		if err == nil {
@@ -359,9 +360,9 @@ func fetchFormulaSizes(sizesChan chan map[string]string, errChan chan error) {
 			for _, line := range lines {
 				fields := strings.Fields(line)
 				if len(fields) >= 2 {
-					size := fields[0]
+					size, _ := strconv.ParseInt(fields[0], 10, 64)
 					name := filepath.Base(fields[1])
-					sizes[name] = size
+					sizes[name] = size * 1024 // Convert KB to Bytes
 				}
 			}
 		}
@@ -370,9 +371,9 @@ func fetchFormulaSizes(sizesChan chan map[string]string, errChan chan error) {
 	fetchSizesWithCache(formulaeSizesCacheFile, fetcher, sizesChan, errChan)
 }
 
-func fetchCaskSizes(sizesChan chan map[string]string, errChan chan error) {
-	fetcher := func() (map[string]string, error) {
-		sizes := make(map[string]string)
+func fetchCaskSizes(sizesChan chan map[string]int64, errChan chan error) {
+	fetcher := func() (map[string]int64, error) {
+		sizes := make(map[string]int64)
 
 		// Step 1: Run `brew list --cask`
 		listCmd := exec.Command("brew", "list", "--cask")
@@ -401,7 +402,7 @@ func fetchCaskSizes(sizesChan chan map[string]string, errChan chan error) {
 		matches := re.FindAllStringSubmatch(string(infoOutput), -1)
 		for _, match := range matches {
 			appName := match[1]
-			appSize := match[2]
+			appSize := parseSizeToBytes(match[2])
 			sizes[appName] = appSize
 		}
 
@@ -417,8 +418,8 @@ func processAllData(
 	casks []apiCask,
 	formulaAnalytics apiFormulaAnalytics,
 	caskAnalytics apiCaskAnalytics,
-	formulaSizes map[string]string,
-	caskSizes map[string]string,
+	formulaSizes map[string]int64,
+	caskSizes map[string]int64,
 ) []Package {
 	formulaAnalyticsMap := make(map[string]int)
 	caskAnalyticsMap := make(map[string]int)
@@ -462,7 +463,7 @@ func processAllData(
 	// Add formulaes to packages, except for installed formulae
 	for _, f := range formulae {
 		if _, installed := installedFormulae[f.Name]; !installed {
-			packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name], false, ""))
+			packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name], false, 0))
 			for _, dep := range f.Dependencies {
 				formulaDependentsMap[dep] = append(formulaDependentsMap[dep], f.Name)
 			}
@@ -471,7 +472,7 @@ func processAllData(
 	// Add casks to packages, except for installed casks
 	for _, c := range casks {
 		if _, installed := installedCasks[c.Name]; !installed {
-			packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name], false, ""))
+			packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name], false, 0))
 			for _, dep := range c.Dependencies.Formulae {
 				formulaDependentsMap[dep] = append(formulaDependentsMap[dep], c.Name)
 			}
@@ -498,7 +499,7 @@ func processAllData(
 	return packages
 }
 
-func packageFromFormula(f *apiFormula, installs int, installed bool, installedSize string) Package {
+func packageFromFormula(f *apiFormula, installs int, installed bool, installedSize int64) Package {
 	pkg := Package{
 		Name:              f.Name,
 		Tap:               f.Tap,
@@ -521,13 +522,14 @@ func packageFromFormula(f *apiFormula, installs int, installed bool, installedSi
 		pkg.IsPinned = f.Pinned
 		pkg.InstalledAsDependency = inst.InstalledAsDep
 		pkg.Size = installedSize
+		pkg.FormattedSize = formatSize(installedSize)
 		pkg.InstalledDate = time.Unix(inst.Time, 0).Format(time.DateOnly)
 	}
 
 	return pkg
 }
 
-func packageFromCask(c *apiCask, installs int, installed bool, installedSize string) Package {
+func packageFromCask(c *apiCask, installs int, installed bool, installedSize int64) Package {
 	pkg := Package{
 		Name:            c.Name,
 		Tap:             c.Tap,
@@ -549,6 +551,7 @@ func packageFromCask(c *apiCask, installs int, installed bool, installedSize str
 		pkg.IsPinned = false
 		pkg.InstalledAsDependency = false
 		pkg.Size = installedSize
+		pkg.FormattedSize = formatSize(installedSize)
 		pkg.InstalledDate = time.Unix(c.InstalledTime, 0).Format(time.DateOnly)
 	}
 
