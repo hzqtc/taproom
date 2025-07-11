@@ -50,6 +50,7 @@ func (v viewMode) String() string {
 // sortMode defines the current sorting method for the package list.
 type sortMode int
 
+// TODO: add sort by size
 const (
 	sortByName sortMode = iota
 	sortByPopularity
@@ -65,6 +66,7 @@ const (
 	colTap                           // Homebrew tap
 	colDescription                   // Brief description
 	colInstalls                      // Number of installs in the last 90 days
+	colSize                          // Size of the package on disk
 	colStatus                        // Calculated status such as deprecated, installed, outdated, pinned
 )
 

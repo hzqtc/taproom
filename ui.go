@@ -20,6 +20,7 @@ const (
 	colDescWidth     = 30
 	colDescWidthMax  = 60
 	colInstallsWidth = 10
+	colSizeWidth     = 6
 	colStatusWidth   = 15
 	colSpacing       = 2
 
@@ -29,8 +30,9 @@ const (
 		colTapWidth +
 		colDescWidthMax +
 		colInstallsWidth +
+		colSizeWidth +
 		colStatusWidth +
-		colSpacing*8
+		colSpacing*9
 
 	outputMaxLines = 10
 )
@@ -306,11 +308,7 @@ func (m *model) getVisibleCols(tableWidth int) ([]columnName, int) {
 	visibleCols := []columnName{colSymbol, colName}
 	colsWidth := colSymbolWidth + colSpacing + colNameWidth + colSpacing
 
-	// Add other columns: prefer the ones take less space, then by importance
-	if tableWidth > colsWidth+colInstallsWidth+colSpacing {
-		visibleCols = append(visibleCols, colInstalls)
-		colsWidth += colInstallsWidth + colSpacing
-	}
+	// Add other columns: in order of importance
 	if tableWidth > colsWidth+colStatusWidth+colSpacing {
 		visibleCols = append(visibleCols, colStatus)
 		colsWidth += colStatusWidth + colSpacing
@@ -326,6 +324,14 @@ func (m *model) getVisibleCols(tableWidth int) ([]columnName, int) {
 	if tableWidth > colsWidth+colDescWidth+colSpacing {
 		visibleCols = append(visibleCols, colDescription)
 		colsWidth += colDescWidth + colSpacing
+	}
+	if tableWidth > colsWidth+colInstallsWidth+colSpacing {
+		visibleCols = append(visibleCols, colInstalls)
+		colsWidth += colInstallsWidth + colSpacing
+	}
+	if tableWidth > colsWidth+colSizeWidth+colSpacing {
+		visibleCols = append(visibleCols, colSize)
+		colsWidth += colSizeWidth + colSpacing
 	}
 	// sort visible columns by their order in the iota
 	sort.Slice(visibleCols, func(i, j int) bool {
@@ -367,6 +373,8 @@ func (m *model) getTableCols(cols []columnName, remainingWidth int) []table.Colu
 			} else {
 				columns = append(columns, table.Column{Title: "Installs", Width: colInstallsWidth})
 			}
+		case colSize:
+			columns = append(columns, table.Column{Title: "Size", Width: colSizeWidth})
 		case colStatus:
 			columns = append(columns, table.Column{Title: "Status", Width: colStatusWidth})
 		}
@@ -453,6 +461,8 @@ func (m *model) updateTable() {
 				rowData = append(rowData, pkg.Desc)
 			case colInstalls:
 				rowData = append(rowData, fmt.Sprintf("%*d", colInstallsWidth, pkg.InstallCount90d))
+			case colSize:
+				rowData = append(rowData, pkg.Size)
 			case colStatus:
 				rowData = append(rowData, getSimpleStatus(pkg))
 			}
@@ -497,9 +507,13 @@ func (m *model) updateViewport() {
 	b.WriteString(fmt.Sprintf("Version: %s\n", getFormattedVersion(pkg)))
 	b.WriteString(fmt.Sprintf("Tap: %s\n", pkg.Tap))
 	b.WriteString(fmt.Sprintf("Homepage: %s\n", pkg.Homepage))
-	b.WriteString(fmt.Sprintf("License: %s\n\n", pkg.License))
-	b.WriteString(fmt.Sprintf("Status: %s\n", getFormattedStatus(pkg)))
-	b.WriteString(fmt.Sprintf("90-Day Installs: %d\n\n", pkg.InstallCount90d))
+	b.WriteString(fmt.Sprintf("License: %s\n", pkg.License))
+	b.WriteString(fmt.Sprintf("Installs (90d): %d\n", pkg.InstallCount90d))
+	if pkg.IsInstalled {
+		b.WriteString(fmt.Sprintf("Size: %s\n", pkg.Size))
+	}
+
+	b.WriteString(fmt.Sprintf("\nStatus: %s\n", getFormattedStatus(pkg)))
 
 	b.WriteString("Dependencies:\n")
 	if len(pkg.Dependencies) > 0 {

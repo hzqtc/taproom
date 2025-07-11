@@ -60,6 +60,8 @@ type Package struct {
 	IsDeprecated          bool
 	IsDisabled            bool
 	InstalledAsDependency bool
+	Size                  string
+	// TODO: add last updated date
 }
 
 // Structs for parsing Homebrew API JSON
@@ -133,7 +135,9 @@ func loadData() tea.Msg {
 	formulaAnalyticsChan := make(chan apiFormulaAnalytics)
 	caskAnalyticsChan := make(chan apiCaskAnalytics)
 	installedChan := make(chan installedInfo)
-	errChan := make(chan error, 5)
+	formulaSizesChan := make(chan map[string]string)
+	// TODO: add sizes for installed casks
+	errChan := make(chan error, 6)
 
 	go fetchJSONWithCache(
 		apiFormulaURL,
@@ -164,14 +168,16 @@ func loadData() tea.Msg {
 		errChan,
 	)
 	go fetchInstalled(installedChan, errChan)
+	go fetchFormulaSizes(formulaSizesChan, errChan)
 
 	var allFormulae []apiFormula
 	var allCasks []apiCask
 	var formulaAnalytics apiFormulaAnalytics
 	var caskAnalytics apiCaskAnalytics
 	var allInstalled installedInfo
+	var formulaSizes map[string]string
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < cap(errChan); i++ {
 		select {
 		case f := <-formulaeChan:
 			allFormulae = f
@@ -183,6 +189,8 @@ func loadData() tea.Msg {
 			caskAnalytics = ca
 		case inst := <-installedChan:
 			allInstalled = inst
+		case sizes := <-formulaSizesChan:
+			formulaSizes = sizes
 		case err := <-errChan:
 			return dataLoadingErr{err}
 		}
@@ -194,6 +202,7 @@ func loadData() tea.Msg {
 		allCasks,
 		formulaAnalytics,
 		caskAnalytics,
+		formulaSizes,
 	)
 	return dataLoadedMsg{packages: packages}
 }
@@ -271,6 +280,33 @@ func fetchInstalled(installedChan chan installedInfo, errChan chan error) {
 	installedChan <- info
 }
 
+func fetchFormulaSizes(sizesChan chan map[string]string, errChan chan error) {
+	brewPrefixBytes, err := exec.Command("brew", "--prefix").Output()
+	if err != nil {
+		errChan <- fmt.Errorf("failed to identify brew prefix: %w", err)
+		return
+	}
+	brewPrefix := strings.TrimSpace(string(brewPrefixBytes))
+
+	pkgSizes := make(map[string]string)
+	cmd := exec.Command("du", "-h", "-d", "1", fmt.Sprintf("%s/Cellar", brewPrefix))
+	output, err := cmd.Output()
+
+	if err == nil {
+		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+		for _, line := range lines {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				size := fields[0]
+				name := filepath.Base(fields[1])
+				pkgSizes[name] = size
+			}
+		}
+	}
+
+	sizesChan <- pkgSizes
+}
+
 // processAllData merges all data sources into a single slice of Package.
 func processAllData(
 	installed installedInfo,
@@ -278,6 +314,7 @@ func processAllData(
 	casks []apiCask,
 	formulaAnalytics apiFormulaAnalytics,
 	caskAnalytics apiCaskAnalytics,
+	formulaSizes map[string]string,
 ) []Package {
 	formulaAnalyticsMap := make(map[string]int)
 	caskAnalyticsMap := make(map[string]int)
@@ -301,7 +338,8 @@ func processAllData(
 	packages := make([]Package, 0, len(installed.Formulae)+len(installed.Casks)+len(formulae)+len(casks))
 	// Process installed formulae
 	for _, f := range installed.Formulae {
-		packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name], true))
+		pkg := packageFromFormula(&f, formulaAnalyticsMap[f.Name], true, formulaSizes[f.Name])
+		packages = append(packages, pkg)
 		installedFormulae[f.Name] = struct{}{}
 		for _, dep := range f.Dependencies {
 			formulaDependentsMap[dep] = append(formulaDependentsMap[dep], f.Name)
@@ -321,7 +359,7 @@ func processAllData(
 	// Add formulaes to packages, except for installed formulae
 	for _, f := range formulae {
 		if _, installed := installedFormulae[f.Name]; !installed {
-			packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name], false))
+			packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name], false, ""))
 			for _, dep := range f.Dependencies {
 				formulaDependentsMap[dep] = append(formulaDependentsMap[dep], f.Name)
 			}
@@ -357,7 +395,7 @@ func processAllData(
 	return packages
 }
 
-func packageFromFormula(f *apiFormula, installs int, installed bool) Package {
+func packageFromFormula(f *apiFormula, installs int, installed bool, installedSize string) Package {
 	pkg := Package{
 		Name:              f.Name,
 		Tap:               f.Tap,
@@ -379,6 +417,7 @@ func packageFromFormula(f *apiFormula, installs int, installed bool) Package {
 		pkg.IsOutdated = f.Outdated
 		pkg.IsPinned = f.Pinned
 		pkg.InstalledAsDependency = inst.InstalledAsDep
+		pkg.Size = installedSize
 	}
 
 	return pkg
