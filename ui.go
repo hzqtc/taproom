@@ -396,38 +396,48 @@ func getFormattedStatus(pkg *Package) string {
 	return fmt.Sprintf("%s %s", statusSymbol, pkg.Status())
 }
 
+func getColData(c columnName, pkg *Package) string {
+	switch c {
+	case colSymbol:
+		if pkg.IsCask {
+			return caskSymbol
+		} else {
+			return formulaSymbol
+		}
+	case colName:
+		return pkg.Name
+	case colVersion:
+		return getSimpleVersion(pkg)
+	case colTap:
+		return pkg.Tap
+	case colDescription:
+		return pkg.Desc
+	case colInstalls:
+		return fmt.Sprintf("%d", pkg.InstallCount90d)
+	case colSize:
+		if pkg.IsInstalled {
+			return pkg.FormattedSize
+		} else {
+			return "N/A"
+		}
+	case colStatus:
+		return pkg.Status()
+	default:
+		return ""
+	}
+}
+
 // updateTable populates the table with the current viewPackages.
 func (m *model) updateTable() {
 	rows := make([]table.Row, len(m.viewPackages))
 	for i, pkg := range m.viewPackages {
 		rowData := []string{}
 		for _, col := range m.visibleColumns {
-			switch col {
-			case colSymbol:
-				if pkg.IsCask {
-					rowData = append(rowData, caskSymbol)
-				} else {
-					rowData = append(rowData, formulaSymbol)
-				}
-			case colName:
-				rowData = append(rowData, pkg.Name)
-			case colVersion:
-				rowData = append(rowData, getSimpleVersion(pkg))
-			case colTap:
-				rowData = append(rowData, pkg.Tap)
-			case colDescription:
-				rowData = append(rowData, pkg.Desc)
-			case colInstalls:
-				rowData = append(rowData, fmt.Sprintf("%*d", colWidthMap[colInstalls], pkg.InstallCount90d))
-			case colSize:
-				if pkg.IsInstalled {
-					rowData = append(rowData, fmt.Sprintf("%*s", colWidthMap[colSize], pkg.FormattedSize))
-				} else {
-					rowData = append(rowData, fmt.Sprintf("%*s", colWidthMap[colSize], "N/A"))
-				}
-			case colStatus:
-				rowData = append(rowData, pkg.Status())
+			colData := getColData(col, pkg)
+			if col.RightAligned() {
+				colData = fmt.Sprintf("%*s", colWidthMap[col], colData)
 			}
+			rowData = append(rowData, colData)
 		}
 		rows[i] = table.Row(rowData)
 	}

@@ -63,8 +63,8 @@ const (
 	totalNumColumns
 )
 
-func (v columnName) String() string {
-	switch v {
+func (c columnName) String() string {
+	switch c {
 	case colSymbol:
 		return " "
 	case colName:
@@ -86,16 +86,16 @@ func (v columnName) String() string {
 	}
 }
 
-func (v columnName) Sortable() bool {
-	return v == colName || v == colTap || v == colInstalls || v == colSize || v == colStatus
+func (c columnName) Sortable() bool {
+	return c == colName || c == colTap || c == colInstalls || c == colSize || c == colStatus
 }
 
-func (v columnName) ReverseSort() bool {
-	return v == colInstalls || v == colSize
+func (c columnName) ReverseSort() bool {
+	return c == colInstalls || c == colSize
 }
 
-func (v columnName) RightAligned() bool {
-	return v == colInstalls || v == colSize
+func (c columnName) RightAligned() bool {
+	return c == colInstalls || c == colSize
 }
 
 // focusMode defines which component is currently focused
