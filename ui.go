@@ -450,7 +450,7 @@ func getFormattedStatus(pkg *Package) string {
 	} else {
 		statusSymbol = uninstalledStyle.Render(uninstalledSymbol)
 	}
-	return fmt.Sprintf("%s %s\n", statusSymbol, getSimpleStatus(pkg))
+	return fmt.Sprintf("%s %s", statusSymbol, getSimpleStatus(pkg))
 }
 
 // updateTable populates the table with the current viewPackages.
@@ -529,8 +529,11 @@ func (m *model) updateViewport() {
 	}
 
 	b.WriteString(fmt.Sprintf("\nStatus: %s\n", getFormattedStatus(pkg)))
+	if pkg.IsInstalled {
+		b.WriteString(fmt.Sprintf("Installed on: %s\n", pkg.InstalledDate))
+	}
 
-	b.WriteString("Dependencies:\n")
+	b.WriteString("\nDependencies:\n")
 	if len(pkg.Dependencies) > 0 {
 		for _, dep := range pkg.Dependencies {
 			if depPkg := m.getPackage(dep); depPkg != nil && depPkg.IsInstalled {

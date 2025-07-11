@@ -76,6 +76,7 @@ type Package struct {
 	IsDisabled            bool
 	InstalledAsDependency bool
 	Size                  string
+	InstalledDate         string
 	// TODO: add last updated date
 }
 
@@ -97,6 +98,7 @@ type apiFormula struct {
 	Disabled          bool     `json:"disabled"`
 	Installed         []struct {
 		Version        string `json:"version"`
+		Time           int64  `json:"time"`
 		InstalledAsDep bool   `json:"installed_as_dependency"`
 	} `json:"installed"`
 }
@@ -115,6 +117,7 @@ type apiCask struct {
 	Deprecated       bool   `json:"deprecated"`
 	Disabled         bool   `json:"disabled"`
 	InstalledVersion string `json:"installed"`
+	InstalledTime    int64  `json:"installed_time"`
 }
 
 type apiFormulaAnalytics struct {
@@ -518,6 +521,7 @@ func packageFromFormula(f *apiFormula, installs int, installed bool, installedSi
 		pkg.IsPinned = f.Pinned
 		pkg.InstalledAsDependency = inst.InstalledAsDep
 		pkg.Size = installedSize
+		pkg.InstalledDate = time.Unix(inst.Time, 0).Format(time.DateOnly)
 	}
 
 	return pkg
@@ -545,6 +549,7 @@ func packageFromCask(c *apiCask, installs int, installed bool, installedSize str
 		pkg.IsPinned = false
 		pkg.InstalledAsDependency = false
 		pkg.Size = installedSize
+		pkg.InstalledDate = time.Unix(c.InstalledTime, 0).Format(time.DateOnly)
 	}
 
 	return pkg
