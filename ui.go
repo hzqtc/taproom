@@ -10,31 +10,30 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var colWidthMap = map[columnName]int{
+	colSymbol:      2,
+	colName:        15,
+	colVersion:     15,
+	colTap:         15,
+	colDescription: 30,
+	colInstalls:    10,
+	colSize:        8,
+	colStatus:      15,
+}
+
+var tableWidthMax = func() int {
+	widthMax := 0
+	for _, colWidth := range colWidthMap {
+		widthMax += colWidth + colSpacing
+	}
+	return widthMax + tableAdditionalWidth // Allow table to expand up to the additional width
+}()
+
 const (
-	viewportWidthMin = 30
-
-	colSymbolWidth   = 2
-	colNameWidth     = 15
-	colVersionWidth  = 15
-	colTapWidth      = 15
-	colDescWidth     = 30
-	colDescWidthMax  = 60
-	colInstallsWidth = 10
-	colSizeWidth     = 8
-	colStatusWidth   = 15
-	colSpacing       = 2
-
-	tableWidthMax = colSymbolWidth +
-		colNameWidth +
-		colVersionWidth +
-		colTapWidth +
-		colDescWidthMax +
-		colInstallsWidth +
-		colSizeWidth +
-		colStatusWidth +
-		colSpacing*9
-
-	outputMaxLines = 10
+	viewportWidthMin     = 30
+	tableAdditionalWidth = 30
+	colSpacing           = 2
+	outputMaxLines       = 10
 )
 
 const (
@@ -304,102 +303,59 @@ func (m *model) updateLayout() {
 // Dynamically determine visible columns based on table width
 // Returns the visible columns and unused width
 func (m *model) getVisibleCols(tableWidth int) ([]columnName, int) {
-	// symbol and name column is always visible
-	visibleCols := []columnName{colSymbol, colName}
-	colsWidth := colSymbolWidth + colSpacing + colNameWidth + colSpacing
+	visibleCols := []columnName{}
+	visibleColsWidth := 0
 
-	// Add other columns: in order of importance
-	if tableWidth > colsWidth+colStatusWidth+colSpacing {
-		visibleCols = append(visibleCols, colStatus)
-		colsWidth += colStatusWidth + colSpacing
+	// Add columns in order of importance
+	for _, col := range []columnName{colSymbol, colName, colStatus, colVersion, colTap, colDescription, colInstalls, colSize} {
+		colWidth := colWidthMap[col]
+		if tableWidth > visibleColsWidth+colWidth+colSpacing {
+			visibleCols = append(visibleCols, col)
+			visibleColsWidth += colWidth + colSpacing
+		}
 	}
-	if tableWidth > colsWidth+colVersionWidth+colSpacing {
-		visibleCols = append(visibleCols, colVersion)
-		colsWidth += colVersionWidth + colSpacing
-	}
-	if tableWidth > colsWidth+colTapWidth+colSpacing {
-		visibleCols = append(visibleCols, colTap)
-		colsWidth += colTapWidth + colSpacing
-	}
-	if tableWidth > colsWidth+colDescWidth+colSpacing {
-		visibleCols = append(visibleCols, colDescription)
-		colsWidth += colDescWidth + colSpacing
-	}
-	if tableWidth > colsWidth+colInstallsWidth+colSpacing {
-		visibleCols = append(visibleCols, colInstalls)
-		colsWidth += colInstallsWidth + colSpacing
-	}
-	if tableWidth > colsWidth+colSizeWidth+colSpacing {
-		visibleCols = append(visibleCols, colSize)
-		colsWidth += colSizeWidth + colSpacing
-	}
+
 	// sort visible columns by their order in the iota
 	sort.Slice(visibleCols, func(i, j int) bool {
 		return visibleCols[i] < visibleCols[j]
 	})
-	return visibleCols, tableWidth - colsWidth
+	return visibleCols, tableWidth - visibleColsWidth
 }
 
 // Build the columns for the table view
 func (m *model) getTableCols(cols []columnName, remainingWidth int) []table.Column {
 	columns := []table.Column{}
 	for _, col := range cols {
+		colTitle := col.String()
+		colWidth := colWidthMap[col]
 		switch col {
-		case colSymbol:
-			columns = append(columns, table.Column{Title: " ", Width: colSymbolWidth})
 		case colName:
-			colWidth := colNameWidth
 			if !slices.Contains(cols, colDescription) {
 				// If desc column is not visible, the name column takes all remaining width
 				colWidth += remainingWidth
 				remainingWidth = 0
 			}
-			if m.sortMode == sortByName {
-				columns = append(columns, table.Column{Title: "↑ Name", Width: colWidth})
-			} else {
-				columns = append(columns, table.Column{Title: "Name", Width: colWidth})
+			if m.sortColumn == colName {
+				colTitle = fmt.Sprintf("↑ %s", colTitle)
 			}
-		case colVersion:
-			columns = append(columns, table.Column{Title: "Version", Width: colVersionWidth})
-		case colTap:
-			columns = append(columns, table.Column{Title: "Tap", Width: colTapWidth})
 		case colDescription:
 			// If desc column is visible, it takes all remaining width
-			columns = append(columns, table.Column{Title: "Description", Width: colDescWidth + remainingWidth})
+			colWidth += remainingWidth
 			remainingWidth = 0
 		case colInstalls:
-			if m.sortMode == sortByPopularity {
-				columns = append(
-					columns,
-					table.Column{
-						Title: fmt.Sprintf("%*s", colInstallsWidth, "↓ Installs"),
-						Width: colInstallsWidth,
-					},
-				)
-			} else {
-				columns = append(
-					columns,
-					table.Column{
-						Title: fmt.Sprintf("%*s", colInstallsWidth, "Installs"),
-						Width: colInstallsWidth,
-					},
-				)
+			if m.sortColumn == colInstalls {
+				colTitle = fmt.Sprintf("↓ %s", colTitle)
 			}
+			// Right align column
+			colTitle = fmt.Sprintf("%*s", colWidth, colTitle)
 		case colSize:
-			if m.sortMode == sortBySize {
-				columns = append(
-					columns,
-					table.Column{Title: fmt.Sprintf("%*s", colSizeWidth, "↓ Size"), Width: colSizeWidth},
-				)
-			} else {
-				columns = append(
-					columns,
-					table.Column{Title: fmt.Sprintf("%*s", colSizeWidth, "Size"), Width: colSizeWidth},
-				)
+			if m.sortColumn == colSize {
+				colTitle = fmt.Sprintf("↓ %s", colTitle)
 			}
-		case colStatus:
-			columns = append(columns, table.Column{Title: "Status", Width: colStatusWidth})
+			// Right align column
+			colTitle = fmt.Sprintf("%*s", colWidth, colTitle)
 		}
+		columns = append(columns, table.Column{Title: colTitle, Width: colWidth})
 	}
 	return columns
 }
@@ -482,12 +438,12 @@ func (m *model) updateTable() {
 			case colDescription:
 				rowData = append(rowData, pkg.Desc)
 			case colInstalls:
-				rowData = append(rowData, fmt.Sprintf("%*d", colInstallsWidth, pkg.InstallCount90d))
+				rowData = append(rowData, fmt.Sprintf("%*d", colWidthMap[colInstalls], pkg.InstallCount90d))
 			case colSize:
 				if pkg.IsInstalled {
-					rowData = append(rowData, fmt.Sprintf("%*s", colSizeWidth, pkg.FormattedSize))
+					rowData = append(rowData, fmt.Sprintf("%*s", colWidthMap[colSize], pkg.FormattedSize))
 				} else {
-					rowData = append(rowData, fmt.Sprintf("%*s", colSizeWidth, "N/A"))
+					rowData = append(rowData, fmt.Sprintf("%*s", colWidthMap[colSize], "N/A"))
 				}
 			case colStatus:
 				rowData = append(rowData, getSimpleStatus(pkg))
