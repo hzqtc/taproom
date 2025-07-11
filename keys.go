@@ -25,6 +25,7 @@ type keyMap struct {
 
 	// Package Commands
 	OpenHomePage key.Binding
+	OpenBrewUrl  key.Binding
 	Upgrade      key.Binding
 	UpgradeAll   key.Binding
 	Install      key.Binding
@@ -56,7 +57,8 @@ func defaultKeyMap() keyMap {
 		FilterDisabled:  key.NewBinding(key.WithKeys("d")),
 
 		// Package Commands
-		OpenHomePage: key.NewBinding(key.WithKeys("b")),
+		OpenHomePage: key.NewBinding(key.WithKeys("h")),
+		OpenBrewUrl:  key.NewBinding(key.WithKeys("b")),
 		Upgrade:      key.NewBinding(key.WithKeys("u")),
 		UpgradeAll:   key.NewBinding(key.WithKeys("U")),
 		Install:      key.NewBinding(key.WithKeys("t")),

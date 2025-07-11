@@ -108,6 +108,14 @@ func (pkg *Package) Status() string {
 	}
 }
 
+func (pkg *Package) BrewUrl() string {
+	if pkg.IsCask {
+		return fmt.Sprintf("https://formulae.brew.sh/cask/%s", pkg.Name)
+	} else {
+		return fmt.Sprintf("https://formulae.brew.sh/formula/%s", pkg.Name)
+	}
+}
+
 // Structs for parsing Homebrew API Json
 type apiFormula struct {
 	Name     string `json:"name"`

@@ -378,6 +378,10 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		if selectedPkg != nil && selectedPkg.Homepage != "" {
 			browser.OpenURL(selectedPkg.Homepage)
 		}
+	case key.Matches(msg, m.keys.OpenBrewUrl):
+		if selectedPkg != nil {
+			browser.OpenURL(selectedPkg.BrewUrl())
+		}
 	case key.Matches(msg, m.keys.UpgradeAll):
 		outdatedPkgs := m.getOutdatedPackages()
 		if !m.isExecuting && len(outdatedPkgs) > 0 {
