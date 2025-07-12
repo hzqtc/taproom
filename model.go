@@ -163,6 +163,7 @@ func initialModel() model {
 		spinner:    s,
 		table:      tbl,
 		isLoading:  true,
+		loadingMsg: "Loading...",
 		sortColumn: colName,
 		keys:       defaultKeyMap(),
 	}
