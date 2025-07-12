@@ -162,7 +162,7 @@ func initialModel() model {
 		spinner:    s,
 		table:      tbl,
 		isLoading:  true,
-		loadingMsg: "Loading homebrew data...",
+		loadingMsg: "",
 		sortColumn: colName,
 		keys:       defaultKeyMap(),
 	}

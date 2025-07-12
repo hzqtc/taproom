@@ -188,7 +188,6 @@ type installedInfo struct {
 type dataLoadedMsg struct{ packages []Package }
 type dataLoadingErrMsg struct{ err error }
 type loadingProgressMsg struct {
-	// TODO: show a progress bar
 	ch      chan tea.Msg
 	message string
 }
@@ -233,34 +232,38 @@ func loadData() tea.Cmd {
 			var caskSizes map[string]int64
 
 			for i := 0; i < cap(errChan); i++ {
+				progress := fmt.Sprintf("[%d/%d]", i+1, cap(errChan))
+				msg := ""
 				select {
 				case f := <-formulaeChan:
 					allFormulae = f
-					progressChan <- loadingProgressMsg{ch: progressChan, message: "Formulae data loaded"}
+					msg = "Formulae data loaded"
 				case c := <-casksChan:
 					allCasks = c
-					progressChan <- loadingProgressMsg{ch: progressChan, message: "Casks data loaded"}
+					msg = "Casks data loaded"
 				case fa := <-formulaAnalyticsChan:
 					formulaAnalytics = fa
-					progressChan <- loadingProgressMsg{ch: progressChan, message: "Formulae analytics loaded"}
+					msg = "Formulae analytics loaded"
 				case ca := <-caskAnalyticsChan:
 					caskAnalytics = ca
-					progressChan <- loadingProgressMsg{ch: progressChan, message: "Casks analytics loaded"}
+					msg = "Casks analytics loaded"
 				case inst := <-installedChan:
 					allInstalled = inst
-					progressChan <- loadingProgressMsg{ch: progressChan, message: "Installed packages loaded"}
+					msg = "Installation data loaded"
 				case sizes := <-formulaSizesChan:
 					formulaSizes = sizes
-					progressChan <- loadingProgressMsg{ch: progressChan, message: "Installed formula sizes loaded"}
+					msg = "Installed formula sizes loaded"
 				case sizes := <-caskSizesChan:
 					caskSizes = sizes
-					progressChan <- loadingProgressMsg{ch: progressChan, message: "Installed cask sizes loaded"}
+					msg = "Installed cask sizes loaded"
 				case err := <-errChan:
 					progressChan <- dataLoadingErrMsg{err}
 				}
+				if msg != "" {
+					progressChan <- loadingProgressMsg{ch: progressChan, message: fmt.Sprintf("%s %s", progress, msg)}
+				}
 			}
 
-			progressChan <- loadingProgressMsg{ch: progressChan, message: "Processing all loaded data..."}
 			packages := processAllData(
 				allInstalled,
 				allFormulae,
