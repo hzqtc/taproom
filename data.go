@@ -48,11 +48,8 @@ const (
 	casksCacheFile             = "cask.json"
 	formulaeAnalyticsCacheFile = "formulae-analytics.json"
 	casksAnalyticsCacheFile    = "casks-analytics.json"
-	formulaeSizesCacheFile     = "formulae-sizes.json"
-	casksSizesCacheFile        = "casks-sizes.json"
 
-	urlCacheTtl      = 6 * time.Hour
-	pkgSizesCacheTtl = 24 * time.Hour
+	urlCacheTtl = 6 * time.Hour
 )
 
 // Package holds all combined information for a formula or cask.
@@ -353,112 +350,65 @@ func fetchInstalled(installedChan chan installedInfo, errChan chan error) {
 	installedChan <- info
 }
 
-func fetchSizesWithCache(
-	cacheFile string,
-	fetcher func() (map[string]int64, error),
-	sizesChan chan map[string]int64,
-	errChan chan error,
-) {
-	cachePath := filepath.Join(cacheDir, cacheFile)
-
-	// Attempt to load from cache first
-	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < pkgSizesCacheTtl {
-		file, err := os.Open(cachePath)
-		if err == nil {
-			defer file.Close()
-			body, err := io.ReadAll(file)
-			if err == nil {
-				var sizes map[string]int64
-				if err := json.Unmarshal(body, &sizes); err == nil {
-					log.Printf("Loaded package sizes from cache file %s", cacheFile)
-					sizesChan <- sizes
-					return
-				}
-			}
-		}
-	}
-
-	// Fetch new data if cache is stale or invalid
-	sizes, err := fetcher()
-	if err != nil {
-		errChan <- err
-		return
-	}
-
-	// Save to cache
-	if body, err := json.Marshal(sizes); err == nil {
-		if err := os.MkdirAll(cacheDir, 0755); err == nil {
-			if err := os.WriteFile(cachePath, body, 0644); err != nil {
-				// Log caching error but don't fail the request
-				log.Printf("Failed to write to cache at %s: %+v", cachePath, err)
-			}
-		}
-	}
-
-	sizesChan <- sizes
-}
-
 func fetchFormulaSizes(sizesChan chan map[string]int64, errChan chan error) {
-	fetcher := func() (map[string]int64, error) {
-		sizes := make(map[string]int64)
-		// -k flag instructs du to output in KB
-		cmd := exec.Command("du", "-k", "-d", "1", fmt.Sprintf("%s/Cellar", brewPrefix))
-		output, err := cmd.Output()
+	sizes := make(map[string]int64)
+	// -k flag instructs du to output in KB
+	cmd := exec.Command("du", "-k", "-d", "1", fmt.Sprintf("%s/Cellar", brewPrefix))
+	output, err := cmd.Output()
 
-		if err == nil {
-			lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-			for _, line := range lines {
-				fields := strings.Fields(line)
-				if len(fields) >= 2 {
-					size, _ := strconv.ParseInt(fields[0], 10, 64)
-					name := filepath.Base(fields[1])
-					sizes[name] = size * 1024 // Convert KB to Bytes
-				}
+	if err == nil {
+		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+		for _, line := range lines {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				size, _ := strconv.ParseInt(fields[0], 10, 64)
+				name := filepath.Base(fields[1])
+				sizes[name] = size * 1024 // Convert KB to Bytes
 			}
 		}
-		return sizes, nil
+		sizesChan <- sizes
+	} else {
+		errChan <- err
 	}
-	fetchSizesWithCache(formulaeSizesCacheFile, fetcher, sizesChan, errChan)
 }
 
 func fetchCaskSizes(sizesChan chan map[string]int64, errChan chan error) {
-	fetcher := func() (map[string]int64, error) {
-		sizes := make(map[string]int64)
+	sizes := make(map[string]int64)
 
-		// Step 1: Run `brew list --cask`
-		listCmd := exec.Command("brew", "list", "--cask")
-		listOutput, err := listCmd.Output()
-		if err != nil {
-			return sizes, fmt.Errorf("error running brew list --cask: %w", err)
-		}
-
-		// Step 2: Split output into cask names
-		caskNames := strings.Fields(string(listOutput))
-		if len(caskNames) == 0 {
-			return sizes, nil
-		}
-
-		// Step 3: Run `brew info --cask <name1> <name2> ...`
-		infoCmd := exec.Command("brew", append([]string{"info", "--cask"}, caskNames...)...)
-		infoOutput, err := infoCmd.Output()
-		if err != nil {
-			return sizes, fmt.Errorf("error running brew info: %w", err)
-		}
-
-		// Step 4: Extract cask name to app size
-		// Try to match following lines from brew info output:
-		// /opt/homebrew/Caskroom/(cask name)/(version) (size)
-		re := regexp.MustCompile(regexp.QuoteMeta(brewPrefix) + `/Caskroom/([^/]+)/[^ )]+ \(([^)]+)\)`)
-		matches := re.FindAllStringSubmatch(string(infoOutput), -1)
-		for _, match := range matches {
-			appName := match[1]
-			appSize := parseSizeToBytes(match[2])
-			sizes[appName] = appSize
-		}
-
-		return sizes, nil
+	// Step 1: Run `brew list --cask`
+	listCmd := exec.Command("brew", "list", "--cask")
+	listOutput, err := listCmd.Output()
+	if err != nil {
+		errChan <- fmt.Errorf("error running brew list --cask: %w", err)
+		return
 	}
-	fetchSizesWithCache(casksSizesCacheFile, fetcher, sizesChan, errChan)
+
+	// Step 2: Split output into cask names
+	caskNames := strings.Fields(string(listOutput))
+	if len(caskNames) == 0 {
+		sizesChan <- sizes
+		return
+	}
+
+	// Step 3: Run `brew info --cask <name1> <name2> ...`
+	infoCmd := exec.Command("brew", append([]string{"info", "--cask"}, caskNames...)...)
+	infoOutput, err := infoCmd.Output()
+	if err != nil {
+		errChan <- fmt.Errorf("error running brew info: %w", err)
+		return
+	}
+
+	// Step 4: Extract cask name to app size
+	// Try to match following lines from brew info output:
+	// /opt/homebrew/Caskroom/(cask name)/(version) (size)
+	re := regexp.MustCompile(regexp.QuoteMeta(brewPrefix) + `/Caskroom/([^/]+)/[^ )]+ \(([^)]+)\)`)
+	matches := re.FindAllStringSubmatch(string(infoOutput), -1)
+	for _, match := range matches {
+		appName := match[1]
+		appSize := parseSizeToBytes(match[2])
+		sizes[appName] = appSize
+	}
+	sizesChan <- sizes
 }
 
 // processAllData merges all data sources into a single slice of Package.
