@@ -138,7 +138,6 @@ type model struct {
 	// Command execution
 	isExecuting bool
 	output      []string
-	cmdChan     chan tea.Msg
 }
 
 // initialModel creates the starting state of the application.
@@ -215,24 +214,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.isExecuting = true
 		m.output = []string{}
 
-	// Command execution message with channel
-	case commandExecMsg:
-		m.cmdChan = msg.ch
-		cmds = append(cmds, waitForOutput(m.cmdChan))
-
 	// Command execution output
 	case commandOutputMsg:
-		m.output = append(m.output, msg.line)
-		m.updateLayout()
-		cmds = append(cmds, waitForOutput(m.cmdChan))
+		if msg.line != "" {
+			m.output = append(m.output, msg.line)
+			m.updateLayout()
+		}
+		cmds = append(cmds, streamOutput(msg.ch))
 
 	// Command execution finish
 	case commandFinishMsg:
 		m.isExecuting = false
-		m.cmdChan = nil
-		if msg.stderr != "" {
-			m.errorMsg = msg.stderr
-		} else if msg.err != nil {
+		if msg.err != nil {
 			m.errorMsg = msg.err.Error()
 		} else {
 			// Command was successful, update package state

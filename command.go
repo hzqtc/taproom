@@ -2,11 +2,8 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
-	"io"
 	"os/exec"
-	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -14,8 +11,15 @@ import (
 // --- Command Execution Messages ---
 
 type commandStartMsg struct{}
-type commandExecMsg struct{ ch chan tea.Msg }
-type commandOutputMsg struct{ line string }
+type commandOutputMsg struct {
+	ch   chan tea.Msg
+	line string
+}
+type commandFinishMsg struct {
+	err    error
+	action commandAction
+	pkgs   []*Package
+}
 
 type commandAction string
 
@@ -28,13 +32,6 @@ const (
 	actionUnpin      commandAction = "unpin"
 )
 
-type commandFinishMsg struct {
-	err    error
-	stderr string
-	action commandAction
-	pkgs   []*Package
-}
-
 // --- Command Functions ---
 
 func startCommand() tea.Cmd {
@@ -43,7 +40,7 @@ func startCommand() tea.Cmd {
 	}
 }
 
-func waitForOutput(ch chan tea.Msg) tea.Cmd {
+func streamOutput(ch chan tea.Msg) tea.Cmd {
 	return func() tea.Msg {
 		return <-ch
 	}
@@ -63,41 +60,26 @@ func execute(action commandAction, pkgs []*Package, args ...string) tea.Cmd {
 				return
 			}
 
-			stderr, err := cmd.StderrPipe()
-			if err != nil {
-				ch <- commandFinishMsg{err: fmt.Errorf("failed to get stderr pipe: %w", err), action: action}
-				return
-			}
-
 			if err := cmd.Start(); err != nil {
 				ch <- commandFinishMsg{err: fmt.Errorf("failed to start command: %w", err), action: action}
 				return
 			}
 
-			var wg sync.WaitGroup
-			wg.Add(2) // One for stdout, one for stderr
-
+			output := make(chan struct{})
 			go func() {
-				defer wg.Done()
 				scanner := bufio.NewScanner(stdout)
 				for scanner.Scan() {
-					ch <- commandOutputMsg{line: scanner.Text()}
+					ch <- commandOutputMsg{ch: ch, line: scanner.Text()}
 				}
+				close(output)
 			}()
-
-			var stderrBuf bytes.Buffer
-			go func() {
-				defer wg.Done()
-				io.Copy(&stderrBuf, stderr)
-			}()
+			<-output
 
 			cmdErr := cmd.Wait()
-			wg.Wait()
-
-			ch <- commandFinishMsg{err: cmdErr, stderr: stderrBuf.String(), action: action, pkgs: pkgs}
+			ch <- commandFinishMsg{err: cmdErr, action: action, pkgs: pkgs}
 		}()
 
-		return commandExecMsg{ch: ch}
+		return commandOutputMsg{ch: ch}
 	}
 }
 
