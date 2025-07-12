@@ -162,7 +162,7 @@ func initialModel() model {
 		spinner:    s,
 		table:      tbl,
 		isLoading:  true,
-		loadingMsg: "Loading...",
+		loadingMsg: "Loading homebrew data...",
 		sortColumn: colName,
 		keys:       defaultKeyMap(),
 	}
@@ -171,7 +171,7 @@ func initialModel() model {
 // Init is the first command that is run when the application starts.
 func (m model) Init() tea.Cmd {
 	// Start the spinner and load the data from Homebrew APIs.
-	return tea.Batch(m.spinner.Tick, loadData)
+	return tea.Batch(m.spinner.Tick, loadData())
 }
 
 // Update handles all incoming messages and returns a new model and command.
@@ -198,9 +198,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateTable()
 
 	// An error occurred during data loading
-	case dataLoadingErr:
+	case dataLoadingErrMsg:
 		m.isLoading = false
 		m.errorMsg = msg.err.Error()
+
+	case loadingProgressMsg:
+		if msg.message != "" {
+			m.loadingMsg = m.loadingMsg + "\n" + msg.message
+		}
+		cmds = append(cmds, streamLoadingProgress(msg.ch))
 
 	// Spinner tick (for animation)
 	case spinner.TickMsg:
@@ -258,7 +264,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.keys.Refresh):
 				m.search.SetValue("")
 				m.isLoading = true
-				cmds = append(cmds, loadData)
+				cmds = append(cmds, loadData())
 			case key.Matches(msg, m.keys.Quit):
 				return m, tea.Quit
 			default:

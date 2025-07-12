@@ -186,90 +186,95 @@ type installedInfo struct {
 
 // Message types for tea.Cmd
 type dataLoadedMsg struct{ packages []Package }
-type dataLoadingErr struct{ err error }
+type dataLoadingErrMsg struct{ err error }
+type loadingProgressMsg struct {
+	// TODO: show a progress bar
+	ch      chan tea.Msg
+	message string
+}
+
+func streamLoadingProgress(ch chan tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		return <-ch
+	}
+}
 
 // loadData is a tea.Cmd that fetches all data concurrently.
-func loadData() tea.Msg {
-	formulaeChan := make(chan []apiFormula)
-	casksChan := make(chan []apiCask)
-	formulaAnalyticsChan := make(chan apiFormulaAnalytics)
-	caskAnalyticsChan := make(chan apiCaskAnalytics)
-	installedChan := make(chan installedInfo)
-	formulaSizesChan := make(chan map[string]int64)
-	caskSizesChan := make(chan map[string]int64)
-	errChan := make(chan error, 7)
+func loadData() tea.Cmd {
+	return func() tea.Msg {
+		progressChan := make(chan tea.Msg)
 
-	go fetchJsonWithCache(
-		apiFormulaURL,
-		formulaCacheFile,
-		&[]apiFormula{},
-		formulaeChan,
-		errChan,
-	)
-	go fetchJsonWithCache(
-		apiCaskURL,
-		casksCacheFile,
-		&[]apiCask{},
-		casksChan,
-		errChan,
-	)
-	go fetchJsonWithCache(
-		apiFormulaAnalytics90dURL,
-		formulaeAnalyticsCacheFile,
-		&apiFormulaAnalytics{},
-		formulaAnalyticsChan,
-		errChan,
-	)
-	go fetchJsonWithCache(
-		apiCaskAnalytics90dURL,
-		casksAnalyticsCacheFile,
-		&apiCaskAnalytics{},
-		caskAnalyticsChan,
-		errChan,
-	)
-	go fetchInstalled(installedChan, errChan)
-	go fetchFormulaSizes(formulaSizesChan, errChan)
-	go fetchCaskSizes(caskSizesChan, errChan)
+		go func() {
+			defer close(progressChan)
 
-	var allFormulae []apiFormula
-	var allCasks []apiCask
-	var formulaAnalytics apiFormulaAnalytics
-	var caskAnalytics apiCaskAnalytics
-	var allInstalled installedInfo
-	var formulaSizes map[string]int64
-	var caskSizes map[string]int64
+			formulaeChan := make(chan []apiFormula)
+			casksChan := make(chan []apiCask)
+			formulaAnalyticsChan := make(chan apiFormulaAnalytics)
+			caskAnalyticsChan := make(chan apiCaskAnalytics)
+			installedChan := make(chan installedInfo)
+			formulaSizesChan := make(chan map[string]int64)
+			caskSizesChan := make(chan map[string]int64)
+			errChan := make(chan error, 7)
 
-	for i := 0; i < cap(errChan); i++ {
-		select {
-		case f := <-formulaeChan:
-			allFormulae = f
-		case c := <-casksChan:
-			allCasks = c
-		case fa := <-formulaAnalyticsChan:
-			formulaAnalytics = fa
-		case ca := <-caskAnalyticsChan:
-			caskAnalytics = ca
-		case inst := <-installedChan:
-			allInstalled = inst
-		case sizes := <-formulaSizesChan:
-			formulaSizes = sizes
-		case sizes := <-caskSizesChan:
-			caskSizes = sizes
-		case err := <-errChan:
-			return dataLoadingErr{err}
-		}
+			go fetchJsonWithCache(apiFormulaURL, formulaCacheFile, &[]apiFormula{}, formulaeChan, errChan)
+			go fetchJsonWithCache(apiCaskURL, casksCacheFile, &[]apiCask{}, casksChan, errChan)
+			go fetchJsonWithCache(apiFormulaAnalytics90dURL, formulaeAnalyticsCacheFile, &apiFormulaAnalytics{}, formulaAnalyticsChan, errChan)
+			go fetchJsonWithCache(apiCaskAnalytics90dURL, casksAnalyticsCacheFile, &apiCaskAnalytics{}, caskAnalyticsChan, errChan)
+			go fetchInstalled(installedChan, errChan)
+			go fetchFormulaSizes(formulaSizesChan, errChan)
+			go fetchCaskSizes(caskSizesChan, errChan)
+
+			var allFormulae []apiFormula
+			var allCasks []apiCask
+			var formulaAnalytics apiFormulaAnalytics
+			var caskAnalytics apiCaskAnalytics
+			var allInstalled installedInfo
+			var formulaSizes map[string]int64
+			var caskSizes map[string]int64
+
+			for i := 0; i < cap(errChan); i++ {
+				select {
+				case f := <-formulaeChan:
+					allFormulae = f
+					progressChan <- loadingProgressMsg{ch: progressChan, message: "Formulae data loaded"}
+				case c := <-casksChan:
+					allCasks = c
+					progressChan <- loadingProgressMsg{ch: progressChan, message: "Casks data loaded"}
+				case fa := <-formulaAnalyticsChan:
+					formulaAnalytics = fa
+					progressChan <- loadingProgressMsg{ch: progressChan, message: "Formulae analytics loaded"}
+				case ca := <-caskAnalyticsChan:
+					caskAnalytics = ca
+					progressChan <- loadingProgressMsg{ch: progressChan, message: "Casks analytics loaded"}
+				case inst := <-installedChan:
+					allInstalled = inst
+					progressChan <- loadingProgressMsg{ch: progressChan, message: "Installed packages loaded"}
+				case sizes := <-formulaSizesChan:
+					formulaSizes = sizes
+					progressChan <- loadingProgressMsg{ch: progressChan, message: "Installed formula sizes loaded"}
+				case sizes := <-caskSizesChan:
+					caskSizes = sizes
+					progressChan <- loadingProgressMsg{ch: progressChan, message: "Installed cask sizes loaded"}
+				case err := <-errChan:
+					progressChan <- dataLoadingErrMsg{err}
+				}
+			}
+
+			progressChan <- loadingProgressMsg{ch: progressChan, message: "Processing all loaded data..."}
+			packages := processAllData(
+				allInstalled,
+				allFormulae,
+				allCasks,
+				formulaAnalytics,
+				caskAnalytics,
+				formulaSizes,
+				caskSizes,
+			)
+			progressChan <- dataLoadedMsg{packages: packages}
+		}()
+
+		return loadingProgressMsg{ch: progressChan}
 	}
-
-	packages := processAllData(
-		allInstalled,
-		allFormulae,
-		allCasks,
-		formulaAnalytics,
-		caskAnalytics,
-		formulaSizes,
-		caskSizes,
-	)
-	return dataLoadedMsg{packages: packages}
 }
 
 // fetchJsonWithCache is a generic function to fetch and decode Json from a URL, with caching.
