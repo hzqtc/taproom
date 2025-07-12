@@ -67,6 +67,7 @@ type Package struct {
 	Dependencies          []string
 	BuildDependencies     []string
 	Dependents            []string
+	Conflicts             []string
 	InstallCount90d       int
 	IsCask                bool
 	IsInstalled           bool
@@ -128,6 +129,7 @@ type apiFormula struct {
 	License           string   `json:"license"`
 	Dependencies      []string `json:"dependencies"`
 	BuildDependencies []string `json:"build_dependencies"`
+	Conflicts         []string `json:"conflicts_with"`
 	Outdated          bool     `json:"outdated"`
 	Pinned            bool     `json:"pinned"`
 	Deprecated        bool     `json:"deprecated"`
@@ -149,6 +151,10 @@ type apiCask struct {
 		Formulae []string `json:"formula"`
 		Casks    []string `json:"cask"`
 	} `json:"depends_on"`
+	Conflicts struct {
+		Formulae []string `json:"formula"`
+		Casks    []string `json:"cask"`
+	} `json:"conflicts_with"`
 	Outdated         bool   `json:"outdated"`
 	Deprecated       bool   `json:"deprecated"`
 	Disabled         bool   `json:"disabled"`
@@ -545,6 +551,7 @@ func packageFromFormula(f *apiFormula, installs int, installed bool, installedSi
 		License:           f.License,
 		Dependencies:      sortAndUniq(f.Dependencies),
 		BuildDependencies: f.BuildDependencies,
+		Conflicts:         f.Conflicts,
 		InstallCount90d:   installs,
 		IsCask:            false,
 		IsDeprecated:      f.Deprecated,
@@ -574,6 +581,7 @@ func packageFromCask(c *apiCask, installs int, installed bool, installedSize int
 		Homepage:        c.Homepage,
 		License:         "N/A",
 		Dependencies:    sortAndUniq(append(c.Dependencies.Formulae, c.Dependencies.Casks...)),
+		Conflicts:       sortAndUniq(append(c.Conflicts.Formulae, c.Conflicts.Casks...)),
 		InstallCount90d: installs,
 		IsCask:          true,
 		IsDeprecated:    c.Deprecated,

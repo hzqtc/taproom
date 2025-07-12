@@ -492,8 +492,15 @@ func (m *model) updateViewport() {
 		b.WriteString(fmt.Sprintf("Installed on: %s\n", pkg.InstalledDate))
 	}
 
-	b.WriteString("\nDependencies:\n")
+	if len(pkg.Conflicts) > 0 {
+		b.WriteString("\nConflicts:\n")
+		for _, c := range pkg.Conflicts {
+			b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), c))
+		}
+	}
+
 	if len(pkg.Dependencies) > 0 {
+		b.WriteString("\nDependencies:\n")
 		for _, dep := range pkg.Dependencies {
 			if depPkg := m.getPackage(dep); depPkg != nil && depPkg.IsInstalled {
 				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
@@ -508,8 +515,6 @@ func (m *model) updateViewport() {
 				}
 			}
 		}
-	} else {
-		b.WriteString("  None\n")
 	}
 
 	if len(pkg.BuildDependencies) > 0 {
