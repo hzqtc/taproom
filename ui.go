@@ -494,7 +494,11 @@ func (m *model) updateViewport() {
 	if len(pkg.Conflicts) > 0 {
 		b.WriteString("\nConflicts:\n")
 		for _, c := range pkg.Conflicts {
-			b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), c))
+			if conflictPkg := m.getPackage(c); conflictPkg != nil && conflictPkg.IsInstalled {
+				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), c))
+			} else {
+				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), c))
+			}
 		}
 	}
 
