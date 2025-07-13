@@ -192,6 +192,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Data has been successfully loaded
 	case dataLoadedMsg:
 		m.isLoading = false
+		m.loadingMsg = ""
 		m.allPackages = msg.packages
 		m.filterAndSortPackages()
 		m.updateLayout()
