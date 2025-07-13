@@ -166,9 +166,8 @@ func (m *model) renderOutput() string {
 func (m *model) renderHelp() string {
 	var b strings.Builder
 
-	// TODO: update help based on current focused component
 	b.WriteString("General      : ")
-	b.WriteString(keyStyle.Render("q"))
+	b.WriteString(keyStyle.Render("q/ctrl+c"))
 	b.WriteString(": quit ")
 	b.WriteString(keyStyle.Render("r"))
 	b.WriteString(": refresh ")
@@ -211,7 +210,7 @@ func (m *model) renderHelp() string {
 	b.WriteString(keyStyle.Render("e"))
 	b.WriteString(": explicitly installed ")
 	b.WriteString(keyStyle.Render("d"))
-	b.WriteString(": hide disabled/deprecated")
+	b.WriteString(": hide deprecated")
 	b.WriteString("\n")
 	b.WriteString("Commands     : ")
 	b.WriteString(keyStyle.Render("h"))
@@ -221,15 +220,15 @@ func (m *model) renderHelp() string {
 	b.WriteString(keyStyle.Render("U"))
 	b.WriteString(": upgrade all ")
 	b.WriteString(keyStyle.Render("u"))
-	b.WriteString(": upgrade selected ")
+	b.WriteString(": upgrade ")
 	b.WriteString(keyStyle.Render("t"))
-	b.WriteString(": install selected ")
+	b.WriteString(": install ")
 	b.WriteString(keyStyle.Render("x"))
-	b.WriteString(": uninstall selected ")
+	b.WriteString(": uninstall ")
 	b.WriteString(keyStyle.Render("p"))
-	b.WriteString(": pin selected ")
+	b.WriteString(": pin ")
 	b.WriteString(keyStyle.Render("P"))
-	b.WriteString(": unpin selected")
+	b.WriteString(": unpin")
 
 	return helpStyle.Render(b.String())
 }
