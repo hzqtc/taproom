@@ -150,7 +150,7 @@ func (m model) View() string {
 }
 
 func (m *model) renderOutput() string {
-	if !m.isExecuting {
+	if len(m.output) == 0 {
 		return ""
 	}
 

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os/exec"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -46,6 +47,13 @@ func streamOutput(ch chan tea.Msg) tea.Cmd {
 	}
 }
 
+func feedOutput(ch chan tea.Msg, pipe io.ReadCloser) {
+	scanner := bufio.NewScanner(pipe)
+	for scanner.Scan() {
+		ch <- commandOutputMsg{ch: ch, line: scanner.Text()}
+	}
+}
+
 func execute(action commandAction, pkgs []*Package, args ...string) tea.Cmd {
 	return func() tea.Msg {
 		ch := make(chan tea.Msg)
@@ -54,26 +62,27 @@ func execute(action commandAction, pkgs []*Package, args ...string) tea.Cmd {
 			defer close(ch)
 			cmd := exec.Command("brew", args...)
 
+			// Connect to stdout and stderr
 			stdout, err := cmd.StdoutPipe()
 			if err != nil {
 				ch <- commandFinishMsg{err: fmt.Errorf("failed to get stdout pipe: %w", err), action: action}
 				return
 			}
+			stderr, err := cmd.StderrPipe()
+			if err != nil {
+				ch <- commandFinishMsg{err: fmt.Errorf("failed to get stderr pipe: %w", err), action: action}
+				return
+			}
 
+			// Start command
 			if err := cmd.Start(); err != nil {
 				ch <- commandFinishMsg{err: fmt.Errorf("failed to start command: %w", err), action: action}
 				return
 			}
 
-			output := make(chan struct{})
-			go func() {
-				scanner := bufio.NewScanner(stdout)
-				for scanner.Scan() {
-					ch <- commandOutputMsg{ch: ch, line: scanner.Text()}
-				}
-				close(output)
-			}()
-			<-output
+			// Stream stdout and stderr
+			go feedOutput(ch, stdout)
+			go feedOutput(ch, stderr)
 
 			cmdErr := cmd.Wait()
 			ch <- commandFinishMsg{err: cmdErr, action: action, pkgs: pkgs}

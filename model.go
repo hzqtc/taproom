@@ -200,6 +200,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// An error occurred during data loading
 	case dataLoadingErrMsg:
 		m.isLoading = false
+		// Data loading error is fatal
 		m.errorMsg = msg.err.Error()
 
 	case loadingProgressMsg:
@@ -231,14 +232,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Command execution finish
 	case commandFinishMsg:
 		m.isExecuting = false
-		if msg.err != nil {
-			m.errorMsg = msg.err.Error()
-		} else {
-			// Command was successful, update package state
+		if msg.err == nil {
+			// Command was successful, clear output and update package state
+			m.output = m.output[:0]
 			m.updatePackageForAction(msg.action, msg.pkgs)
 			m.filterAndSortPackages()
 			m.updateTable()
 		}
+		// If there are error, it should already be displayed in the output
 		m.updateLayout()
 
 	// A key was pressed
