@@ -19,7 +19,6 @@ import (
 )
 
 // --- Constants & Data Structures ---
-// TODO: make caching configurable
 // TODO: allow skip loading certain data such as installed formula/cask size
 var cacheDir = func() string {
 	home, err := os.UserHomeDir()
@@ -278,23 +277,35 @@ func loadData() tea.Cmd {
 	}
 }
 
-// fetchJsonWithCache is a generic function to fetch and decode Json from a URL, with caching.
-func fetchJsonWithCache[T any](url, filename string, target *T, dataChan chan T, errChan chan error) {
-	cachePath := filepath.Join(cacheDir, filename)
+func readCacheData(cachePath string) []byte {
+	if *invalidateCache {
+		return nil
+	}
 
-	// Attempt to load from cache first
 	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < urlCacheTtl {
 		file, err := os.Open(cachePath)
 		if err == nil {
 			defer file.Close()
 			body, err := io.ReadAll(file)
 			if err == nil {
-				if err := json.Unmarshal(body, &target); err == nil {
-					log.Printf("Loaded %s from cache file %s", url, filename)
-					dataChan <- *target
-					return
-				}
+				return body
 			}
+		}
+	}
+
+	return nil
+}
+
+// fetchJsonWithCache is a generic function to fetch and decode Json from a URL, with caching.
+func fetchJsonWithCache[T any](url, filename string, target *T, dataChan chan T, errChan chan error) {
+	cachePath := filepath.Join(cacheDir, filename)
+
+	// Attempt to load from cache first
+	if cacheData := readCacheData(cachePath); cacheData != nil {
+		if err := json.Unmarshal(cacheData, &target); err == nil {
+			log.Printf("Loaded %s from cache file %s", url, filename)
+			dataChan <- *target
+			return
 		}
 	}
 

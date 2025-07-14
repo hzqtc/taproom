@@ -6,9 +6,22 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/pflag"
+)
+
+var (
+	invalidateCache = pflag.BoolP("invalidate-cache", "i", false, "Invalidate cache and force re-downloading data")
+	showHelp        = pflag.BoolP("help", "h", false, "Show help message")
 )
 
 func main() {
+	pflag.Parse()
+
+	if *showHelp {
+		pflag.Usage()
+		os.Exit(0)
+	}
+
 	f, err := os.OpenFile("/tmp/taproom.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		log.Fatalf("failed to create log file: %v", err)
