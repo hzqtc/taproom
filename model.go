@@ -266,6 +266,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.keys.Refresh):
 				m.search.SetValue("")
 				m.isLoading = true
+				m.output = []string{}
 				cmds = append(cmds, loadData())
 			case key.Matches(msg, m.keys.Quit):
 				return m, tea.Quit

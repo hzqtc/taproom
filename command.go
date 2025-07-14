@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -60,6 +61,8 @@ func execute(action commandAction, pkgs []*Package, args ...string) tea.Cmd {
 
 		go func() {
 			defer close(ch)
+			ch <- commandOutputMsg{ch: ch, line: fmt.Sprintf("> brew %s\n", strings.Join(args, " "))}
+
 			cmd := exec.Command("brew", args...)
 
 			// Connect to stdout and stderr

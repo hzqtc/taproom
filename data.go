@@ -20,6 +20,7 @@ import (
 
 // --- Constants & Data Structures ---
 // TODO: make caching configurable
+// TODO: allow skip loading certain data such as installed formula/cask size
 var cacheDir = func() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
