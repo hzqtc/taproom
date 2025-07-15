@@ -19,7 +19,6 @@ import (
 )
 
 // --- Constants & Data Structures ---
-// TODO: allow skip loading certain data such as installed formula/cask size
 var cacheDir = func() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -195,8 +194,8 @@ func streamLoadingProgress(ch chan tea.Msg) tea.Cmd {
 	}
 }
 
-// loadData is a tea.Cmd that fetches all data concurrently.
-func loadData() tea.Cmd {
+// loadData returns a tea.Cmd that fetches all data concurrently.
+func (m *model) loadData() tea.Cmd {
 	return func() tea.Msg {
 		progressChan := make(chan tea.Msg)
 
@@ -212,14 +211,6 @@ func loadData() tea.Cmd {
 			caskSizesChan := make(chan map[string]int64)
 			errChan := make(chan error, 7)
 
-			go fetchJsonWithCache(apiFormulaURL, formulaCacheFile, &[]apiFormula{}, formulaeChan, errChan)
-			go fetchJsonWithCache(apiCaskURL, casksCacheFile, &[]apiCask{}, casksChan, errChan)
-			go fetchJsonWithCache(apiFormulaAnalytics90dURL, formulaeAnalyticsCacheFile, &apiFormulaAnalytics{}, formulaAnalyticsChan, errChan)
-			go fetchJsonWithCache(apiCaskAnalytics90dURL, casksAnalyticsCacheFile, &apiCaskAnalytics{}, caskAnalyticsChan, errChan)
-			go fetchInstalled(installedChan, errChan)
-			go fetchFormulaSizes(formulaSizesChan, errChan)
-			go fetchCaskSizes(caskSizesChan, errChan)
-
 			var allFormulae []apiFormula
 			var allCasks []apiCask
 			var formulaAnalytics apiFormulaAnalytics
@@ -228,8 +219,30 @@ func loadData() tea.Cmd {
 			var formulaSizes map[string]int64
 			var caskSizes map[string]int64
 
-			for i := 0; i < cap(errChan); i++ {
-				progress := fmt.Sprintf("[%d/%d]", i+1, cap(errChan))
+			loadingTasksNum := cap(errChan)
+
+			go fetchJsonWithCache(apiFormulaURL, formulaCacheFile, &[]apiFormula{}, formulaeChan, errChan)
+			go fetchJsonWithCache(apiCaskURL, casksCacheFile, &[]apiCask{}, casksChan, errChan)
+			if m.isColumnEnabled(colInstalls) {
+				go fetchJsonWithCache(apiFormulaAnalytics90dURL, formulaeAnalyticsCacheFile, &apiFormulaAnalytics{}, formulaAnalyticsChan, errChan)
+				go fetchJsonWithCache(apiCaskAnalytics90dURL, casksAnalyticsCacheFile, &apiCaskAnalytics{}, caskAnalyticsChan, errChan)
+			} else {
+				loadingTasksNum -= 2
+				formulaAnalytics = apiFormulaAnalytics{}
+				caskAnalytics = apiCaskAnalytics{}
+			}
+			go fetchInstalled(installedChan, errChan)
+			if m.isColumnEnabled(colSize) {
+				go fetchFormulaSizes(formulaSizesChan, errChan)
+				go fetchCaskSizes(caskSizesChan, errChan)
+			} else {
+				loadingTasksNum -= 2
+				formulaSizes = map[string]int64{}
+				caskSizes = map[string]int64{}
+			}
+
+			for i := 0; i < loadingTasksNum; i++ {
+				progress := fmt.Sprintf("[%d/%d]", i+1, loadingTasksNum)
 				msg := ""
 				select {
 				case f := <-formulaeChan:

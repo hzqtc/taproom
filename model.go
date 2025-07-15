@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -51,6 +53,10 @@ func (v viewMode) String() string {
 type columnName int
 
 const (
+	colUnknown columnName = -1
+)
+
+const (
 	colSymbol      columnName = iota // Symbol to differentiate formula vs cask
 	colName                          // Name of the formula or token of the cask, unique identifier when combine with IsCask
 	colVersion                       // Newest version
@@ -83,6 +89,26 @@ func (c columnName) String() string {
 		return "Status"
 	default:
 		return "Unknown"
+	}
+}
+
+func parseColumnName(name string) (columnName, error) {
+	switch name {
+	// Name and Symbol columns can not be customized
+	case "Version":
+		return colVersion, nil
+	case "Tap":
+		return colTap, nil
+	case "Description":
+		return colDescription, nil
+	case "Installs":
+		return colInstalls, nil
+	case "Size":
+		return colSize, nil
+	case "Status":
+		return colStatus, nil
+	default:
+		return colUnknown, fmt.Errorf("Unknown column: %s", name)
 	}
 }
 
@@ -130,7 +156,8 @@ type model struct {
 	errorMsg       string
 	width          int
 	height         int
-	visibleColumns []columnName
+	columns        []columnName // Enabled table columns
+	visibleColumns []columnName // Columns currently visible in the UI, depending on screen width
 
 	// Keybindings
 	keys keyMap
@@ -157,6 +184,26 @@ func initialModel() model {
 	)
 	tbl.SetStyles(getTableStyles())
 
+	// Parse hidden columns from command line flag into a set
+	hiddenColumns := make(map[columnName]struct{})
+	for _, c := range *hiddenCols {
+		if col, err := parseColumnName(c); err == nil {
+			hiddenColumns[col] = struct{}{}
+		} else {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
+
+	// Add all non-hidden columns
+	columns := []columnName{}
+	for i := 0; i < int(totalNumColumns); i++ {
+		col := columnName(i)
+		if _, hidden := hiddenColumns[col]; !hidden {
+			columns = append(columns, col)
+		}
+	}
+
 	return model{
 		search:     searchInput,
 		spinner:    s,
@@ -164,6 +211,7 @@ func initialModel() model {
 		isLoading:  true,
 		loadingMsg: "",
 		sortColumn: colName,
+		columns:    columns,
 		keys:       defaultKeyMap(),
 	}
 }
@@ -171,7 +219,7 @@ func initialModel() model {
 // Init is the first command that is run when the application starts.
 func (m model) Init() tea.Cmd {
 	// Start the spinner and load the data from Homebrew APIs.
-	return tea.Batch(m.spinner.Tick, loadData())
+	return tea.Batch(m.spinner.Tick, m.loadData())
 }
 
 // Update handles all incoming messages and returns a new model and command.
@@ -267,7 +315,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.search.SetValue("")
 				m.isLoading = true
 				m.output = []string{}
-				cmds = append(cmds, loadData())
+				cmds = append(cmds, m.loadData())
 			case key.Matches(msg, m.keys.Quit):
 				return m, tea.Quit
 			default:
@@ -418,6 +466,15 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 	}
 
 	return cmd
+}
+
+func (m *model) isColumnEnabled(c columnName) bool {
+	for _, col := range m.columns {
+		if c == col {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *model) isColumnVisible(c columnName) bool {

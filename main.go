@@ -10,8 +10,13 @@ import (
 )
 
 var (
-	invalidateCache = pflag.BoolP("invalidate-cache", "i", false, "Invalidate cache and force re-downloading data")
 	showHelp        = pflag.BoolP("help", "h", false, "Show help message")
+	invalidateCache = pflag.BoolP("invalidate-cache", "i", false, "Invalidate cache and force re-downloading data")
+	hiddenCols      = pflag.StringSlice(
+		"hide-columns",
+		[]string{},
+		"Hide specific columns seprated by comma (options: Version, Tap, Description, Installs, Size, Status)",
+	)
 )
 
 func main() {

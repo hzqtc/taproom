@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -307,8 +306,7 @@ func (m *model) getVisibleCols(tableWidth int) ([]columnName, int) {
 	visibleCols := []columnName{}
 	visibleColsWidth := 0
 
-	// Add columns in order of importance
-	for _, col := range []columnName{colSymbol, colName, colStatus, colVersion, colTap, colDescription, colInstalls, colSize} {
+	for _, col := range m.columns {
 		colWidth := colWidthMap[col]
 		if tableWidth > visibleColsWidth+colWidth+colSpacing {
 			visibleCols = append(visibleCols, col)
@@ -316,10 +314,6 @@ func (m *model) getVisibleCols(tableWidth int) ([]columnName, int) {
 		}
 	}
 
-	// sort visible columns by their order in the iota
-	sort.Slice(visibleCols, func(i, j int) bool {
-		return visibleCols[i] < visibleCols[j]
-	})
 	return visibleCols, tableWidth - visibleColsWidth
 }
 
@@ -481,8 +475,10 @@ func (m *model) updateViewport() {
 	b.WriteString(fmt.Sprintf("Tap: %s\n", pkg.Tap))
 	b.WriteString(fmt.Sprintf("Homepage: %s\n", pkg.Homepage))
 	b.WriteString(fmt.Sprintf("License: %s\n", pkg.License))
-	b.WriteString(fmt.Sprintf("Installs (90d): %d\n", pkg.InstallCount90d))
-	if pkg.IsInstalled {
+	if m.isColumnEnabled(colInstalls) {
+		b.WriteString(fmt.Sprintf("Installs (90d): %d\n", pkg.InstallCount90d))
+	}
+	if m.isColumnEnabled(colSize) && pkg.IsInstalled {
 		b.WriteString(fmt.Sprintf("Size: %s\n", pkg.FormattedSize))
 	}
 
