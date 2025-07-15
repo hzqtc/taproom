@@ -57,6 +57,17 @@ To build from source, follow these simple steps:
     ./taproom
     ```
 
+## 🪄 Customization
+
+The app's behavior can be further customized with command line flags:
+
+*   `--invalidate-cahce` or `-i` in short immediately invalidate cache and re-download data from brew.sh
+*   `--hide-columns` can hide and skip loading data for certain columns
+    * This can be helpful to declutter the UI
+    * While all data loading is done in parallel, some may be slower than others. This flag can be used to skip loading certain data to speed up app
+      load
+
+
 ## 🛠️ Built With
 
 *   [Go](https://go.dev/)
