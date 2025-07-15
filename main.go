@@ -10,17 +10,27 @@ import (
 )
 
 var (
+	showVersion     = pflag.BoolP("version", "v", false, "Show app version")
 	showHelp        = pflag.BoolP("help", "h", false, "Show help message")
 	invalidateCache = pflag.BoolP("invalidate-cache", "i", false, "Invalidate cache and force re-downloading data")
 	hiddenCols      = pflag.StringSlice(
 		"hide-columns",
 		[]string{},
-		"Hide specific columns seprated by comma (options: Version, Tap, Description, Installs, Size, Status)",
+		"Hide specific columns seprated by comma (no spaces) (options: Version, Tap, Description, Installs, Size, Status)",
 	)
+)
+
+var (
+	version string // Would be set at build time
 )
 
 func main() {
 	pflag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		os.Exit(0)
+	}
 
 	if *showHelp {
 		pflag.Usage()
