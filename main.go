@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"log"
 	"os"
@@ -21,9 +22,8 @@ var (
 	)
 )
 
-var (
-	version string // Would be set at build time
-)
+//go:embed .version
+var version string
 
 func main() {
 	pflag.Parse()
