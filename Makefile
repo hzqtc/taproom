@@ -1,7 +1,7 @@
 BINARY_NAME = taproom
 SRC = $(wildcard *.go)
 GOBIN = $(HOME)/.local/bin
-VERSION = 0.1.7
+VERSION = 0.1.8
 LD_FLAGS = "-X main.version=$(VERSION)"
 TARGET_OS = darwin
 TARGET_ARCH = arm64 amd64
