@@ -21,34 +21,34 @@ import (
 type filter int
 
 const (
-	formulae filter = iota
-	casks
-	installed
-	outdated
-	explicitlyInstalled
-	active
+	filterFormulae filter = iota
+	filterCasks
+	filterInstalled
+	filterOutdated
+	filterExplicitlyInstalled
+	filterActive
 )
 
 // Mutually exclusive filter groups
 // Filters from different groups can co-exist
 var filterGroups = []map[filter]struct{}{
-	{formulae: {}, casks: {}},
-	{installed: {}, outdated: {}, explicitlyInstalled: {}, active: {}},
+	{filterFormulae: {}, filterCasks: {}},
+	{filterInstalled: {}, filterOutdated: {}, filterExplicitlyInstalled: {}, filterActive: {}},
 }
 
-func (v filter) String() string {
-	switch v {
-	case formulae:
+func (f filter) String() string {
+	switch f {
+	case filterFormulae:
 		return "Formulae"
-	case casks:
+	case filterCasks:
 		return "Casks"
-	case installed:
+	case filterInstalled:
 		return "Installed"
-	case outdated:
+	case filterOutdated:
 		return "Outdated"
-	case explicitlyInstalled:
+	case filterExplicitlyInstalled:
 		return "Expl. Installed"
-	case active:
+	case filterActive:
 		return "Active"
 	default:
 		return "Unknown"
@@ -430,27 +430,27 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterFormulae):
-		m.toggleFilter(formulae)
+		m.toggleFilter(filterFormulae)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterCasks):
-		m.toggleFilter(casks)
+		m.toggleFilter(filterCasks)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterInstalled):
-		m.toggleFilter(installed)
+		m.toggleFilter(filterInstalled)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterOutdated):
-		m.toggleFilter(outdated)
+		m.toggleFilter(filterOutdated)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterExplicit):
-		m.toggleFilter(explicitlyInstalled)
+		m.toggleFilter(filterExplicitlyInstalled)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterActive):
-		m.toggleFilter(active)
+		m.toggleFilter(filterActive)
 		m.filterAndSortPackages()
 		m.updateTable()
 
@@ -610,17 +610,17 @@ func (m *model) filterAndSortPackages() {
 		}
 		for _, f := range m.filters {
 			switch f {
-			case formulae:
+			case filterFormulae:
 				passesFilter = !pkg.IsCask
-			case casks:
+			case filterCasks:
 				passesFilter = pkg.IsCask
-			case installed:
+			case filterInstalled:
 				passesFilter = pkg.IsInstalled
-			case outdated:
+			case filterOutdated:
 				passesFilter = pkg.IsOutdated
-			case explicitlyInstalled:
+			case filterExplicitlyInstalled:
 				passesFilter = pkg.IsInstalled && !pkg.InstalledAsDependency
-			case active:
+			case filterActive:
 				passesFilter = !pkg.IsDisabled && !pkg.IsDeprecated
 			}
 			// A package needs to pass all filters, so break early when it doesn't pass any filter
