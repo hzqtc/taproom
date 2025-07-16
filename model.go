@@ -364,7 +364,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) handleSearchInputKeys(msg tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
 	switch {
-	case key.Matches(msg, m.keys.Enter):
+	case key.Matches(msg, m.keys.Enter) || key.Matches(msg, m.keys.SwitchFocus):
 		m.search.Blur()
 		m.focusMode = focusTable
 		m.updateFocusBorder()
