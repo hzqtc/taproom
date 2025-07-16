@@ -41,10 +41,10 @@ const (
 
 	disabledSymbol    = ""
 	deprecatedSymbol  = ""
-	uninstalledSymbol = ""
+	uninstalledSymbol = "✗"
 	installedSymbol   = "✓"
 	outdatedSymbol    = ""
-	pinnedSymbol      = "✗"
+	pinnedSymbol      = ""
 )
 
 // --- Styles ---
@@ -59,8 +59,10 @@ var (
 	uninstalledColor        = lipgloss.Color("#FBBF24")
 	pinnedColor             = lipgloss.Color("#B57EDC")
 
+	roundedBorder = lipgloss.RoundedBorder()
+
 	baseStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
+			BorderStyle(roundedBorder).
 			BorderForeground(borderColor)
 
 	installedStyle = lipgloss.NewStyle().
@@ -88,24 +90,24 @@ var (
 	keyStyle = lipgloss.NewStyle().
 			Foreground(highlightColor)
 
-	searchStyle = baseStyle.Copy().
+	searchStyle = baseStyle.
 			Margin(1 /* top */, 0 /* horizontal */, 0 /* bottom */)
 
-	tableStyle = baseStyle.Copy()
+	tableStyle = baseStyle
 
-	viewportStyle = baseStyle.Copy().
+	viewportStyle = baseStyle.
 			Padding(0, 1)
 
 	// The content style for viewport, width-2 to account for padding
 	vpContentStyle = lipgloss.NewStyle().
 			Width(viewportWidthMin - 2)
 
-	viewModeStyle = baseStyle.Copy().
+	filterModeStyle = baseStyle.
 			Width(viewportWidthMin).
 			Padding(0, 1).
 			Margin(1, 0)
 
-	outputStyle = baseStyle.Copy()
+	outputStyle = baseStyle
 
 	spinnerStyle = lipgloss.NewStyle().
 			Foreground(highlightColor)
@@ -137,7 +139,7 @@ func (m model) View() string {
 	topContent := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		searchStyle.Render(m.search.View()),
-		viewModeStyle.Render(fmt.Sprintf("Viewing: %s", m.viewMode.String())),
+		m.renderFilterMode(),
 	)
 
 	views := []string{
@@ -150,6 +152,18 @@ func (m model) View() string {
 	views = append(views, m.renderHelp())
 
 	return lipgloss.JoinVertical(lipgloss.Left, views...)
+}
+
+func (m *model) renderFilterMode() string {
+	filterMode := "None"
+	if len(m.filters) > 0 {
+		strs := make([]string, len(m.filters))
+		for i, f := range m.filters {
+			strs[i] = f.String()
+		}
+		filterMode = strings.Join(strs, " & ")
+	}
+	return filterModeStyle.Render(filterMode)
 }
 
 func (m *model) renderOutput() string {
@@ -169,7 +183,7 @@ func (m *model) renderOutput() string {
 func (m *model) renderHelp() string {
 	var b strings.Builder
 
-	b.WriteString("General      : ")
+	b.WriteString("General   : ")
 	b.WriteString(keyStyle.Render("q/ctrl+c"))
 	b.WriteString(": quit ")
 	b.WriteString(keyStyle.Render("r"))
@@ -181,9 +195,11 @@ func (m *model) renderHelp() string {
 	b.WriteString(keyStyle.Render("Esc"))
 	b.WriteString(": clear search ")
 	b.WriteString(keyStyle.Render("Enter"))
-	b.WriteString(": exit search")
+	b.WriteString(": exit search ")
+	b.WriteString(keyStyle.Render("s/S"))
+	b.WriteString(": sorting")
 	b.WriteString("\n")
-	b.WriteString("Navigation   : ")
+	b.WriteString("Navigation: ")
 	b.WriteString(keyStyle.Render("j/↓"))
 	b.WriteString(": cursor down ")
 	b.WriteString(keyStyle.Render("k/↑"))
@@ -197,11 +213,9 @@ func (m *model) renderHelp() string {
 	b.WriteString(keyStyle.Render("G"))
 	b.WriteString(": go to bottom")
 	b.WriteString("\n")
-	b.WriteString("Filter & Sort: ")
-	b.WriteString(keyStyle.Render("s/S"))
-	b.WriteString(": switch sort column ")
+	b.WriteString("Filter    : ")
 	b.WriteString(keyStyle.Render("a"))
-	b.WriteString(": all ")
+	b.WriteString(": all (no filter) ")
 	b.WriteString(keyStyle.Render("f"))
 	b.WriteString(": formulae ")
 	b.WriteString(keyStyle.Render("c"))
@@ -212,10 +226,10 @@ func (m *model) renderHelp() string {
 	b.WriteString(": outdated ")
 	b.WriteString(keyStyle.Render("e"))
 	b.WriteString(": explicitly installed ")
-	b.WriteString(keyStyle.Render("d"))
-	b.WriteString(": hide deprecated")
+	b.WriteString(keyStyle.Render("v"))
+	b.WriteString(": active")
 	b.WriteString("\n")
-	b.WriteString("Commands     : ")
+	b.WriteString("Commands  : ")
 	b.WriteString(keyStyle.Render("h"))
 	b.WriteString(": open home page ")
 	b.WriteString(keyStyle.Render("b"))
@@ -240,7 +254,7 @@ func getTableStyles() table.Styles {
 	tableStyles := table.DefaultStyles()
 	tableStyles.Header = tableStyles.Header.
 		Foreground(highlightColor).
-		BorderStyle(lipgloss.RoundedBorder()).
+		BorderStyle(roundedBorder).
 		BorderForeground(borderColor).
 		BorderBottom(true).
 		Bold(true)
@@ -254,17 +268,53 @@ func getTableStyles() table.Styles {
 func (m *model) updateFocusBorder() {
 	switch m.focusMode {
 	case focusSearch:
-		searchStyle = searchStyle.Copy().BorderForeground(focusedBorderColor)
-		tableStyle = tableStyle.Copy().BorderForeground(borderColor)
-		viewportStyle = viewportStyle.Copy().BorderForeground(borderColor)
+		searchStyle = searchStyle.BorderForeground(focusedBorderColor)
+		tableStyle = tableStyle.BorderForeground(borderColor)
+		viewportStyle = viewportStyle.BorderForeground(borderColor)
 	case focusTable:
-		searchStyle = searchStyle.Copy().BorderForeground(borderColor)
-		tableStyle = tableStyle.Copy().BorderForeground(focusedBorderColor)
-		viewportStyle = viewportStyle.Copy().BorderForeground(borderColor)
+		searchStyle = searchStyle.BorderForeground(borderColor)
+		tableStyle = tableStyle.BorderForeground(focusedBorderColor)
+		viewportStyle = viewportStyle.BorderForeground(borderColor)
 	case focusDetail:
-		searchStyle = searchStyle.Copy().BorderForeground(borderColor)
-		tableStyle = tableStyle.Copy().BorderForeground(borderColor)
-		viewportStyle = viewportStyle.Copy().BorderForeground(focusedBorderColor)
+		searchStyle = searchStyle.BorderForeground(borderColor)
+		tableStyle = tableStyle.BorderForeground(borderColor)
+		viewportStyle = viewportStyle.BorderForeground(focusedBorderColor)
+	}
+}
+
+// Build a custom border top for lipgloss that embeds a title in it
+func getBorderTopWithTitle(title string, width int) string {
+	const filler = "─"
+	const lead = 1
+
+	if width <= 0 {
+		return ""
+	} else if width <= len(title) {
+		return title[:width] // truncate if title too long
+	}
+
+	// Compute how many dashes go on each side
+	var left, right int
+	if width <= len(title)+lead {
+		left = 1
+	} else {
+		left = lead
+	}
+	right = width - len(title) - left
+
+	return strings.Repeat(filler, left) + title + strings.Repeat(filler, right)
+}
+
+func getRoundedBorderWithTitle(title string, width int) lipgloss.Border {
+	return lipgloss.Border{
+		Top:         getBorderTopWithTitle(title, width),
+		Bottom:      roundedBorder.Bottom,
+		Left:        roundedBorder.Left,
+		Right:       roundedBorder.Right,
+		TopLeft:     roundedBorder.TopLeft,
+		TopRight:    roundedBorder.TopRight,
+		BottomLeft:  roundedBorder.BottomLeft,
+		BottomRight: roundedBorder.BottomRight,
 	}
 }
 
@@ -273,14 +323,18 @@ func (m *model) updateLayout() {
 	m.updateFocusBorder()
 
 	// 2, 4, 6, 8 are used to account for border, margin and prompt width (search box only)
-	outputStyle = outputStyle.Copy().Width(m.width - 2)
-	helpStyle = helpStyle.Copy().Width(m.width - 2)
+	outputStyle = outputStyle.Width(m.width - 2)
+	helpStyle = helpStyle.Width(m.width - 2)
 
 	viewportWidth := max(viewportWidthMin, m.width-tableWidthMax-4)
 	m.search.Width = m.width - viewportWidth - 8
-	viewModeStyle = viewModeStyle.Copy().Width(viewportWidth)
+	filterModeStyle = filterModeStyle.
+		BorderStyle(getRoundedBorderWithTitle("Filters", viewportWidth)).
+		Width(viewportWidth)
+	viewportStyle = viewportStyle.
+		BorderStyle(getRoundedBorderWithTitle("Details", viewportWidth))
 	m.viewport.Width = viewportWidth - 2
-	vpContentStyle = vpContentStyle.Copy().Width(viewportWidth - 2)
+	vpContentStyle = vpContentStyle.Width(viewportWidth - 2)
 
 	tableWidth := m.width - viewportWidth - 4
 	m.table.SetWidth(tableWidth)

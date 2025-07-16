@@ -17,35 +17,39 @@ import (
 	"github.com/pkg/browser"
 )
 
-// viewMode defines which subset of packages is currently being viewed.
-type viewMode int
+// filter defines which subset of packages is currently being viewed.
+type filter int
 
 const (
-	viewAll viewMode = iota
-	viewFormulae
-	viewCasks
-	viewInstalled
-	viewOutdated
-	viewExplicitlyInstalled
-	viewNonDisabled
+	formulae filter = iota
+	casks
+	installed
+	outdated
+	explicitlyInstalled
+	active
 )
 
-func (v viewMode) String() string {
+// Mutually exclusive filter groups
+// Filters from different groups can co-exist
+var filterGroups = []map[filter]struct{}{
+	{formulae: {}, casks: {}},
+	{installed: {}, outdated: {}, explicitlyInstalled: {}, active: {}},
+}
+
+func (v filter) String() string {
 	switch v {
-	case viewAll:
-		return "All"
-	case viewFormulae:
+	case formulae:
 		return "Formulae"
-	case viewCasks:
+	case casks:
 		return "Casks"
-	case viewInstalled:
+	case installed:
 		return "Installed"
-	case viewOutdated:
+	case outdated:
 		return "Outdated"
-	case viewExplicitlyInstalled:
-		return "Installed (no deps)"
-	case viewNonDisabled:
-		return "Hiding disabled"
+	case explicitlyInstalled:
+		return "Expl. Installed"
+	case active:
+		return "Active"
 	default:
 		return "Unknown"
 	}
@@ -154,7 +158,7 @@ type model struct {
 	isLoading      bool
 	loadingMsg     string
 	focusMode      focusMode
-	viewMode       viewMode
+	filters        []filter
 	sortColumn     columnName
 	errorMsg       string
 	width          int
@@ -219,6 +223,7 @@ func initialModel() model {
 		table:      tbl,
 		isLoading:  true,
 		loadingMsg: "",
+		filters:    []filter{},
 		sortColumn: colName,
 		columns:    columns,
 		keys:       defaultKeyMap(),
@@ -421,31 +426,31 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterAll):
-		m.viewMode = viewAll
+		m.filters = []filter{}
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterFormulae):
-		m.viewMode = viewFormulae
+		m.toggleFilter(formulae)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterCasks):
-		m.viewMode = viewCasks
+		m.toggleFilter(casks)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterInstalled):
-		m.viewMode = viewInstalled
+		m.toggleFilter(installed)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterOutdated):
-		m.viewMode = viewOutdated
+		m.toggleFilter(outdated)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterExplicit):
-		m.viewMode = viewExplicitlyInstalled
+		m.toggleFilter(explicitlyInstalled)
 		m.filterAndSortPackages()
 		m.updateTable()
-	case key.Matches(msg, m.keys.FilterDisabled):
-		m.viewMode = viewNonDisabled
+	case key.Matches(msg, m.keys.FilterActive):
+		m.toggleFilter(active)
 		m.filterAndSortPackages()
 		m.updateTable()
 
@@ -535,6 +540,46 @@ func (m *model) getPackage(name string) *Package {
 	return nil
 }
 
+func (m *model) toggleFilter(f filter) {
+	filterEnabled := false
+	for _, existingFilter := range m.filters {
+		if existingFilter == f {
+			filterEnabled = true
+			break
+		}
+	}
+
+	newFilters := []filter{}
+	if filterEnabled {
+		// Disable filter
+		for _, existingFilter := range m.filters {
+			if existingFilter != f {
+				newFilters = append(newFilters, existingFilter)
+			}
+		}
+	} else {
+		// Enable filter and disable conflict filters
+		newFilters = append(newFilters, f)
+		var conflictFilters map[filter]struct{}
+		for _, fg := range filterGroups {
+			if _, exists := fg[f]; exists {
+				conflictFilters = fg
+				break
+			}
+		}
+		for _, existingFilter := range m.filters {
+			if _, conflict := conflictFilters[existingFilter]; !conflict {
+				newFilters = append(newFilters, existingFilter)
+			}
+		}
+	}
+
+	sort.Slice(newFilters, func(i, j int) bool {
+		return newFilters[i] < newFilters[j]
+	})
+	m.filters = newFilters
+}
+
 // filterAndSortPackages updates the viewPackages based on current filters and sort mode.
 func (m *model) filterAndSortPackages() {
 	m.viewPackages = []*Package{}
@@ -557,22 +602,31 @@ func (m *model) filterAndSortPackages() {
 			continue
 		}
 
-		passesFilter := false
-		switch m.viewMode {
-		case viewAll:
+		var passesFilter bool
+		if len(m.filters) == 0 {
 			passesFilter = true
-		case viewFormulae:
-			passesFilter = !pkg.IsCask
-		case viewCasks:
-			passesFilter = pkg.IsCask
-		case viewInstalled:
-			passesFilter = pkg.IsInstalled
-		case viewOutdated:
-			passesFilter = pkg.IsOutdated
-		case viewExplicitlyInstalled:
-			passesFilter = pkg.IsInstalled && !pkg.InstalledAsDependency
-		case viewNonDisabled:
-			passesFilter = !pkg.IsDisabled && !pkg.IsDeprecated
+		} else {
+			passesFilter = false
+		}
+		for _, f := range m.filters {
+			switch f {
+			case formulae:
+				passesFilter = !pkg.IsCask
+			case casks:
+				passesFilter = pkg.IsCask
+			case installed:
+				passesFilter = pkg.IsInstalled
+			case outdated:
+				passesFilter = pkg.IsOutdated
+			case explicitlyInstalled:
+				passesFilter = pkg.IsInstalled && !pkg.InstalledAsDependency
+			case active:
+				passesFilter = !pkg.IsDisabled && !pkg.IsDeprecated
+			}
+			// A package needs to pass all filters, so break early when it doesn't pass any filter
+			if !passesFilter {
+				break
+			}
 		}
 
 		if passesFilter {

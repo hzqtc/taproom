@@ -21,7 +21,7 @@ type keyMap struct {
 	FilterInstalled key.Binding
 	FilterOutdated  key.Binding
 	FilterExplicit  key.Binding
-	FilterDisabled  key.Binding
+	FilterActive    key.Binding
 
 	// Package Commands
 	OpenHomePage key.Binding
@@ -54,7 +54,7 @@ func defaultKeyMap() keyMap {
 		FilterInstalled: key.NewBinding(key.WithKeys("i")),
 		FilterOutdated:  key.NewBinding(key.WithKeys("o")),
 		FilterExplicit:  key.NewBinding(key.WithKeys("e")),
-		FilterDisabled:  key.NewBinding(key.WithKeys("d")),
+		FilterActive:    key.NewBinding(key.WithKeys("v")),
 
 		// Package Commands
 		OpenHomePage: key.NewBinding(key.WithKeys("h")),
