@@ -67,11 +67,11 @@ To build from source, follow these simple steps:
 
 The app's behavior can be further customized with command line flags:
 
-*   `--invalidate-cahce` or `-i` in short immediately invalidate cache and re-download data from brew.sh
-*   `--hide-columns` can hide and skip loading data for certain columns
+*   `--invalidate-cahce` or `-i` in short: immediately invalidate cache and re-download data from brew.sh
+*   `--hide-columns`: hide and skip loading data for certain columns
     * This can be helpful to declutter the UI
-    * While all data loading is done in parallel, some may be slower than others. This flag can be used to skip loading certain data to speed up app
-      load
+    * While all data loading is done in parallel, some may be slower than others. This flag can be used to skip loading certain data to speed up app load
+*   `--load-timer` or `-t` in short: show a timer in the loading screen
 
 
 ## 🛠️ Built With
