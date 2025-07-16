@@ -121,7 +121,11 @@ func (m model) View() string {
 
 	if m.isLoading {
 		m.spinner.Style = spinnerStyle
-		return fmt.Sprintf("%s\n%s\n\n%s Loading...", headerStyle.Render(logo), m.loadingMsg, m.spinner.View())
+		if *showLoadTimer {
+			return fmt.Sprintf("%s\n%s\n\n%s Loading... %s", headerStyle.Render(logo), m.loadingMsg, m.spinner.View(), m.stopwatch.View())
+		} else {
+			return fmt.Sprintf("%s\n%s\n\n%s Loading...", headerStyle.Render(logo), m.loadingMsg, m.spinner.View())
+		}
 	}
 
 	mainContent := lipgloss.JoinHorizontal(

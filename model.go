@@ -5,9 +5,11 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/stopwatch"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -142,10 +144,11 @@ type model struct {
 	viewPackages []*Package // The filtered and sorted list of packages to display
 
 	// UI Components from the bubbles library
-	table    table.Model
-	viewport viewport.Model
-	search   textinput.Model
-	spinner  spinner.Model
+	table     table.Model
+	viewport  viewport.Model
+	search    textinput.Model
+	spinner   spinner.Model
+	stopwatch stopwatch.Model
 
 	// State
 	isLoading      bool
@@ -178,6 +181,11 @@ func initialModel() model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 
+	var sw stopwatch.Model
+	if *showLoadTimer {
+		sw = stopwatch.NewWithInterval(time.Millisecond)
+	}
+
 	// Main table
 	tbl := table.New(
 		table.WithFocused(true),
@@ -207,6 +215,7 @@ func initialModel() model {
 	return model{
 		search:     searchInput,
 		spinner:    s,
+		stopwatch:  sw,
 		table:      tbl,
 		isLoading:  true,
 		loadingMsg: "",
@@ -219,7 +228,11 @@ func initialModel() model {
 // Init is the first command that is run when the application starts.
 func (m model) Init() tea.Cmd {
 	// Start the spinner and load the data from Homebrew APIs.
-	return tea.Batch(m.spinner.Tick, m.loadData())
+	cmds := []tea.Cmd{m.spinner.Tick, m.loadData()}
+	if *showLoadTimer {
+		cmds = append(cmds, m.stopwatch.Init())
+	}
+	return tea.Batch(cmds...)
 }
 
 // Update handles all incoming messages and returns a new model and command.
@@ -241,6 +254,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dataLoadedMsg:
 		m.isLoading = false
 		m.loadingMsg = ""
+		if *showLoadTimer {
+			cmds = append(cmds, m.stopwatch.Stop())
+		}
 		m.allPackages = msg.packages
 		m.filterAndSortPackages()
 		m.updateLayout()
@@ -249,6 +265,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// An error occurred during data loading
 	case dataLoadingErrMsg:
 		m.isLoading = false
+		if *showLoadTimer {
+			cmds = append(cmds, m.stopwatch.Stop())
+		}
 		// Data loading error is fatal
 		m.errorMsg = msg.err.Error()
 
@@ -262,6 +281,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case spinner.TickMsg:
 		if m.isLoading {
 			m.spinner, cmd = m.spinner.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+
+	case stopwatch.TickMsg, stopwatch.StartStopMsg:
+		if m.isLoading {
+			m.stopwatch, cmd = m.stopwatch.Update(msg)
 			cmds = append(cmds, cmd)
 		}
 

@@ -13,6 +13,7 @@ var (
 	showVersion     = pflag.BoolP("version", "v", false, "Show app version")
 	showHelp        = pflag.BoolP("help", "h", false, "Show help message")
 	invalidateCache = pflag.BoolP("invalidate-cache", "i", false, "Invalidate cache and force re-downloading data")
+	showLoadTimer   = pflag.BoolP("load-timer", "t", false, "Show a timer in the loading screen")
 	hiddenCols      = pflag.StringSlice(
 		"hide-columns",
 		[]string{},
