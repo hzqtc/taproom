@@ -432,7 +432,7 @@ func (m *model) filterAndSortPackages() {
 	for i := range m.allPackages {
 		pkg := &m.allPackages[i]
 
-		if !pkg.matchKeywords(keywords) {
+		if !pkg.MatchKeywords(keywords) {
 			continue
 		}
 
@@ -499,27 +499,27 @@ func (m *model) updatePackageForAction(action commandAction, pkgs []*Package) {
 	switch action {
 	case actionUpgradeAll, actionUpgrade:
 		for _, pkg := range pkgs {
-			pkg.markInstalled()
+			pkg.MarkInstalled()
 		}
 	case actionInstall:
 		for _, pkg := range pkgs {
-			pkg.markInstalled()
+			pkg.MarkInstalled()
 			// Also mark uninstalled dependencies as installed
 			for _, depName := range m.getRecursiveMissingDeps(pkg.Name) {
-				m.getPackage(depName).markInstalled()
+				m.getPackage(depName).MarkInstalled()
 			}
 		}
 	case actionUninstall:
 		for _, pkg := range pkgs {
-			pkg.markUninstalled()
+			pkg.MarkUninstalled()
 		}
 	case actionPin:
 		for _, pkg := range pkgs {
-			pkg.markPinned()
+			pkg.MarkPinned()
 		}
 	case actionUnpin:
 		for _, pkg := range pkgs {
-			pkg.markUnpinned()
+			pkg.MarkUnpinned()
 		}
 	}
 }

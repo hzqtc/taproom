@@ -399,26 +399,6 @@ func (m *model) getTableCols(remainingWidth int) []table.Column {
 	return columns
 }
 
-func getSimpleVersion(pkg *Package) string {
-	if pkg.IsOutdated {
-		return fmt.Sprintf("%s (New)", pkg.Version)
-	} else if pkg.IsPinned {
-		return fmt.Sprintf("%s (Pin)", pkg.InstalledVersion)
-	} else {
-		return pkg.Version
-	}
-}
-
-func getFormattedVersion(pkg *Package) string {
-	if pkg.IsOutdated {
-		return fmt.Sprintf("%s -> %s", pkg.InstalledVersion, pkg.Version)
-	} else if pkg.IsPinned {
-		return fmt.Sprintf("%s (Pinned)", pkg.InstalledVersion)
-	} else {
-		return pkg.Version
-	}
-}
-
 func getFormattedStatus(pkg *Package) string {
 	var statusSymbol string
 	if pkg.IsDisabled {
@@ -448,7 +428,7 @@ func getColData(c columnName, pkg *Package) string {
 	case colName:
 		return pkg.Name
 	case colVersion:
-		return getSimpleVersion(pkg)
+		return pkg.ShortVersion()
 	case colTap:
 		return pkg.Tap
 	case colDescription:
@@ -517,7 +497,7 @@ func (m *model) updateViewport() {
 	var b strings.Builder
 	b.WriteString(headerStyle.Render(fmt.Sprintf("%s %s", pkgSymbol, pkg.Name)))
 	b.WriteString(fmt.Sprintf("\n%s\n\n", pkg.Desc))
-	b.WriteString(fmt.Sprintf("Version: %s\n", getFormattedVersion(pkg)))
+	b.WriteString(fmt.Sprintf("Version: %s\n", pkg.LongVersion()))
 	b.WriteString(fmt.Sprintf("Tap: %s\n", pkg.Tap))
 	b.WriteString(fmt.Sprintf("Homepage: %s\n", pkg.Homepage))
 	b.WriteString(fmt.Sprintf("License: %s\n", pkg.License))

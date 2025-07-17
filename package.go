@@ -67,18 +67,38 @@ func (pkg *Package) BrewUrl() string {
 	}
 }
 
-func (pkg *Package) markInstalled() {
+func (pkg *Package) ShortVersion() string {
+	if pkg.IsOutdated {
+		return fmt.Sprintf("%s (New)", pkg.Version)
+	} else if pkg.IsPinned {
+		return fmt.Sprintf("%s (Pin)", pkg.InstalledVersion)
+	} else {
+		return pkg.Version
+	}
+}
+
+func (pkg *Package) LongVersion() string {
+	if pkg.IsOutdated {
+		return fmt.Sprintf("%s -> %s", pkg.InstalledVersion, pkg.Version)
+	} else if pkg.IsPinned {
+		return fmt.Sprintf("%s (Pinned)", pkg.InstalledVersion)
+	} else {
+		return pkg.Version
+	}
+}
+
+func (pkg *Package) MarkInstalled() {
 	pkg.IsInstalled = true
 	pkg.IsOutdated = false
 	pkg.InstalledVersion = pkg.Version
 }
 
-func (pkg *Package) markInstalledAsDep() {
-	pkg.markInstalled()
+func (pkg *Package) MarkInstalledAsDep() {
+	pkg.MarkInstalled()
 	pkg.InstalledAsDependency = true
 }
 
-func (pkg *Package) markUninstalled() {
+func (pkg *Package) MarkUninstalled() {
 	pkg.IsInstalled = false
 	pkg.InstalledVersion = ""
 	pkg.IsOutdated = false
@@ -86,16 +106,16 @@ func (pkg *Package) markUninstalled() {
 	pkg.InstalledAsDependency = false
 }
 
-func (pkg *Package) markPinned() {
+func (pkg *Package) MarkPinned() {
 	pkg.IsPinned = true
 }
 
-func (pkg *Package) markUnpinned() {
+func (pkg *Package) MarkUnpinned() {
 	pkg.IsPinned = false
 }
 
 // Test if a package matches the keywords
-func (pkg *Package) matchKeywords(kws []string) bool {
+func (pkg *Package) MatchKeywords(kws []string) bool {
 	for _, kw := range kws {
 		// Requires the name or description to contain all keywords
 		// So we can return false on any unmatched keyword
