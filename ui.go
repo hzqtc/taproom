@@ -139,7 +139,7 @@ func (m model) View() string {
 	topContent := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		searchStyle.Render(m.search.View()),
-		m.renderFilterMode(),
+		filterModeStyle.Render(m.filters.String()),
 	)
 
 	views := []string{
@@ -152,18 +152,6 @@ func (m model) View() string {
 	views = append(views, m.renderHelp())
 
 	return lipgloss.JoinVertical(lipgloss.Left, views...)
-}
-
-func (m *model) renderFilterMode() string {
-	filterMode := "None"
-	if len(m.filters) > 0 {
-		strs := make([]string, len(m.filters))
-		for i, f := range m.filters {
-			strs[i] = f.String()
-		}
-		filterMode = strings.Join(strs, " & ")
-	}
-	return filterModeStyle.Render(filterMode)
 }
 
 func (m *model) renderOutput() string {

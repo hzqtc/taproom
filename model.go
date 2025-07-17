@@ -17,119 +17,6 @@ import (
 	"github.com/pkg/browser"
 )
 
-// filter defines which subset of packages is currently being viewed.
-type filter int
-
-const (
-	filterFormulae filter = iota
-	filterCasks
-	filterInstalled
-	filterOutdated
-	filterExplicitlyInstalled
-	filterActive
-)
-
-// Mutually exclusive filter groups
-// Filters from different groups can co-exist
-var filterGroups = []map[filter]struct{}{
-	{filterFormulae: {}, filterCasks: {}},
-	{filterInstalled: {}, filterOutdated: {}, filterExplicitlyInstalled: {}, filterActive: {}},
-}
-
-func (f filter) String() string {
-	switch f {
-	case filterFormulae:
-		return "Formulae"
-	case filterCasks:
-		return "Casks"
-	case filterInstalled:
-		return "Installed"
-	case filterOutdated:
-		return "Outdated"
-	case filterExplicitlyInstalled:
-		return "Expl. Installed"
-	case filterActive:
-		return "Active"
-	default:
-		return "Unknown"
-	}
-}
-
-// columnName is a type for identifying table columns.
-type columnName int
-
-const (
-	colUnknown columnName = -1
-)
-
-const (
-	colSymbol      columnName = iota // Symbol to differentiate formula vs cask
-	colName                          // Name of the formula or token of the cask, unique identifier when combine with IsCask
-	colVersion                       // Newest version
-	colTap                           // Homebrew tap
-	colDescription                   // Brief description
-	colInstalls                      // Number of installs in the last 90 days
-	colSize                          // Size of the package on disk
-	colStatus                        // Calculated status such as deprecated, installed, outdated, pinned
-
-	totalNumColumns
-)
-
-func (c columnName) String() string {
-	switch c {
-	case colSymbol:
-		return " "
-	case colName:
-		return "Name"
-	case colVersion:
-		return "Version"
-	case colTap:
-		return "Tap"
-	case colDescription:
-		return "Description"
-	case colInstalls:
-		return "Installs"
-	case colSize:
-		return "Size"
-	case colStatus:
-		return "Status"
-	default:
-		return "Unknown"
-	}
-}
-
-func parseColumnName(name string) (columnName, error) {
-	switch name {
-	// Name and Symbol columns can not be customized
-	case "Version":
-		return colVersion, nil
-	case "Tap":
-		return colTap, nil
-	case "Description":
-		return colDescription, nil
-	case "Installs":
-		return colInstalls, nil
-	case "Size":
-		return colSize, nil
-	case "Status":
-		return colStatus, nil
-	default:
-		return colUnknown, fmt.Errorf("Unknown column: %s", name)
-	}
-}
-
-func (c columnName) Sortable() bool {
-	return c == colName || c == colTap || c == colInstalls || c == colSize || c == colStatus
-}
-
-func (c columnName) ReverseSort() bool {
-	return c == colInstalls || c == colSize
-}
-
-func (c columnName) RightAligned() bool {
-	return c == colInstalls || c == colSize
-}
-
 // focusMode defines which component is currently focused
 type focusMode int
 
@@ -158,7 +45,7 @@ type model struct {
 	isLoading      bool
 	loadingMsg     string
 	focusMode      focusMode
-	filters        []filter
+	filters        filterGroup
 	sortColumn     columnName
 	errorMsg       string
 	width          int
@@ -223,7 +110,6 @@ func initialModel() model {
 		table:      tbl,
 		isLoading:  true,
 		loadingMsg: "",
-		filters:    []filter{},
 		sortColumn: colName,
 		columns:    columns,
 		keys:       defaultKeyMap(),
@@ -426,31 +312,31 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterAll):
-		m.filters = []filter{}
+		m.filters.reset()
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterFormulae):
-		m.toggleFilter(filterFormulae)
+		m.filters.toggleFilter(filterFormulae)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterCasks):
-		m.toggleFilter(filterCasks)
+		m.filters.toggleFilter(filterCasks)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterInstalled):
-		m.toggleFilter(filterInstalled)
+		m.filters.toggleFilter(filterInstalled)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterOutdated):
-		m.toggleFilter(filterOutdated)
+		m.filters.toggleFilter(filterOutdated)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterExplicit):
-		m.toggleFilter(filterExplicitlyInstalled)
+		m.filters.toggleFilter(filterExplicitlyInstalled)
 		m.filterAndSortPackages()
 		m.updateTable()
 	case key.Matches(msg, m.keys.FilterActive):
-		m.toggleFilter(filterActive)
+		m.filters.toggleFilter(filterActive)
 		m.filterAndSortPackages()
 		m.updateTable()
 
@@ -540,46 +426,6 @@ func (m *model) getPackage(name string) *Package {
 	return nil
 }
 
-func (m *model) toggleFilter(f filter) {
-	filterEnabled := false
-	for _, existingFilter := range m.filters {
-		if existingFilter == f {
-			filterEnabled = true
-			break
-		}
-	}
-
-	newFilters := []filter{}
-	if filterEnabled {
-		// Disable filter
-		for _, existingFilter := range m.filters {
-			if existingFilter != f {
-				newFilters = append(newFilters, existingFilter)
-			}
-		}
-	} else {
-		// Enable filter and disable conflict filters
-		newFilters = append(newFilters, f)
-		var conflictFilters map[filter]struct{}
-		for _, fg := range filterGroups {
-			if _, exists := fg[f]; exists {
-				conflictFilters = fg
-				break
-			}
-		}
-		for _, existingFilter := range m.filters {
-			if _, conflict := conflictFilters[existingFilter]; !conflict {
-				newFilters = append(newFilters, existingFilter)
-			}
-		}
-	}
-
-	sort.Slice(newFilters, func(i, j int) bool {
-		return newFilters[i] < newFilters[j]
-	})
-	m.filters = newFilters
-}
-
 // filterAndSortPackages updates the viewPackages based on current filters and sort mode.
 func (m *model) filterAndSortPackages() {
 	m.viewPackages = []*Package{}
@@ -603,12 +449,13 @@ func (m *model) filterAndSortPackages() {
 		}
 
 		var passesFilter bool
-		if len(m.filters) == 0 {
+		filters := m.filters.split()
+		if len(filters) == 0 {
 			passesFilter = true
 		} else {
 			passesFilter = false
 		}
-		for _, f := range m.filters {
+		for _, f := range filters {
 			switch f {
 			case filterFormulae:
 				passesFilter = !pkg.IsCask
