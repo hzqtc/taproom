@@ -16,6 +16,7 @@ func TestEnableFilter(t *testing.T) {
 func TestEnableMutuallyExclusiveFilters(t *testing.T) {
 	var fg filterGroup
 	fg = fg.enableFilter(filterFormulae)
+	fg = fg.enableFilter(filterInstalled)
 	fg = fg.enableFilter(filterCasks)
 
 	if fg.isFilterEnabled(filterFormulae) {
@@ -23,6 +24,9 @@ func TestEnableMutuallyExclusiveFilters(t *testing.T) {
 	}
 	if !fg.isFilterEnabled(filterCasks) {
 		t.Error("Expected filterCasks to be enabled")
+	}
+	if !fg.isFilterEnabled(filterInstalled) {
+		t.Error("Expected filterInstalled to be enabled")
 	}
 }
 
@@ -41,11 +45,15 @@ func TestEnableIndependentFilters(t *testing.T) {
 
 func TestDisableFilter(t *testing.T) {
 	var fg filterGroup
+	fg = fg.enableFilter(filterFormulae)
 	fg = fg.enableFilter(filterOutdated)
 	fg = fg.disableFilter(filterOutdated)
 
 	if fg.isFilterEnabled(filterOutdated) {
 		t.Error("Expected filterOutdated to be disabled")
+	}
+	if !fg.isFilterEnabled(filterFormulae) {
+		t.Error("Expected filterFormulae to be enabled")
 	}
 }
 
@@ -91,9 +99,9 @@ func TestStringFilterGroup(t *testing.T) {
 	if fg.String() != "None" {
 		t.Errorf("Expected 'None', got %s", fg.String())
 	}
+
 	fg = fg.enableFilter(filterCasks)
 	fg = fg.enableFilter(filterInstalled)
-
 	str := fg.String()
 	if str != "Casks & Installed" {
 		t.Errorf("Expected 'Casks & Installed', got %s", str)
