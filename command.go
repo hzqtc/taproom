@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -83,11 +84,21 @@ func execute(action commandAction, pkgs []*Package, args ...string) tea.Cmd {
 				return
 			}
 
+			var wg sync.WaitGroup
+			wg.Add(2)
+
 			// Stream stdout and stderr
-			go feedOutput(ch, stdout)
-			go feedOutput(ch, stderr)
+			go func() {
+				defer wg.Done()
+				feedOutput(ch, stdout)
+			}()
+			go func() {
+				defer wg.Done()
+				feedOutput(ch, stderr)
+			}()
 
 			cmdErr := cmd.Wait()
+			wg.Wait()
 			ch <- commandFinishMsg{err: cmdErr, action: action, pkgs: pkgs}
 		}()
 
