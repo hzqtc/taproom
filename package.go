@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Package holds all combined information for a formula or cask.
@@ -91,4 +92,16 @@ func (pkg *Package) markPinned() {
 
 func (pkg *Package) markUnpinned() {
 	pkg.IsPinned = false
+}
+
+// Test if a package matches the keywords
+func (pkg *Package) matchKeywords(kws []string) bool {
+	for _, kw := range kws {
+		// Requires the name or description to contain all keywords
+		// So we can return false on any unmatched keyword
+		if !strings.Contains(strings.ToLower(pkg.Name), kw) && !strings.Contains(strings.ToLower(pkg.Desc), kw) {
+			return false
+		}
+	}
+	return true
 }

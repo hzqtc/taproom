@@ -430,32 +430,18 @@ func (m *model) isColumnVisible(c columnName) bool {
 func (m *model) filterAndSortPackages() {
 	m.viewPackages = []*Package{}
 
-	// Search with user query then filter by view mode
 	searchQuery := strings.ToLower(m.search.Value())
-	// Split query to tokens and match each token separately
-	tokens := strings.Fields(searchQuery)
+	keywords := strings.Fields(searchQuery)
+
 	for i := range m.allPackages {
 		pkg := &m.allPackages[i]
-		matches := true
-		// Requires a package's name or its description to contain all tokens in the query
-		for _, t := range tokens {
-			if !strings.Contains(strings.ToLower(pkg.Name), t) && !strings.Contains(strings.ToLower(pkg.Desc), t) {
-				matches = false
-				break
-			}
-		}
-		if !matches {
+
+		if !pkg.matchKeywords(keywords) {
 			continue
 		}
 
-		var passesFilter bool
-		filters := m.filters.split()
-		if len(filters) == 0 {
-			passesFilter = true
-		} else {
-			passesFilter = false
-		}
-		for _, f := range filters {
+		passesFilter := true
+		for _, f := range m.filters.split() {
 			switch f {
 			case filterFormulae:
 				passesFilter = !pkg.IsCask
