@@ -384,24 +384,6 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 	return cmd
 }
 
-func (m *model) isColumnEnabled(c columnName) bool {
-	for _, col := range m.columns {
-		if c == col {
-			return true
-		}
-	}
-	return false
-}
-
-func (m *model) isColumnVisible(c columnName) bool {
-	for _, col := range m.visibleColumns {
-		if c == col {
-			return true
-		}
-	}
-	return false
-}
-
 func (m *model) handleViewportKeys(msg tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
 	switch {
@@ -424,6 +406,24 @@ func (m *model) getPackage(name string) *Package {
 	}
 
 	return nil
+}
+
+func (m *model) isColumnEnabled(c columnName) bool {
+	for _, col := range m.columns {
+		if c == col {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *model) isColumnVisible(c columnName) bool {
+	for _, col := range m.visibleColumns {
+		if c == col {
+			return true
+		}
+	}
+	return false
 }
 
 // filterAndSortPackages updates the viewPackages based on current filters and sort mode.
@@ -513,58 +513,31 @@ func (m *model) getOutdatedPackages() []*Package {
 	return outdatedPackages
 }
 
-func (m *model) markInstalled(pkg *Package) {
-	pkg.IsInstalled = true
-	pkg.IsOutdated = false
-	pkg.InstalledVersion = pkg.Version
-}
-
-func (m *model) markInstalledAsDep(pkg *Package) {
-	m.markInstalled(pkg)
-	pkg.InstalledAsDependency = true
-}
-
-func (m *model) markUninstalled(pkg *Package) {
-	pkg.IsInstalled = false
-	pkg.InstalledVersion = ""
-	pkg.IsOutdated = false
-	pkg.IsPinned = false
-	pkg.InstalledAsDependency = false
-}
-
-func (m *model) markPinned(pkg *Package) {
-	pkg.IsPinned = true
-}
-
-func (m *model) markUnpinned(pkg *Package) {
-	pkg.IsPinned = false
-}
-
 func (m *model) updatePackageForAction(action commandAction, pkgs []*Package) {
 	switch action {
 	case actionUpgradeAll, actionUpgrade:
 		for _, pkg := range pkgs {
-			m.markInstalled(pkg)
+			pkg.markInstalled()
 		}
 	case actionInstall:
 		for _, pkg := range pkgs {
-			m.markInstalled(pkg)
+			pkg.markInstalled()
 			// Also mark uninstalled dependencies as installed
 			for _, depName := range m.getRecursiveMissingDeps(pkg.Name) {
-				m.markInstalled(m.getPackage(depName))
+				m.getPackage(depName).markInstalled()
 			}
 		}
 	case actionUninstall:
 		for _, pkg := range pkgs {
-			m.markUninstalled(pkg)
+			pkg.markUninstalled()
 		}
 	case actionPin:
 		for _, pkg := range pkgs {
-			m.markPinned(pkg)
+			pkg.markPinned()
 		}
 	case actionUnpin:
 		for _, pkg := range pkgs {
-			m.markUnpinned(pkg)
+			pkg.markUnpinned()
 		}
 	}
 }
