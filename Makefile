@@ -28,6 +28,9 @@ fmt:
 vet:
 	go vet $(SRC)
 
+test:
+	go test
+
 release:
 	mkdir -p release
 	for arch in $(TARGET_ARCH); do \
@@ -37,4 +40,4 @@ release:
 	done
 	(cd release && shasum -a 256 *.tar.gz > checksum.txt)
 
-.PHONY: all build run clean install fmt vet release
+.PHONY: all build run clean install fmt vet test release
