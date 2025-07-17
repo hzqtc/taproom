@@ -20,8 +20,6 @@ import (
 // focusMode defines which component is currently focused
 type focusMode int
 
-const focusModeLen = 3
-
 const (
 	focusTable focusMode = iota
 	focusDetail
@@ -201,7 +199,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Command was successful, clear output and update package state
 			m.output = m.output[:0]
 			m.updatePackageForAction(msg.action, msg.pkgs)
-			m.filterAndSortPackages()
 			m.updateTable()
 		}
 		// If there are error, it should already be displayed in the output
@@ -228,7 +225,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateFocusBorder()
 				cmds = append(cmds, textinput.Blink)
 			case key.Matches(msg, m.keys.Refresh):
-				m.search.SetValue("")
 				m.isLoading = true
 				m.output = []string{}
 				cmds = append(cmds, m.loadData())
