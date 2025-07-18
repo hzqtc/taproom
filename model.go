@@ -41,7 +41,7 @@ type model struct {
 
 	// State
 	isLoading      bool
-	loadingMsg     string
+	loadingPrgs    *loadingProgress
 	focusMode      focusMode
 	filters        filterGroup
 	sortColumn     columnName
@@ -102,15 +102,15 @@ func initialModel() model {
 	}
 
 	return model{
-		search:     searchInput,
-		spinner:    s,
-		stopwatch:  sw,
-		table:      tbl,
-		isLoading:  true,
-		loadingMsg: "",
-		sortColumn: colName,
-		columns:    columns,
-		keys:       defaultKeyMap(),
+		search:      searchInput,
+		spinner:     s,
+		stopwatch:   sw,
+		table:       tbl,
+		isLoading:   true,
+		loadingPrgs: newLoadingProgress(),
+		sortColumn:  colName,
+		columns:     columns,
+		keys:        defaultKeyMap(),
 	}
 }
 
@@ -119,7 +119,7 @@ func (m model) Init() tea.Cmd {
 	// Start the spinner and load the data from Homebrew APIs.
 	cmds := []tea.Cmd{m.spinner.Tick, m.loadData()}
 	if *showLoadTimer {
-		cmds = append(cmds, m.stopwatch.Init())
+		cmds = append(cmds, m.stopwatch.Start())
 	}
 	return tea.Batch(cmds...)
 }
@@ -142,9 +142,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Data has been successfully loaded
 	case dataLoadedMsg:
 		m.isLoading = false
-		m.loadingMsg = ""
+		m.loadingPrgs.reset()
 		if *showLoadTimer {
-			cmds = append(cmds, m.stopwatch.Stop())
+			cmds = append(cmds, m.stopwatch.Stop(), m.stopwatch.Reset())
 		}
 		m.allPackages = msg.packages
 		m.filterAndSortPackages()
@@ -160,12 +160,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Data loading error is fatal
 		m.errorMsg = msg.err.Error()
 
-	case loadingProgressMsg:
-		if msg.message != "" {
-			m.loadingMsg = m.loadingMsg + "\n" + msg.message
-		}
-		cmds = append(cmds, streamLoadingProgress(msg.ch))
-
 	// Spinner tick (for animation)
 	case spinner.TickMsg:
 		if m.isLoading {
@@ -173,11 +167,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 
-	case stopwatch.TickMsg, stopwatch.StartStopMsg:
+	case stopwatch.TickMsg:
 		if m.isLoading {
 			m.stopwatch, cmd = m.stopwatch.Update(msg)
 			cmds = append(cmds, cmd)
 		}
+
+	case stopwatch.StartStopMsg, stopwatch.ResetMsg:
+		m.stopwatch, cmd = m.stopwatch.Update(msg)
+		cmds = append(cmds, cmd)
 
 	// Command execution start
 	case commandStartMsg:
@@ -227,7 +225,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.keys.Refresh):
 				m.isLoading = true
 				m.output = []string{}
-				cmds = append(cmds, m.loadData())
+				cmds = append(cmds, m.spinner.Tick, m.loadData())
+				if *showLoadTimer {
+					cmds = append(cmds, m.stopwatch.Start())
+				}
 			case key.Matches(msg, m.keys.Quit):
 				return m, tea.Quit
 			default:

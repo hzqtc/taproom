@@ -122,12 +122,13 @@ func (m model) View() string {
 	}
 
 	if m.isLoading {
+		var b strings.Builder
 		m.spinner.Style = spinnerStyle
+		b.WriteString(fmt.Sprintf("%s\n%s\n\n%s Loading...", headerStyle.Render(logo), m.loadingPrgs.progress(), m.spinner.View()))
 		if *showLoadTimer {
-			return fmt.Sprintf("%s\n%s\n\n%s Loading... %s", headerStyle.Render(logo), m.loadingMsg, m.spinner.View(), m.stopwatch.View())
-		} else {
-			return fmt.Sprintf("%s\n%s\n\n%s Loading...", headerStyle.Render(logo), m.loadingMsg, m.spinner.View())
+			b.WriteString(m.stopwatch.View())
 		}
+		return b.String()
 	}
 
 	mainContent := lipgloss.JoinHorizontal(

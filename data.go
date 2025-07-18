@@ -120,110 +120,95 @@ type installedInfo struct {
 // Message types for tea.Cmd
 type dataLoadedMsg struct{ packages []Package }
 type dataLoadingErrMsg struct{ err error }
-type loadingProgressMsg struct {
-	ch      chan tea.Msg
-	message string
-}
-
-func streamLoadingProgress(ch chan tea.Msg) tea.Cmd {
-	return func() tea.Msg {
-		return <-ch
-	}
-}
 
 // loadData returns a tea.Cmd that fetches all data concurrently.
 func (m *model) loadData() tea.Cmd {
 	return func() tea.Msg {
-		progressChan := make(chan tea.Msg)
 
-		go func() {
-			defer close(progressChan)
+		formulaeChan := make(chan []apiFormula)
+		casksChan := make(chan []apiCask)
+		formulaAnalyticsChan := make(chan apiFormulaAnalytics)
+		caskAnalyticsChan := make(chan apiCaskAnalytics)
+		installedChan := make(chan installedInfo)
+		formulaSizesChan := make(chan map[string]int64)
+		caskSizesChan := make(chan map[string]int64)
+		errChan := make(chan error, 7)
 
-			formulaeChan := make(chan []apiFormula)
-			casksChan := make(chan []apiCask)
-			formulaAnalyticsChan := make(chan apiFormulaAnalytics)
-			caskAnalyticsChan := make(chan apiCaskAnalytics)
-			installedChan := make(chan installedInfo)
-			formulaSizesChan := make(chan map[string]int64)
-			caskSizesChan := make(chan map[string]int64)
-			errChan := make(chan error, 7)
+		var allFormulae []apiFormula
+		var allCasks []apiCask
+		var formulaAnalytics apiFormulaAnalytics
+		var caskAnalytics apiCaskAnalytics
+		var allInstalled installedInfo
+		var formulaSizes map[string]int64
+		var caskSizes map[string]int64
 
-			var allFormulae []apiFormula
-			var allCasks []apiCask
-			var formulaAnalytics apiFormulaAnalytics
-			var caskAnalytics apiCaskAnalytics
-			var allInstalled installedInfo
-			var formulaSizes map[string]int64
-			var caskSizes map[string]int64
+		loadingTasksNum := cap(errChan)
 
-			loadingTasksNum := cap(errChan)
+		go fetchJsonWithCache(apiFormulaURL, formulaCacheFile, &[]apiFormula{}, formulaeChan, errChan)
+		m.loadingPrgs.addTask(formulaeChan, "Loading all Formulae")
+		go fetchJsonWithCache(apiCaskURL, casksCacheFile, &[]apiCask{}, casksChan, errChan)
+		m.loadingPrgs.addTask(casksChan, "Loading all Formulae")
+		if m.isColumnEnabled(colInstalls) {
+			go fetchJsonWithCache(apiFormulaAnalytics90dURL, formulaeAnalyticsCacheFile, &apiFormulaAnalytics{}, formulaAnalyticsChan, errChan)
+			m.loadingPrgs.addTask(formulaAnalyticsChan, "Loading Formulae analytics")
+			go fetchJsonWithCache(apiCaskAnalytics90dURL, casksAnalyticsCacheFile, &apiCaskAnalytics{}, caskAnalyticsChan, errChan)
+			m.loadingPrgs.addTask(caskAnalyticsChan, "Loading Cask analytics")
+		} else {
+			loadingTasksNum -= 2
+			formulaAnalytics = apiFormulaAnalytics{}
+			caskAnalytics = apiCaskAnalytics{}
+		}
+		go fetchInstalled(installedChan, errChan)
+		m.loadingPrgs.addTask(installedChan, "Loading installed Formulae and Casks")
+		if m.isColumnEnabled(colSize) {
+			go fetchDirectorySizes(formulaSizesChan, errChan, fmt.Sprintf("%s/Cellar", brewPrefix))
+			m.loadingPrgs.addTask(formulaSizesChan, "Loading installed Formulae sizes")
+			go fetchDirectorySizes(caskSizesChan, errChan, fmt.Sprintf("%s/Caskroom", brewPrefix))
+			m.loadingPrgs.addTask(caskSizesChan, "Loading installed Casks sizes")
+		} else {
+			loadingTasksNum -= 2
+			formulaSizes = map[string]int64{}
+			caskSizes = map[string]int64{}
+		}
 
-			go fetchJsonWithCache(apiFormulaURL, formulaCacheFile, &[]apiFormula{}, formulaeChan, errChan)
-			go fetchJsonWithCache(apiCaskURL, casksCacheFile, &[]apiCask{}, casksChan, errChan)
-			if m.isColumnEnabled(colInstalls) {
-				go fetchJsonWithCache(apiFormulaAnalytics90dURL, formulaeAnalyticsCacheFile, &apiFormulaAnalytics{}, formulaAnalyticsChan, errChan)
-				go fetchJsonWithCache(apiCaskAnalytics90dURL, casksAnalyticsCacheFile, &apiCaskAnalytics{}, caskAnalyticsChan, errChan)
-			} else {
-				loadingTasksNum -= 2
-				formulaAnalytics = apiFormulaAnalytics{}
-				caskAnalytics = apiCaskAnalytics{}
+		for i := 0; i < loadingTasksNum; i++ {
+			select {
+			case f := <-formulaeChan:
+				allFormulae = f
+				m.loadingPrgs.markCompleted(formulaeChan)
+			case c := <-casksChan:
+				allCasks = c
+				m.loadingPrgs.markCompleted(casksChan)
+			case fa := <-formulaAnalyticsChan:
+				formulaAnalytics = fa
+				m.loadingPrgs.markCompleted(formulaAnalyticsChan)
+			case ca := <-caskAnalyticsChan:
+				caskAnalytics = ca
+				m.loadingPrgs.markCompleted(caskAnalyticsChan)
+			case inst := <-installedChan:
+				allInstalled = inst
+				m.loadingPrgs.markCompleted(installedChan)
+			case sizes := <-formulaSizesChan:
+				formulaSizes = sizes
+				m.loadingPrgs.markCompleted(formulaSizesChan)
+			case sizes := <-caskSizesChan:
+				caskSizes = sizes
+				m.loadingPrgs.markCompleted(caskSizesChan)
+			case err := <-errChan:
+				return dataLoadingErrMsg{err}
 			}
-			go fetchInstalled(installedChan, errChan)
-			if m.isColumnEnabled(colSize) {
-				go fetchDirectorySizes(formulaSizesChan, errChan, fmt.Sprintf("%s/Cellar", brewPrefix))
-				go fetchDirectorySizes(caskSizesChan, errChan, fmt.Sprintf("%s/Caskroom", brewPrefix))
-			} else {
-				loadingTasksNum -= 2
-				formulaSizes = map[string]int64{}
-				caskSizes = map[string]int64{}
-			}
+		}
 
-			for i := 0; i < loadingTasksNum; i++ {
-				progress := fmt.Sprintf("[%d/%d]", i+1, loadingTasksNum)
-				msg := ""
-				select {
-				case f := <-formulaeChan:
-					allFormulae = f
-					msg = "Formulae data loaded"
-				case c := <-casksChan:
-					allCasks = c
-					msg = "Casks data loaded"
-				case fa := <-formulaAnalyticsChan:
-					formulaAnalytics = fa
-					msg = "Formulae analytics loaded"
-				case ca := <-caskAnalyticsChan:
-					caskAnalytics = ca
-					msg = "Casks analytics loaded"
-				case inst := <-installedChan:
-					allInstalled = inst
-					msg = "Installation data loaded"
-				case sizes := <-formulaSizesChan:
-					formulaSizes = sizes
-					msg = "Installed formula sizes loaded"
-				case sizes := <-caskSizesChan:
-					caskSizes = sizes
-					msg = "Installed cask sizes loaded"
-				case err := <-errChan:
-					progressChan <- dataLoadingErrMsg{err}
-				}
-				if msg != "" {
-					progressChan <- loadingProgressMsg{ch: progressChan, message: fmt.Sprintf("%s %s", progress, msg)}
-				}
-			}
-
-			packages := processAllData(
-				allInstalled,
-				allFormulae,
-				allCasks,
-				formulaAnalytics,
-				caskAnalytics,
-				formulaSizes,
-				caskSizes,
-			)
-			progressChan <- dataLoadedMsg{packages: packages}
-		}()
-
-		return loadingProgressMsg{ch: progressChan}
+		packages := processAllData(
+			allInstalled,
+			allFormulae,
+			allCasks,
+			formulaAnalytics,
+			caskAnalytics,
+			formulaSizes,
+			caskSizes,
+		)
+		return dataLoadedMsg{packages: packages}
 	}
 }
 
