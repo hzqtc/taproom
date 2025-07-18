@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -171,8 +170,8 @@ func (m *model) loadData() tea.Cmd {
 			}
 			go fetchInstalled(installedChan, errChan)
 			if m.isColumnEnabled(colSize) {
-				go fetchFormulaSizes(formulaSizesChan, errChan)
-				go fetchCaskSizes(caskSizesChan, errChan)
+				go fetchDirectorySizes(formulaSizesChan, errChan, fmt.Sprintf("%s/Cellar", brewPrefix))
+				go fetchDirectorySizes(caskSizesChan, errChan, fmt.Sprintf("%s/Caskroom", brewPrefix))
 			} else {
 				loadingTasksNum -= 2
 				formulaSizes = map[string]int64{}
@@ -313,65 +312,28 @@ func fetchInstalled(installedChan chan installedInfo, errChan chan error) {
 	installedChan <- info
 }
 
-func fetchFormulaSizes(sizesChan chan map[string]int64, errChan chan error) {
+func fetchDirectorySizes(sizesChan chan map[string]int64, errChan chan error, dir string) {
 	sizes := make(map[string]int64)
 	// -k flag instructs du to output in KB
-	cmd := exec.Command("du", "-k", "-d", "1", fmt.Sprintf("%s/Cellar", brewPrefix))
+	// -d 1 flag instructs du to calculate size of direct sub-directories
+	// -L flag instructs du to follow symbol links (which is used for Casks)
+	cmd := exec.Command("du", "-k", "-d", "1", "-L", dir)
 	output, err := cmd.Output()
 
 	if err == nil {
 		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 		for _, line := range lines {
 			fields := strings.Fields(line)
-			if len(fields) >= 2 {
+			if len(fields) == 2 {
 				size, _ := strconv.ParseInt(fields[0], 10, 64)
 				name := filepath.Base(fields[1])
-				sizes[name] = size * 1024 // Convert KB to Bytes
+				sizes[name] = size
 			}
 		}
 		sizesChan <- sizes
 	} else {
 		errChan <- err
 	}
-}
-
-func fetchCaskSizes(sizesChan chan map[string]int64, errChan chan error) {
-	sizes := make(map[string]int64)
-
-	// Step 1: Run `brew list --cask`
-	listCmd := exec.Command("brew", "list", "--cask")
-	listOutput, err := listCmd.Output()
-	if err != nil {
-		errChan <- fmt.Errorf("error running brew list --cask: %w", err)
-		return
-	}
-
-	// Step 2: Split output into cask names
-	caskNames := strings.Fields(string(listOutput))
-	if len(caskNames) == 0 {
-		sizesChan <- sizes
-		return
-	}
-
-	// Step 3: Run `brew info --cask <name1> <name2> ...`
-	infoCmd := exec.Command("brew", append([]string{"info", "--cask"}, caskNames...)...)
-	infoOutput, err := infoCmd.Output()
-	if err != nil {
-		errChan <- fmt.Errorf("error running brew info: %w", err)
-		return
-	}
-
-	// Step 4: Extract cask name to app size
-	// Try to match following lines from brew info output:
-	// /opt/homebrew/Caskroom/(cask name)/(version) (size)
-	re := regexp.MustCompile(regexp.QuoteMeta(brewPrefix) + `/Caskroom/([^/]+)/[^ )]+ \(([^)]+)\)`)
-	matches := re.FindAllStringSubmatch(string(infoOutput), -1)
-	for _, match := range matches {
-		appName := match[1]
-		appSize := parseSizeToBytes(match[2])
-		sizes[appName] = appSize
-	}
-	sizesChan <- sizes
 }
 
 // processAllData merges all data sources into a single slice of Package.

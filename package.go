@@ -26,7 +26,7 @@ type Package struct {
 	IsDeprecated          bool
 	IsDisabled            bool
 	InstalledAsDependency bool
-	Size                  int64  // Size in bytes
+	Size                  int64  // Size in kbs
 	FormattedSize         string // Formated size like 24.5MB, 230KB
 	InstalledDate         string
 }
