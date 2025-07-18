@@ -5,21 +5,21 @@ import (
 	"strings"
 )
 
-type loadingProgress struct {
+type LoadingProgress struct {
 	tasks         []any
 	taskCompleted map[any]bool
 	taskMsg       map[any]string
 }
 
-func newLoadingProgress() *loadingProgress {
-	return &loadingProgress{
+func NewLoadingProgress() *LoadingProgress {
+	return &LoadingProgress{
 		tasks:         []any{},
 		taskCompleted: make(map[any]bool),
 		taskMsg:       make(map[any]string),
 	}
 }
 
-func (lp *loadingProgress) reset() {
+func (lp *LoadingProgress) Reset() {
 	lp.tasks = lp.tasks[:0]
 	for k := range lp.taskCompleted {
 		delete(lp.taskCompleted, k)
@@ -29,22 +29,22 @@ func (lp *loadingProgress) reset() {
 	}
 }
 
-func (lp *loadingProgress) addTask(t any, msg string) {
+func (lp *LoadingProgress) AddTask(t any, msg string) {
 	lp.tasks = append(lp.tasks, t)
 	lp.taskMsg[t] = msg
 }
 
-func (lp *loadingProgress) markCompleted(t any) {
+func (lp *LoadingProgress) MarkCompleted(t any) {
 	lp.taskCompleted[t] = true
 }
 
-func (lp *loadingProgress) progress() string {
+func (lp *LoadingProgress) Progress(completedTaskSuffix string) string {
 	var b strings.Builder
 	total := len(lp.tasks)
 	for i, c := range lp.tasks {
 		b.WriteString(fmt.Sprintf("[%d/%d] %s...", i+1, total, lp.taskMsg[c]))
 		if lp.taskCompleted[c] {
-			b.WriteString("Done")
+			b.WriteString(completedTaskSuffix)
 		}
 		b.WriteString("\n")
 	}

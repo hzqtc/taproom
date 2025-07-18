@@ -145,55 +145,55 @@ func (m *model) loadData() tea.Cmd {
 		loadingTasksNum := cap(errChan)
 
 		go fetchJsonWithCache(apiFormulaURL, formulaCacheFile, &[]apiFormula{}, formulaeChan, errChan)
-		m.loadingPrgs.addTask(formulaeChan, "Loading all Formulae")
+		m.loadingPrgs.AddTask(formulaeChan, "Loading all Formulae")
 		go fetchJsonWithCache(apiCaskURL, casksCacheFile, &[]apiCask{}, casksChan, errChan)
-		m.loadingPrgs.addTask(casksChan, "Loading all Formulae")
+		m.loadingPrgs.AddTask(casksChan, "Loading all Formulae")
 		if m.isColumnEnabled(colInstalls) {
 			go fetchJsonWithCache(apiFormulaAnalytics90dURL, formulaeAnalyticsCacheFile, &apiFormulaAnalytics{}, formulaAnalyticsChan, errChan)
-			m.loadingPrgs.addTask(formulaAnalyticsChan, "Loading Formulae analytics")
+			m.loadingPrgs.AddTask(formulaAnalyticsChan, "Loading Formulae analytics")
 			go fetchJsonWithCache(apiCaskAnalytics90dURL, casksAnalyticsCacheFile, &apiCaskAnalytics{}, caskAnalyticsChan, errChan)
-			m.loadingPrgs.addTask(caskAnalyticsChan, "Loading Cask analytics")
+			m.loadingPrgs.AddTask(caskAnalyticsChan, "Loading Cask analytics")
 		} else {
 			loadingTasksNum -= 2
 			formulaAnalytics = apiFormulaAnalytics{}
 			caskAnalytics = apiCaskAnalytics{}
 		}
-		go fetchInstalled(installedChan, errChan)
-		m.loadingPrgs.addTask(installedChan, "Loading installed Formulae and Casks")
 		if m.isColumnEnabled(colSize) {
 			go fetchDirectorySizes(formulaSizesChan, errChan, fmt.Sprintf("%s/Cellar", brewPrefix))
-			m.loadingPrgs.addTask(formulaSizesChan, "Loading installed Formulae sizes")
+			m.loadingPrgs.AddTask(formulaSizesChan, "Loading installed Formulae sizes")
 			go fetchDirectorySizes(caskSizesChan, errChan, fmt.Sprintf("%s/Caskroom", brewPrefix))
-			m.loadingPrgs.addTask(caskSizesChan, "Loading installed Casks sizes")
+			m.loadingPrgs.AddTask(caskSizesChan, "Loading installed Casks sizes")
 		} else {
 			loadingTasksNum -= 2
 			formulaSizes = map[string]int64{}
 			caskSizes = map[string]int64{}
 		}
+		go fetchInstalled(installedChan, errChan)
+		m.loadingPrgs.AddTask(installedChan, "Loading installation data")
 
 		for i := 0; i < loadingTasksNum; i++ {
 			select {
 			case f := <-formulaeChan:
 				allFormulae = f
-				m.loadingPrgs.markCompleted(formulaeChan)
+				m.loadingPrgs.MarkCompleted(formulaeChan)
 			case c := <-casksChan:
 				allCasks = c
-				m.loadingPrgs.markCompleted(casksChan)
+				m.loadingPrgs.MarkCompleted(casksChan)
 			case fa := <-formulaAnalyticsChan:
 				formulaAnalytics = fa
-				m.loadingPrgs.markCompleted(formulaAnalyticsChan)
+				m.loadingPrgs.MarkCompleted(formulaAnalyticsChan)
 			case ca := <-caskAnalyticsChan:
 				caskAnalytics = ca
-				m.loadingPrgs.markCompleted(caskAnalyticsChan)
+				m.loadingPrgs.MarkCompleted(caskAnalyticsChan)
 			case inst := <-installedChan:
 				allInstalled = inst
-				m.loadingPrgs.markCompleted(installedChan)
+				m.loadingPrgs.MarkCompleted(installedChan)
 			case sizes := <-formulaSizesChan:
 				formulaSizes = sizes
-				m.loadingPrgs.markCompleted(formulaSizesChan)
+				m.loadingPrgs.MarkCompleted(formulaSizesChan)
 			case sizes := <-caskSizesChan:
 				caskSizes = sizes
-				m.loadingPrgs.markCompleted(caskSizesChan)
+				m.loadingPrgs.MarkCompleted(caskSizesChan)
 			case err := <-errChan:
 				return dataLoadingErrMsg{err}
 			}

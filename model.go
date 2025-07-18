@@ -41,7 +41,7 @@ type model struct {
 
 	// State
 	isLoading      bool
-	loadingPrgs    *loadingProgress
+	loadingPrgs    *LoadingProgress
 	focusMode      focusMode
 	filters        filterGroup
 	sortColumn     columnName
@@ -107,7 +107,7 @@ func initialModel() model {
 		stopwatch:   sw,
 		table:       tbl,
 		isLoading:   true,
-		loadingPrgs: newLoadingProgress(),
+		loadingPrgs: NewLoadingProgress(),
 		sortColumn:  colName,
 		columns:     columns,
 		keys:        defaultKeyMap(),
@@ -142,7 +142,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Data has been successfully loaded
 	case dataLoadedMsg:
 		m.isLoading = false
-		m.loadingPrgs.reset()
+		m.loadingPrgs.Reset()
 		if *showLoadTimer {
 			cmds = append(cmds, m.stopwatch.Stop(), m.stopwatch.Reset())
 		}

@@ -124,7 +124,14 @@ func (m model) View() string {
 	if m.isLoading {
 		var b strings.Builder
 		m.spinner.Style = spinnerStyle
-		b.WriteString(fmt.Sprintf("%s\n%s\n\n%s Loading...", headerStyle.Render(logo), m.loadingPrgs.progress(), m.spinner.View()))
+		b.WriteString(
+			fmt.Sprintf(
+				"%s\n%s\n\n%s Loading...",
+				headerStyle.Render(logo),
+				m.loadingPrgs.Progress(headerStyle.Render("Done")),
+				m.spinner.View(),
+			),
+		)
 		if *showLoadTimer {
 			b.WriteString(m.stopwatch.View())
 		}
