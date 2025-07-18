@@ -149,7 +149,9 @@ func (m model) View() string {
 	if output := m.renderOutput(); output != "" {
 		views = append(views, output)
 	}
-	views = append(views, m.renderHelp())
+	if !*hideHelp {
+		views = append(views, m.renderHelp())
+	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, views...)
 }
@@ -327,10 +329,12 @@ func (m *model) updateLayout() {
 	tableWidth := m.width - viewportWidth - 4
 	m.table.SetWidth(tableWidth)
 
-	searchHeight := lipgloss.Height(searchStyle.Render(m.search.View()))
-	helpHeight := lipgloss.Height(m.renderHelp())
-	outputHeight := lipgloss.Height(m.renderOutput())
-	mainHeight := m.height - helpHeight - searchHeight - outputHeight - 4
+	mainHeight := m.height - 4
+	mainHeight -= lipgloss.Height(searchStyle.Render(m.search.View()))
+	if !*hideHelp {
+		mainHeight -= lipgloss.Height(m.renderHelp())
+	}
+	mainHeight -= lipgloss.Height(m.renderOutput())
 
 	m.table.SetHeight(mainHeight)
 	m.viewport.Height = mainHeight

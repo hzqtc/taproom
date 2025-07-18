@@ -20,6 +20,7 @@ var (
 		[]string{},
 		"Hide specific columns seprated by comma (no spaces) (options: Version, Tap, Description, Installs, Size, Status)",
 	)
+	hideHelp = pflag.Bool("hide-help", false, "Hide the help text")
 )
 
 //go:embed .version
