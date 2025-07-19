@@ -12,7 +12,7 @@ import (
 var colWidthMap = map[columnName]int{
 	colSymbol:      2,
 	colName:        15,
-	colVersion:     15,
+	colVersion:     10,
 	colTap:         15,
 	colDescription: 30,
 	colInstalls:    10,
@@ -153,6 +153,7 @@ func (m model) View() string {
 	views := []string{
 		topContent,
 		mainContent,
+		m.renderStats(),
 	}
 	if output := m.renderOutput(); output != "" {
 		views = append(views, output)
@@ -339,6 +340,7 @@ func (m *model) updateLayout() {
 
 	mainHeight := m.height - 4
 	mainHeight -= lipgloss.Height(searchStyle.Render(m.search.View()))
+	mainHeight -= lipgloss.Height(m.renderStats())
 	if !*hideHelp {
 		mainHeight -= lipgloss.Height(m.renderHelp())
 	}
@@ -578,4 +580,34 @@ func (m *model) updateViewport() {
 
 	m.viewport.SetContent(vpContentStyle.Render(b.String()))
 	m.viewport.GotoTop()
+}
+
+func (m *model) renderStats() string {
+	var formulaeNum, formulaeDepNum, casksNum int
+	var formulaeSize, casksSize int64
+	for _, pkg := range m.viewPackages {
+		if !pkg.IsInstalled {
+			continue
+		}
+
+		if pkg.IsCask {
+			casksNum++
+			casksSize += pkg.Size
+		} else {
+			formulaeNum++
+			formulaeSize += pkg.Size
+			if pkg.InstalledAsDependency {
+				formulaeDepNum++
+			}
+		}
+	}
+	return helpStyle.Render(
+		fmt.Sprintf(
+			"%s Formulae (%s deps) installed taking %s | %s Casks installed taking %s",
+			keyStyle.Render(fmt.Sprintf("%d", formulaeNum)),
+			keyStyle.Render(fmt.Sprintf("%d", formulaeDepNum)),
+			keyStyle.Render(formatSize(formulaeSize)),
+			keyStyle.Render(fmt.Sprintf("%d", casksNum)),
+			keyStyle.Render(formatSize(casksSize)),
+		))
 }
