@@ -583,31 +583,40 @@ func (m *model) updateViewport() {
 }
 
 func (m *model) renderStats() string {
-	var formulaeNum, formulaeDepNum, casksNum int
+	var formulaeNum, casksNum int
+	var installedFormulaeNum, installedFormulaeDepNum, installedCasksNum int
 	var formulaeSize, casksSize int64
 	for _, pkg := range m.viewPackages {
+		if pkg.IsCask {
+			casksNum++
+		} else {
+			formulaeNum++
+		}
+
 		if !pkg.IsInstalled {
 			continue
 		}
 
 		if pkg.IsCask {
-			casksNum++
+			installedCasksNum++
 			casksSize += pkg.Size
 		} else {
-			formulaeNum++
+			installedFormulaeNum++
 			formulaeSize += pkg.Size
 			if pkg.InstalledAsDependency {
-				formulaeDepNum++
+				installedFormulaeDepNum++
 			}
 		}
 	}
 	return helpStyle.Render(
 		fmt.Sprintf(
-			"%s Formulae (%s deps) installed taking %s | %s Casks installed taking %s",
+			"%s Formulae available | %s Casks available | %s Formulae (incl. %s deps) installed taking %s | %s Casks installed taking %s",
 			keyStyle.Render(fmt.Sprintf("%d", formulaeNum)),
-			keyStyle.Render(fmt.Sprintf("%d", formulaeDepNum)),
-			keyStyle.Render(formatSize(formulaeSize)),
 			keyStyle.Render(fmt.Sprintf("%d", casksNum)),
+			keyStyle.Render(fmt.Sprintf("%d", installedFormulaeNum)),
+			keyStyle.Render(fmt.Sprintf("%d", installedFormulaeDepNum)),
+			keyStyle.Render(formatSize(formulaeSize)),
+			keyStyle.Render(fmt.Sprintf("%d", installedCasksNum)),
 			keyStyle.Render(formatSize(casksSize)),
 		))
 }
