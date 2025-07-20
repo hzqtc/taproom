@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -94,7 +95,7 @@ func initialModel() model {
 
 	// Add all non-hidden columns
 	columns := []columnName{}
-	for i := 0; i < int(totalNumColumns); i++ {
+	for i := range int(totalNumColumns) {
 		col := columnName(i)
 		if _, hidden := hiddenColumns[col]; !hidden {
 			columns = append(columns, col)
@@ -211,9 +212,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch {
 			case key.Matches(msg, m.keys.SwitchFocus):
 				// Tab switches focus between table and viewport
-				if m.focusMode == focusTable {
+				switch m.focusMode {
+				case focusTable:
 					m.focusMode = focusDetail
-				} else if m.focusMode == focusDetail {
+				case focusDetail:
 					m.focusMode = focusTable
 				}
 				m.updateFocusBorder()
@@ -232,9 +234,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.keys.Quit):
 				return m, tea.Quit
 			default:
-				if m.focusMode == focusDetail {
+				switch m.focusMode {
+				case focusDetail:
 					cmds = append(cmds, m.handleViewportKeys(msg))
-				} else if m.focusMode == focusTable {
+				case focusTable:
 					cmds = append(cmds, m.handleTableKeys(msg))
 				}
 			}
@@ -406,21 +409,11 @@ func (m *model) getPackage(name string) *Package {
 }
 
 func (m *model) isColumnEnabled(c columnName) bool {
-	for _, col := range m.columns {
-		if c == col {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.columns, c)
 }
 
 func (m *model) isColumnVisible(c columnName) bool {
-	for _, col := range m.visibleColumns {
-		if c == col {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.visibleColumns, c)
 }
 
 // filterAndSortPackages updates the viewPackages based on current filters and sort mode.

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 )
 
 func sortAndUniq(input []string) []string {
@@ -10,9 +10,7 @@ func sortAndUniq(input []string) []string {
 		return input
 	}
 
-	sort.Slice(input, func(i, j int) bool {
-		return input[i] < input[j]
-	})
+	slices.Sort(input)
 
 	result := []string{input[0]}
 	for i := 1; i < len(input); i++ {
