@@ -509,6 +509,9 @@ func (m *model) updatePackageForAction(action commandAction, pkgs []*Package) {
 			for _, depName := range m.getRecursiveMissingDeps(pkg.Name) {
 				m.getPackage(depName).MarkInstalled()
 			}
+
+			pkg.Size = fetchPackageSize(pkg)
+			pkg.FormattedSize = formatSize(pkg.Size)
 		}
 	case actionUninstall:
 		for _, pkg := range pkgs {

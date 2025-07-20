@@ -298,27 +298,56 @@ func fetchInstalled(installedChan chan installedInfo, errChan chan error) {
 }
 
 func fetchDirectorySizes(sizesChan chan map[string]int64, errChan chan error, dir string) {
-	sizes := make(map[string]int64)
-	// -k flag instructs du to output in KB
-	// -d 1 flag instructs du to calculate size of direct sub-directories
-	// -L flag instructs du to follow symbol links (which is used for Casks)
+	// -k: output in KB
+	// -d 1: output size for each direct sub-directories
+	// -L: follow symbol links (which is used for Casks)
 	cmd := exec.Command("du", "-k", "-d", "1", "-L", dir)
 	output, err := cmd.Output()
 
 	if err == nil {
-		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-		for _, line := range lines {
-			fields := strings.Fields(line)
-			if len(fields) == 2 {
-				size, _ := strconv.ParseInt(fields[0], 10, 64)
-				name := filepath.Base(fields[1])
-				sizes[name] = size
-			}
-		}
-		sizesChan <- sizes
+		sizesChan <- parseDuCmdOutput(output)
 	} else {
 		errChan <- err
 	}
+}
+
+func fetchPackageSize(pkg *Package) int64 {
+	if !pkg.IsInstalled {
+		return 0
+	}
+
+	dir := brewPrefix
+	if pkg.IsCask {
+		dir += "/Caskroom/"
+	} else {
+		dir += "/Cellar/"
+	}
+	dir += pkg.Name
+
+	// -k: output in KB
+	// -s: output the total size
+	// -L: follow symbol links (which is used for Casks)
+	cmd := exec.Command("du", "-k", "-s", "-L", dir)
+	output, err := cmd.Output()
+
+	if err == nil {
+		return parseDuCmdOutput(output)[pkg.Name]
+	}
+	return 0
+}
+
+func parseDuCmdOutput(output []byte) map[string]int64 {
+	sizes := make(map[string]int64)
+	lines := strings.SplitSeq(strings.TrimSpace(string(output)), "\n")
+	for line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) == 2 {
+			size, _ := strconv.ParseInt(fields[0], 10, 64)
+			name := filepath.Base(fields[1])
+			sizes[name] = size
+		}
+	}
+	return sizes
 }
 
 // processAllData merges all data sources into a single slice of Package.

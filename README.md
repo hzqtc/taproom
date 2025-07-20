@@ -40,6 +40,7 @@
 
 ### Prerequisites
 
+- du (MacOS builtin command)
 - [Homebrew](https://brew.sh/)
 - A terminal emulator with a [nerd font](https://www.nerdfonts.com/)
 
