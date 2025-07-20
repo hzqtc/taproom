@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -159,9 +160,9 @@ func (m *model) loadData() tea.Cmd {
 			caskAnalytics = apiCaskAnalytics{}
 		}
 		if m.isColumnEnabled(colSize) {
-			go fetchDirectorySizes(formulaSizesChan, errChan, fmt.Sprintf("%s/Cellar", brewPrefix))
+			go fetchDirectorySizes(formulaSizesChan, errChan, fmt.Sprintf("%s/Cellar", brewPrefix), false)
 			m.loadingPrgs.AddTask(formulaSizesChan, "Loading installed Formulae sizes")
-			go fetchDirectorySizes(caskSizesChan, errChan, fmt.Sprintf("%s/Caskroom", brewPrefix))
+			go fetchDirectorySizes(caskSizesChan, errChan, fmt.Sprintf("%s/Caskroom", brewPrefix), true)
 			m.loadingPrgs.AddTask(caskSizesChan, "Loading installed Casks sizes")
 		} else {
 			loadingTasksNum -= 2
@@ -253,7 +254,7 @@ func fetchJsonWithCache[T any](url, filename string, target *T, dataChan chan T,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		errChan <- fmt.Errorf("bad status from %s: %s", url, resp.Status)
+		errChan <- fmt.Errorf("bad HTTP status fetching %s: %s", url, resp.Status)
 		return
 	}
 
@@ -281,11 +282,12 @@ func fetchJsonWithCache[T any](url, filename string, target *T, dataChan chan T,
 
 // fetchInstalled runs the `brew info` command and parses its Json output.
 func fetchInstalled(installedChan chan installedInfo, errChan chan error) {
+	var errOutput bytes.Buffer
 	cmd := exec.Command("brew", "info", "--json=v2", "--installed")
+	cmd.Stderr = &errOutput
 	output, err := cmd.Output()
 	if err != nil {
-		// Not a fatal error if brew is not installed or no packages are installed.
-		installedChan <- installedInfo{}
+		errChan <- fmt.Errorf("failed to get installed packages: %s", errOutput.String())
 		return
 	}
 
@@ -297,17 +299,25 @@ func fetchInstalled(installedChan chan installedInfo, errChan chan error) {
 	installedChan <- info
 }
 
-func fetchDirectorySizes(sizesChan chan map[string]int64, errChan chan error, dir string) {
+func fetchDirectorySizes(sizesChan chan map[string]int64, errChan chan error, dir string, followSymbolLinks bool) {
 	// -k: output in KB
 	// -d 1: output size for each direct sub-directories
 	// -L: follow symbol links (which is used for Casks)
-	cmd := exec.Command("du", "-k", "-d", "1", "-L", dir)
+	args := []string{"-k", "-d", "1"}
+	if followSymbolLinks {
+		args = append(args, "-L")
+	}
+	args = append(args, dir)
+
+	var errOutput bytes.Buffer
+	cmd := exec.Command("du", args...)
+	cmd.Stderr = &errOutput
 	output, err := cmd.Output()
 
 	if err == nil {
 		sizesChan <- parseDuCmdOutput(output)
 	} else {
-		errChan <- err
+		errChan <- fmt.Errorf("failed to get package sizes in %s\n%s", dir, errOutput.String())
 	}
 }
 
@@ -316,18 +326,21 @@ func fetchPackageSize(pkg *Package) int64 {
 		return 0
 	}
 
+	// -k: output in KB
+	// -s: output the total size
+	// -L: follow symbol links (which is used for Casks)
+	args := []string{"-k", "-s"}
 	dir := brewPrefix
 	if pkg.IsCask {
+		args = append(args, "-L")
 		dir += "/Caskroom/"
 	} else {
 		dir += "/Cellar/"
 	}
 	dir += pkg.Name
+	args = append(args, dir)
 
-	// -k: output in KB
-	// -s: output the total size
-	// -L: follow symbol links (which is used for Casks)
-	cmd := exec.Command("du", "-k", "-s", "-L", dir)
+	cmd := exec.Command("du", args...)
 	output, err := cmd.Output()
 
 	if err == nil {
