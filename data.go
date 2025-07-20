@@ -147,7 +147,7 @@ func (m *model) loadData() tea.Cmd {
 		go fetchJsonWithCache(apiFormulaURL, formulaCacheFile, &[]apiFormula{}, formulaeChan, errChan)
 		m.loadingPrgs.AddTask(formulaeChan, "Loading all Formulae")
 		go fetchJsonWithCache(apiCaskURL, casksCacheFile, &[]apiCask{}, casksChan, errChan)
-		m.loadingPrgs.AddTask(casksChan, "Loading all Formulae")
+		m.loadingPrgs.AddTask(casksChan, "Loading all Casks")
 		if m.isColumnEnabled(colInstalls) {
 			go fetchJsonWithCache(apiFormulaAnalytics90dURL, formulaeAnalyticsCacheFile, &apiFormulaAnalytics{}, formulaAnalyticsChan, errChan)
 			m.loadingPrgs.AddTask(formulaAnalyticsChan, "Loading Formulae analytics")
