@@ -41,6 +41,12 @@ const (
 	statusUninstalled    = "Uninstalled"
 )
 
+const (
+	// TODO: support regex in search
+	kwPrefixName = "n:"
+	kwPrefixDesc = "d:"
+)
+
 func (pkg *Package) Status() string {
 	if pkg.IsDisabled {
 		return statusDisabled
@@ -117,10 +123,20 @@ func (pkg *Package) MarkUnpinned() {
 // Test if a package matches the keywords
 func (pkg *Package) MatchKeywords(kws []string) bool {
 	for _, kw := range kws {
-		// Requires the name or description to contain all keywords
+		// Requires the name or description to contain ALL keywords
 		// So we can return false on any unmatched keyword
-		if !strings.Contains(strings.ToLower(pkg.Name), kw) && !strings.Contains(strings.ToLower(pkg.Desc), kw) {
-			return false
+		if kw, match := strings.CutPrefix(kw, kwPrefixName); match {
+			if !strings.Contains(strings.ToLower(pkg.Name), kw) {
+				return false
+			}
+		} else if kw, match := strings.CutPrefix(kw, kwPrefixDesc); match {
+			if !strings.Contains(strings.ToLower(pkg.Desc), kw) {
+				return false
+			}
+		} else {
+			if !strings.Contains(strings.ToLower(pkg.Name), kw) && !strings.Contains(strings.ToLower(pkg.Desc), kw) {
+				return false
+			}
 		}
 	}
 	return true

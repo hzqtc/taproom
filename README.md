@@ -31,6 +31,9 @@
   - Also shows dependencies recursively (only when the dependencies is not installed)
   - Also shows dependents (which other packages depends on this one)
 - **Search:** Quickly find packages by name or description.
+  - Default: match keyword in either name or description
+  - Prefix `n:`: match the keyword only in name
+  - Prefix `d:`: match the keyword only in description
 - **Filtering:** View all packages, or filter by:
   - Formulae only
   - Casks only
