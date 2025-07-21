@@ -10,14 +10,19 @@
 
 ![](https://raw.github.com/hzqtc/taproom/master/screenshot.png)
 
-`taproom` is inspired by [`boldbrew`](https://github.com/Valkyrie00/bold-brew) but it's not a clone.
+## ⭐ Highlights
 
-- `taproom` has a different UI style
-- `taproom` supports casks
-- `taproom` supports sorting by different columns
-- `taproom` shows missing dependencies recursively (i.e. dependencies of dependencies)
-- `taproom` shows reverse dependencies (i.e. used by) that replaces an very slow `brew uses <formula> --eval-all` command
-- `taproom` shows the size of installed packages
+`taproom` does a few things faster and easier than the `brew` cli:
+
+- Search: searching in `taproom` gives results with all the details in real time; while using `brew` you need to run `brew search` then
+  `brew info` on each package.
+- Dependencies: `brew info` shows direct dependencies; while `taproom` also shows all recusive dependencies that are not installed - this is helpful
+  to understand what exactly would be installed as dependencies
+  - `taproom` also has clear indication for packages installed as dependencies vs installed explicitly
+- Dependents: `brew uses --eval-all` shows dependents that require the target package but it is a pretty slow command; `taproom` have this information
+  available without additional data loading
+- Sorting: `taproom` supports sorting by popularity (90d installs) and size (disk spaced used)
+- Navigation: 'h' opens an app's home page and 'b' opens the brew formula page
 
 ## ✨ Features
 
@@ -38,7 +43,7 @@
 
 ## 🚀 Getting Started
 
-### Prerequisites
+### Dependencies
 
 - du (MacOS builtin command)
 - [Homebrew](https://brew.sh/)
@@ -46,7 +51,7 @@
 
 ### Install from pre-built binary
 
-`gromgit` maintains a [formula](https://github.com/gromgit/homebrew-brewtils/blob/main/Formula/taproom.rb):
+`gromgit@` (Thank you!) maintains a [formula](https://github.com/gromgit/homebrew-brewtils/blob/main/Formula/taproom.rb):
 
 ```
 brew install gromgit/brewtils/taproom
@@ -94,6 +99,17 @@ The app's behavior can be further customized with command line flags:
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea)
 - [Bubbles](https://github.com/charmbracelet/bubbles)
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss)
+
+## 🔀 Alternatives
+
+`taproom` is inspired by [`boldbrew`](https://github.com/Valkyrie00/bold-brew) but it's not a clone.
+
+- `taproom` has a different UI style
+- `taproom` supports casks
+- `taproom` supports sorting by different columns
+- `taproom` shows missing dependencies recursively (i.e. dependencies of dependencies)
+- `taproom` shows reverse dependencies (i.e. used by) that replaces an very slow `brew uses <formula> --eval-all` command
+- `taproom` shows the size of installed packages
 
 ## ✨ Star History
 
