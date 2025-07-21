@@ -145,14 +145,14 @@ func (m *model) loadData() tea.Cmd {
 
 		loadingTasksNum := cap(errChan)
 
-		go fetchJsonWithCache(apiFormulaURL, formulaCacheFile, &[]apiFormula{}, formulaeChan, errChan)
+		go fetchJsonWithCache(apiFormulaURL, formulaCacheFile, m.noCache, &[]apiFormula{}, formulaeChan, errChan)
 		m.loadingPrgs.AddTask(formulaeChan, "Loading all Formulae")
-		go fetchJsonWithCache(apiCaskURL, casksCacheFile, &[]apiCask{}, casksChan, errChan)
+		go fetchJsonWithCache(apiCaskURL, casksCacheFile, m.noCache, &[]apiCask{}, casksChan, errChan)
 		m.loadingPrgs.AddTask(casksChan, "Loading all Casks")
 		if m.isColumnEnabled(colInstalls) {
-			go fetchJsonWithCache(apiFormulaAnalytics90dURL, formulaeAnalyticsCacheFile, &apiFormulaAnalytics{}, formulaAnalyticsChan, errChan)
+			go fetchJsonWithCache(apiFormulaAnalytics90dURL, formulaeAnalyticsCacheFile, m.noCache, &apiFormulaAnalytics{}, formulaAnalyticsChan, errChan)
 			m.loadingPrgs.AddTask(formulaAnalyticsChan, "Loading Formulae analytics")
-			go fetchJsonWithCache(apiCaskAnalytics90dURL, casksAnalyticsCacheFile, &apiCaskAnalytics{}, caskAnalyticsChan, errChan)
+			go fetchJsonWithCache(apiCaskAnalytics90dURL, casksAnalyticsCacheFile, m.noCache, &apiCaskAnalytics{}, caskAnalyticsChan, errChan)
 			m.loadingPrgs.AddTask(caskAnalyticsChan, "Loading Cask analytics")
 		} else {
 			loadingTasksNum -= 2
@@ -214,10 +214,6 @@ func (m *model) loadData() tea.Cmd {
 }
 
 func readCacheData(cachePath string) []byte {
-	if *invalidateCache {
-		return nil
-	}
-
 	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < urlCacheTtl {
 		file, err := os.Open(cachePath)
 		if err == nil {
@@ -233,15 +229,17 @@ func readCacheData(cachePath string) []byte {
 }
 
 // fetchJsonWithCache is a generic function to fetch and decode Json from a URL, with caching.
-func fetchJsonWithCache[T any](url, filename string, target *T, dataChan chan T, errChan chan error) {
+func fetchJsonWithCache[T any](url, filename string, noCache bool, target *T, dataChan chan T, errChan chan error) {
 	cachePath := filepath.Join(cacheDir, filename)
 
 	// Attempt to load from cache first
-	if cacheData := readCacheData(cachePath); cacheData != nil {
-		if err := json.Unmarshal(cacheData, &target); err == nil {
-			log.Printf("Loaded %s from cache file %s", url, filename)
-			dataChan <- *target
-			return
+	if !noCache {
+		if cacheData := readCacheData(cachePath); cacheData != nil {
+			if err := json.Unmarshal(cacheData, &target); err == nil {
+				log.Printf("Loaded %s from cache file %s", url, filename)
+				dataChan <- *target
+				return
+			}
 		}
 	}
 

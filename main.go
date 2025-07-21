@@ -11,16 +11,16 @@ import (
 )
 
 var (
-	showVersion     = pflag.BoolP("version", "v", false, "Show app version")
-	showHelp        = pflag.BoolP("help", "h", false, "Show help message")
-	invalidateCache = pflag.BoolP("invalidate-cache", "i", false, "Invalidate cache and force re-downloading data")
-	showLoadTimer   = pflag.BoolP("load-timer", "t", false, "Show a timer in the loading screen")
-	hiddenCols      = pflag.StringSlice(
+	flagShowVersion     = pflag.BoolP("version", "v", false, "Show app version")
+	flagShowHelp        = pflag.BoolP("help", "h", false, "Show help message")
+	flagInvalidateCache = pflag.BoolP("invalidate-cache", "i", false, "Invalidate cache and force re-downloading data")
+	flagShowLoadTimer   = pflag.BoolP("load-timer", "t", false, "Show a timer in the loading screen")
+	flagHideCols        = pflag.StringSlice(
 		"hide-columns",
 		[]string{},
 		"Hide specific columns seprated by comma (no spaces) (options: Version, Tap, Description, Installs, Size, Status)",
 	)
-	hideHelp = pflag.Bool("hide-help", false, "Hide the help text")
+	flagHideHelp = pflag.Bool("hide-help", false, "Hide the help text")
 )
 
 //go:embed .version
@@ -29,12 +29,12 @@ var version string
 func main() {
 	pflag.Parse()
 
-	if *showVersion {
+	if *flagShowVersion {
 		fmt.Println(version)
 		os.Exit(0)
 	}
 
-	if *showHelp {
+	if *flagShowHelp {
 		pflag.Usage()
 		os.Exit(0)
 	}
@@ -47,8 +47,15 @@ func main() {
 	// Send log output to the file
 	log.SetOutput(f)
 
+	flags := Flags{
+		noCache:       *flagInvalidateCache,
+		showLoadTimer: *flagShowLoadTimer,
+		hiddenColumns: *flagHideCols,
+		hideHelp:      *flagHideHelp,
+	}
+
 	// The WithAltScreen() option provides a full-screen TUI experience.
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	p := tea.NewProgram(initialModel(flags), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)

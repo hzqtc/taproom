@@ -18,6 +18,13 @@ import (
 	"github.com/pkg/browser"
 )
 
+type Flags struct {
+	noCache       bool
+	showLoadTimer bool
+	hiddenColumns []string
+	hideHelp      bool
+}
+
 // focusMode defines which component is currently focused
 type focusMode int
 
@@ -42,7 +49,9 @@ type model struct {
 
 	// State
 	isLoading      bool
+	noCache        bool
 	loadingPrgs    *LoadingProgress
+	loadTimer      bool
 	focusMode      focusMode
 	filters        filterGroup
 	sortColumn     columnName
@@ -51,6 +60,7 @@ type model struct {
 	height         int
 	columns        []columnName // Enabled table columns
 	visibleColumns []columnName // Columns currently visible in the UI, depending on screen width
+	hideHelp       bool
 
 	// Keybindings
 	keys keyMap
@@ -61,7 +71,7 @@ type model struct {
 }
 
 // initialModel creates the starting state of the application.
-func initialModel() model {
+func initialModel(flags Flags) model {
 	// Search input
 	searchInput := textinput.New()
 	searchInput.Placeholder = "Search packages..."
@@ -72,7 +82,7 @@ func initialModel() model {
 	s.Spinner = spinner.Dot
 
 	var sw stopwatch.Model
-	if *showLoadTimer {
+	if flags.showLoadTimer {
 		sw = stopwatch.NewWithInterval(time.Millisecond)
 	}
 
@@ -84,7 +94,7 @@ func initialModel() model {
 
 	// Parse hidden columns from command line flag into a set
 	hiddenColumns := make(map[columnName]struct{})
-	for _, c := range *hiddenCols {
+	for _, c := range flags.hiddenColumns {
 		if col, err := parseColumnName(c); err == nil {
 			hiddenColumns[col] = struct{}{}
 		} else {
@@ -108,9 +118,12 @@ func initialModel() model {
 		stopwatch:   sw,
 		table:       tbl,
 		isLoading:   true,
+		noCache:     flags.noCache,
 		loadingPrgs: NewLoadingProgress(),
+		loadTimer:   flags.showLoadTimer,
 		sortColumn:  colName,
 		columns:     columns,
+		hideHelp:    flags.hideHelp,
 		keys:        defaultKeyMap(),
 	}
 }
@@ -119,7 +132,7 @@ func initialModel() model {
 func (m model) Init() tea.Cmd {
 	// Start the spinner and load the data from Homebrew APIs.
 	cmds := []tea.Cmd{m.spinner.Tick, m.loadData()}
-	if *showLoadTimer {
+	if m.loadTimer {
 		cmds = append(cmds, m.stopwatch.Start())
 	}
 	return tea.Batch(cmds...)
@@ -144,7 +157,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dataLoadedMsg:
 		m.isLoading = false
 		m.loadingPrgs.Reset()
-		if *showLoadTimer {
+		if m.loadTimer {
 			cmds = append(cmds, m.stopwatch.Stop(), m.stopwatch.Reset())
 		}
 		m.allPackages = msg.packages
@@ -155,7 +168,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// An error occurred during data loading
 	case dataLoadingErrMsg:
 		m.isLoading = false
-		if *showLoadTimer {
+		if m.loadTimer {
 			cmds = append(cmds, m.stopwatch.Stop())
 		}
 		// Data loading error is fatal
@@ -228,7 +241,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.isLoading = true
 				m.output = []string{}
 				cmds = append(cmds, m.spinner.Tick, m.loadData())
-				if *showLoadTimer {
+				if m.loadTimer {
 					cmds = append(cmds, m.stopwatch.Start())
 				}
 			case key.Matches(msg, m.keys.Quit):

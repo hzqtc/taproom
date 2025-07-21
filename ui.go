@@ -132,7 +132,7 @@ func (m model) View() string {
 				m.spinner.View(),
 			),
 		)
-		if *showLoadTimer {
+		if m.loadTimer {
 			b.WriteString(m.stopwatch.View())
 		}
 		return b.String()
@@ -158,7 +158,7 @@ func (m model) View() string {
 	if output := m.renderOutput(); output != "" {
 		views = append(views, output)
 	}
-	if !*hideHelp {
+	if !m.hideHelp {
 		views = append(views, m.renderHelp())
 	}
 
@@ -341,7 +341,7 @@ func (m *model) updateLayout() {
 	mainHeight := m.height - 4
 	mainHeight -= lipgloss.Height(searchStyle.Render(m.search.View()))
 	mainHeight -= lipgloss.Height(m.renderStats())
-	if !*hideHelp {
+	if !m.hideHelp {
 		mainHeight -= lipgloss.Height(m.renderHelp())
 	}
 	mainHeight -= lipgloss.Height(m.renderOutput())
