@@ -33,6 +33,7 @@ const (
 	actionUninstall  commandAction = "uninstall"
 	actionPin        commandAction = "pin"
 	actionUnpin      commandAction = "unpin"
+	actionCleanup    commandAction = "cleanup"
 )
 
 // --- Command Functions ---
@@ -143,4 +144,8 @@ func pinPackage(pkg *Package) tea.Cmd {
 
 func unpinPackage(pkg *Package) tea.Cmd {
 	return tea.Batch(startCommand(), execute(actionUnpin, []*Package{pkg}, "unpin", pkg.Name))
+}
+
+func cleanup() tea.Cmd {
+	return tea.Batch(startCommand(), execute(actionCleanup, []*Package{}, "cleanup", "--prune=all"))
 }

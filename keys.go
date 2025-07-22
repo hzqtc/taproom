@@ -32,6 +32,7 @@ type keyMap struct {
 	Remove       key.Binding
 	Pin          key.Binding
 	Unpin        key.Binding
+	CleanUp      key.Binding
 }
 
 // defaultKeyMap returns a map of default keybindings.
@@ -65,5 +66,6 @@ func defaultKeyMap() keyMap {
 		Remove:       key.NewBinding(key.WithKeys("x")),
 		Pin:          key.NewBinding(key.WithKeys("p")),
 		Unpin:        key.NewBinding(key.WithKeys("P")),
+		CleanUp:      key.NewBinding(key.WithKeys("L")),
 	}
 }

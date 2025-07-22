@@ -410,6 +410,8 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsPinned {
 			cmd = unpinPackage(selectedPkg)
 		}
+	case key.Matches(msg, m.keys.CleanUp):
+		cmd = cleanup()
 
 	default:
 		// Let table itself handle the rest of keys
