@@ -95,6 +95,8 @@ The app's behavior can be further customized with command line flags:
   - This can be helpful to further simplify the UI
   - While all data loading is done in parallel, some may be slower than others. This flag can be used to skip loading certain data to speed up app load
 - `--load-timer` or `-t` in short: show a timer in the loading screen
+- `--hide-help`: hide the help text on the bottom of the app
+- `--sort-column` or `-s` in short: specify the column to sort by (this can still be changed in app with `s` and `S` keys)
 
 ## 🛠️ Built With
 

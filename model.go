@@ -22,6 +22,7 @@ type Flags struct {
 	noCache       bool
 	showLoadTimer bool
 	hiddenColumns []string
+	sortColumn    string
 	hideHelp      bool
 }
 
@@ -112,6 +113,15 @@ func initialModel(flags Flags) model {
 		}
 	}
 
+	sortCol, err := parseColumnName(flags.sortColumn)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	} else if !sortCol.Sortable() {
+		fmt.Fprintf(os.Stderr, "Can not sort by column: %s\n", sortCol.String())
+		os.Exit(1)
+	}
+
 	return model{
 		search:      searchInput,
 		spinner:     s,
@@ -121,7 +131,7 @@ func initialModel(flags Flags) model {
 		noCache:     flags.noCache,
 		loadingPrgs: NewLoadingProgress(),
 		loadTimer:   flags.showLoadTimer,
-		sortColumn:  colName,
+		sortColumn:  sortCol,
 		columns:     columns,
 		hideHelp:    flags.hideHelp,
 		keys:        defaultKeyMap(),

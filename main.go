@@ -20,6 +20,12 @@ var (
 		[]string{},
 		"Hide specific columns seprated by comma (no spaces) (options: Version, Tap, Description, Installs, Size, Status)",
 	)
+	flagSortColumn = pflag.StringP(
+		"sort-column",
+		"s",
+		"Name",
+		"Choose which column (Name, Tap, Installs, Size, Status) to sort by initially",
+	)
 	flagHideHelp = pflag.Bool("hide-help", false, "Hide the help text")
 )
 
@@ -51,6 +57,7 @@ func main() {
 		noCache:       *flagInvalidateCache,
 		showLoadTimer: *flagShowLoadTimer,
 		hiddenColumns: *flagHideCols,
+		sortColumn:    *flagSortColumn,
 		hideHelp:      *flagHideHelp,
 	}
 
