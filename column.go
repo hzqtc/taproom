@@ -49,7 +49,8 @@ func (c columnName) String() string {
 
 func parseColumnName(name string) (columnName, error) {
 	switch name {
-	// Name and Symbol columns can not be customized
+	case "Name":
+		return colName, nil
 	case "Version":
 		return colVersion, nil
 	case "Tap":
@@ -65,6 +66,10 @@ func parseColumnName(name string) (columnName, error) {
 	default:
 		return colUnknown, fmt.Errorf("Unknown column: %s", name)
 	}
+}
+
+func (c columnName) Hideable() bool {
+	return c != colSymbol && c != colName
 }
 
 func (c columnName) Sortable() bool {

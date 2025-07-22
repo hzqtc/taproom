@@ -18,13 +18,20 @@ var (
 	flagHideCols        = pflag.StringSlice(
 		"hide-columns",
 		[]string{},
-		"Hide specific columns seprated by comma (no spaces) (options: Version, Tap, Description, Installs, Size, Status)",
+		"Hide specific columns seprated by comma (no spaces): Version, Tap, Description, Installs, Size, Status",
 	)
 	flagSortColumn = pflag.StringP(
 		"sort-column",
 		"s",
 		"Name",
 		"Choose which column (Name, Tap, Installs, Size, Status) to sort by initially",
+	)
+	flagFilters = pflag.StringSliceP(
+		"filters",
+		"f",
+		[]string{},
+		"Filters to enable (comma separated no space).\n"+
+			"Pick 0 or 1 filter from each group: (Formulae, Casks), (Installed, Outdated, Expl. Installed, Active)",
 	)
 	flagHideHelp = pflag.Bool("hide-help", false, "Hide the help text")
 )
@@ -58,6 +65,7 @@ func main() {
 		showLoadTimer: *flagShowLoadTimer,
 		hiddenColumns: *flagHideCols,
 		sortColumn:    *flagSortColumn,
+		filters:       *flagFilters,
 		hideHelp:      *flagHideHelp,
 	}
 

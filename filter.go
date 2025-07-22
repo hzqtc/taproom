@@ -1,6 +1,10 @@
 package main
 
-import "strings"
+import (
+	"fmt"
+	"math/bits"
+	"strings"
+)
 
 // filter defines which subset of packages is currently being viewed.
 type filter uint
@@ -22,6 +26,7 @@ const (
 	filterActive                                 // 0010 0000
 
 	filterMax
+	filterUnknown
 )
 
 // Mutually exclusive filter groups
@@ -100,6 +105,25 @@ func (f filter) String() string {
 	}
 }
 
+func parseFilter(s string) (filter, error) {
+	switch s {
+	case "Formulae":
+		return filterFormulae, nil
+	case "Casks":
+		return filterCasks, nil
+	case "Installed":
+		return filterInstalled, nil
+	case "Outdated":
+		return filterOutdated, nil
+	case "Expl. Installed":
+		return filterExplicitlyInstalled, nil
+	case "Active":
+		return filterActive, nil
+	default:
+		return filterUnknown, fmt.Errorf("Unknown filter: %s", s)
+	}
+}
+
 func (fg filterGroup) String() string {
 	if fg == emptyFilterGroup {
 		return "None"
@@ -111,4 +135,34 @@ func (fg filterGroup) String() string {
 		}
 		return strings.Join(fStrs, " & ")
 	}
+}
+
+func parseFilterGroup(strs []string) (filterGroup, error) {
+	filters := uint(0)
+	for _, s := range strs {
+		f, err := parseFilter(s)
+		if err != nil {
+			return filterGroup(filterUnknown), err
+		} else {
+			// Enable all filters; will check for conflict later
+			filters |= uint(f)
+		}
+	}
+
+	if conflict, fg := hasConflict(filters); conflict {
+		return filterGroup(filterUnknown), fmt.Errorf("Conflicting filters: %s", fg.String())
+	} else {
+		return filterGroup(filters), nil
+	}
+}
+
+func hasConflict(filters uint) (bool, filterGroup) {
+	// A filter bitmask has conflict if it contains more than 1 filter in conflicting filter groups
+	for _, fg := range conflictFilters {
+		filtersInGroup := filters & uint(fg)
+		if bits.OnesCount(filtersInGroup) > 1 {
+			return true, filterGroup(filtersInGroup)
+		}
+	}
+	return false, 0
 }

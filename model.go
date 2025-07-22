@@ -22,6 +22,7 @@ type Flags struct {
 	noCache       bool
 	showLoadTimer bool
 	hiddenColumns []string
+	filters       []string
 	sortColumn    string
 	hideHelp      bool
 }
@@ -97,7 +98,12 @@ func initialModel(flags Flags) model {
 	hiddenColumns := make(map[columnName]struct{})
 	for _, c := range flags.hiddenColumns {
 		if col, err := parseColumnName(c); err == nil {
-			hiddenColumns[col] = struct{}{}
+			if col.Hideable() {
+				hiddenColumns[col] = struct{}{}
+			} else {
+				fmt.Fprintf(os.Stderr, "Column %s can not be hidden\n", col.String())
+				os.Exit(1)
+			}
 		} else {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -122,6 +128,12 @@ func initialModel(flags Flags) model {
 		os.Exit(1)
 	}
 
+	fg, err := parseFilterGroup(flags.filters)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
 	return model{
 		search:      searchInput,
 		spinner:     s,
@@ -131,6 +143,7 @@ func initialModel(flags Flags) model {
 		noCache:     flags.noCache,
 		loadingPrgs: NewLoadingProgress(),
 		loadTimer:   flags.showLoadTimer,
+		filters:     fg,
 		sortColumn:  sortCol,
 		columns:     columns,
 		hideHelp:    flags.hideHelp,
