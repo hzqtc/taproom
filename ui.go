@@ -13,7 +13,7 @@ import (
 var colWidthMap = map[columnName]int{
 	colSymbol:      2,
 	colName:        15,
-	colVersion:     10,
+	colVersion:     15,
 	colTap:         15,
 	colDescription: 30,
 	colInstalls:    10,
