@@ -81,6 +81,7 @@ type apiCask struct {
 	Desc         string `json:"desc"`
 	Version      string `json:"version"`
 	Homepage     string `json:"homepage"`
+	Url          string `json:"url"`
 	Dependencies struct {
 		Formulae []string `json:"formula"`
 		Casks    []string `json:"cask"`
@@ -495,6 +496,15 @@ func packageFromCask(c *apiCask, installs int, installed bool, installedSize int
 		IsDeprecated:    c.Deprecated,
 		IsDisabled:      c.Disabled,
 	}
+
+	url := c.Url
+	// Trim query param from the url
+	if i := strings.Index(url, "?"); i != -1 {
+		url = url[:i]
+	}
+	// Don't support installing casks in pkg format as they require sudo
+	pkg.InstallSupported = !strings.HasSuffix(url, ".pkg")
+
 	if installed {
 		pkg.IsInstalled = true
 		pkg.InstalledVersion = c.InstalledVersion

@@ -63,31 +63,39 @@ func execute(action commandAction, pkgs []*Package, args ...string) tea.Cmd {
 
 		go func() {
 			defer close(ch)
-			ch <- commandOutputMsg{ch: ch, line: fmt.Sprintf("> brew %s\n", strings.Join(args, " "))}
 
+			cmdLine := fmt.Sprintf("brew %s", strings.Join(args, " "))
+
+			if action == actionInstall || action == actionUninstall {
+				if pkg := pkgs[0]; !pkg.InstallSupported {
+					ch <- commandOutputMsg{ch: ch, line: fmt.Sprintf("%s can’t be %sed because it’s a .pkg and may need sudo", pkg.Name, action)}
+					ch <- commandOutputMsg{ch: ch, line: fmt.Sprintf("please run '%s' in command line", cmdLine)}
+					ch <- commandFinishMsg{err: fmt.Errorf("install not supported")}
+					return
+				}
+			}
+
+			ch <- commandOutputMsg{ch: ch, line: "> " + cmdLine}
 			cmd := exec.Command("brew", args...)
-
 			// Connect to stdout and stderr
 			stdout, err := cmd.StdoutPipe()
 			if err != nil {
-				ch <- commandFinishMsg{err: fmt.Errorf("failed to get stdout pipe: %w", err), action: action}
+				ch <- commandFinishMsg{err: fmt.Errorf("failed to get stdout pipe: %w", err)}
 				return
 			}
 			stderr, err := cmd.StderrPipe()
 			if err != nil {
-				ch <- commandFinishMsg{err: fmt.Errorf("failed to get stderr pipe: %w", err), action: action}
+				ch <- commandFinishMsg{err: fmt.Errorf("failed to get stderr pipe: %w", err)}
 				return
 			}
-
 			// Start command
 			if err := cmd.Start(); err != nil {
-				ch <- commandFinishMsg{err: fmt.Errorf("failed to start command: %w", err), action: action}
+				ch <- commandFinishMsg{err: fmt.Errorf("failed to start command: %w", err)}
 				return
 			}
 
 			var wg sync.WaitGroup
 			wg.Add(2)
-
 			// Stream stdout and stderr
 			go func() {
 				defer wg.Done()

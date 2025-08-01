@@ -28,6 +28,7 @@ type Package struct {
 	InstalledAsDependency bool
 	Size                  int64  // Size in kbs
 	FormattedSize         string // Formated size like 24.5MB, 230KB
+	InstallSupported      bool   // Whether installing the package is supported in taproom
 	InstalledDate         string
 }
 
