@@ -465,6 +465,7 @@ func packageFromFormula(f *apiFormula, installs int, installed bool, installedSi
 		IsCask:            false,
 		IsDeprecated:      f.Deprecated,
 		IsDisabled:        f.Disabled,
+		InstallSupported:  true,
 	}
 	if installed {
 		inst := f.Installed[0]
