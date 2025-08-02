@@ -70,6 +70,7 @@ type model struct {
 	// Command execution
 	isExecuting bool
 	output      []string
+	commandErr  bool
 }
 
 // initialModel creates the starting state of the application.
@@ -218,6 +219,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case commandStartMsg:
 		m.isExecuting = true
 		m.output = []string{}
+		m.commandErr = false
 
 	// Command execution output
 	case commandOutputMsg:
@@ -235,6 +237,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.output = m.output[:0]
 			m.updatePackageForAction(msg.action, msg.pkgs)
 			m.updateTable()
+		} else {
+			m.commandErr = true
 		}
 		// If there are error, it should already be displayed in the output
 		m.updateLayout()
@@ -318,8 +322,11 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		m.updateFocusBorder()
 	case key.Matches(msg, m.keys.Esc):
 		m.search.SetValue("")
+		m.output = []string{}
+		m.commandErr = false
 		m.filterAndSortPackages()
 		m.updateTable()
+		m.updateLayout()
 
 	// Sorting & Filtering
 	case key.Matches(msg, m.keys.SortByNext):

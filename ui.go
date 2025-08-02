@@ -55,6 +55,7 @@ var (
 	highlightForegroudColor = lipgloss.Color("#2E2E2E")
 	borderColor             = lipgloss.Color("240")
 	focusedBorderColor      = highlightColor
+	errBorderColor          = deprecatedColor
 	installedColor          = lipgloss.Color("#22C55E")
 	deprecatedColor         = lipgloss.Color("#EF4444")
 	uninstalledColor        = lipgloss.Color("#FBBF24")
@@ -108,7 +109,9 @@ var (
 			Padding(0, 1).
 			Margin(1, 0)
 
-	outputStyle = baseStyle
+	outputStyle = baseStyle.
+			Margin(1 /* top */, 0 /* horizontal */, 0 /* bottom */).
+			Padding(0, 1)
 
 	spinnerStyle = lipgloss.NewStyle().
 			Foreground(highlightColor)
@@ -177,7 +180,12 @@ func (m *model) renderOutput() string {
 	} else {
 		output = strings.Join(m.output, "\n")
 	}
-	return outputStyle.Render(output)
+
+	if m.commandErr {
+		return outputStyle.BorderForeground(errBorderColor).Render(output)
+	} else {
+		return outputStyle.Render(output)
+	}
 }
 
 func renderKey(k key.Binding) string {
