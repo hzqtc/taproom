@@ -43,7 +43,7 @@ func main() {
 	pflag.Parse()
 
 	if *flagShowVersion {
-		fmt.Println(version)
+		fmt.Print(version)
 		os.Exit(0)
 	}
 

@@ -135,7 +135,9 @@ func (pkg *Package) MatchKeywords(kws []string) bool {
 				return false
 			}
 		} else {
-			if !strings.Contains(strings.ToLower(pkg.Name), kw) && !strings.Contains(strings.ToLower(pkg.Desc), kw) {
+			if !strings.Contains(strings.ToLower(pkg.Name), kw) &&
+				!strings.Contains(strings.ToLower(pkg.Desc), kw) &&
+				!strings.Contains(strings.ToLower(pkg.Homepage), kw) {
 				return false
 			}
 		}
