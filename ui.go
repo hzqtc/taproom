@@ -533,12 +533,12 @@ func (m *model) updateViewport() {
 	if m.isColumnEnabled(colInstalls) {
 		b.WriteString(fmt.Sprintf("Installs (90d): %d\n", pkg.InstallCount90d))
 	}
-	if m.isColumnEnabled(colSize) && pkg.IsInstalled {
-		b.WriteString(fmt.Sprintf("Size: %s\n", pkg.FormattedSize))
-	}
 
 	b.WriteString(fmt.Sprintf("\nStatus: %s\n", getFormattedStatus(pkg)))
 	if pkg.IsInstalled {
+		if m.isColumnEnabled(colSize) {
+			b.WriteString(fmt.Sprintf("Size: %s\n", pkg.FormattedSize))
+		}
 		b.WriteString(fmt.Sprintf("Installed on: %s\n", pkg.InstalledDate))
 	}
 

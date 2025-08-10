@@ -96,11 +96,11 @@ func initialModel(flags Flags) model {
 	tbl.SetStyles(getTableStyles())
 
 	// Parse hidden columns from command line flag into a set
-	hiddenColumns := make(map[columnName]struct{})
+	hiddenColumns := make(map[columnName]bool)
 	for _, c := range flags.hiddenColumns {
 		if col, err := parseColumnName(c); err == nil {
 			if col.Hideable() {
-				hiddenColumns[col] = struct{}{}
+				hiddenColumns[col] = true
 			} else {
 				fmt.Fprintf(os.Stderr, "Column %s can not be hidden\n", col.String())
 				os.Exit(1)

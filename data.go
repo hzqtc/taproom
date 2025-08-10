@@ -38,15 +38,15 @@ var brewPrefix = func() string {
 }()
 
 const (
-	apiFormulaURL             = "https://formulae.brew.sh/api/formula.json"
-	apiCaskURL                = "https://formulae.brew.sh/api/cask.json"
-	apiFormulaAnalytics90dURL = "https://formulae.brew.sh/api/analytics/install-on-request/90d.json"
-	apiCaskAnalytics90dURL    = "https://formulae.brew.sh/api/analytics/cask-install/90d.json"
+	apiFormulaURL          = "https://formulae.brew.sh/api/formula.json"
+	apiCaskURL             = "https://formulae.brew.sh/api/cask.json"
+	apiFormulaAnalyticsURL = "https://formulae.brew.sh/api/analytics/install-on-request/90d.json"
+	apiCaskAnalyticsURL    = "https://formulae.brew.sh/api/analytics/cask-install/90d.json"
 
-	formulaCacheFile           = "formula.json"
-	casksCacheFile             = "cask.json"
-	formulaeAnalyticsCacheFile = "formulae-analytics.json"
-	casksAnalyticsCacheFile    = "casks-analytics.json"
+	formulaCache           = "formula.json"
+	casksCache             = "cask.json"
+	formulaeAnalyticsCache = "formulae-analytics-90d.json"
+	casksAnalyticsCache    = "casks-analytics-90d.json"
 
 	urlCacheTtl = 6 * time.Hour
 )
@@ -146,15 +146,15 @@ func (m *model) loadData() tea.Cmd {
 
 		loadingTasksNum := cap(errChan)
 
-		go fetchJsonWithCache(apiFormulaURL, formulaCacheFile, m.noCache, &[]apiFormula{}, formulaeChan, errChan)
+		go fetchJsonWithCache(apiFormulaURL, formulaCache, m.noCache, &[]apiFormula{}, formulaeChan, errChan)
 		m.loadingPrgs.AddTask(formulaeChan, "Loading all Formulae")
-		go fetchJsonWithCache(apiCaskURL, casksCacheFile, m.noCache, &[]apiCask{}, casksChan, errChan)
+		go fetchJsonWithCache(apiCaskURL, casksCache, m.noCache, &[]apiCask{}, casksChan, errChan)
 		m.loadingPrgs.AddTask(casksChan, "Loading all Casks")
 		if m.isColumnEnabled(colInstalls) {
-			go fetchJsonWithCache(apiFormulaAnalytics90dURL, formulaeAnalyticsCacheFile, m.noCache, &apiFormulaAnalytics{}, formulaAnalyticsChan, errChan)
-			m.loadingPrgs.AddTask(formulaAnalyticsChan, "Loading Formulae analytics")
-			go fetchJsonWithCache(apiCaskAnalytics90dURL, casksAnalyticsCacheFile, m.noCache, &apiCaskAnalytics{}, caskAnalyticsChan, errChan)
-			m.loadingPrgs.AddTask(caskAnalyticsChan, "Loading Cask analytics")
+			go fetchJsonWithCache(apiFormulaAnalyticsURL, formulaeAnalyticsCache, m.noCache, &apiFormulaAnalytics{}, formulaAnalyticsChan, errChan)
+			m.loadingPrgs.AddTask(formulaAnalyticsChan, "Loading Formulae 90d analytics")
+			go fetchJsonWithCache(apiCaskAnalyticsURL, casksAnalyticsCache, m.noCache, &apiCaskAnalytics{}, caskAnalyticsChan, errChan)
+			m.loadingPrgs.AddTask(caskAnalyticsChan, "Loading Cask 90d analytics")
 		} else {
 			loadingTasksNum -= 2
 			formulaAnalytics = apiFormulaAnalytics{}
@@ -372,63 +372,52 @@ func processAllData(
 	formulaSizes map[string]int64,
 	caskSizes map[string]int64,
 ) []Package {
-	formulaAnalyticsMap := make(map[string]int)
-	caskAnalyticsMap := make(map[string]int)
-	// Process analytics data to be used to constuct Package struct
-	for _, item := range formulaAnalytics.Items {
-		countStr := strings.ReplaceAll(item.Count, ",", "")
-		count, _ := strconv.Atoi(countStr)
-		formulaAnalyticsMap[item.Name] = count
-	}
-	for _, item := range caskAnalytics.Items {
-		countStr := strings.ReplaceAll(item.Count, ",", "")
-		count, _ := strconv.Atoi(countStr)
-		caskAnalyticsMap[item.Name] = count
-	}
+	formulaInstalls := mapFormulaeInstalls(formulaAnalytics)
+	caskInstalls := mapCaskInstalls(caskAnalytics)
 
-	formulaDependentsMap := make(map[string][]string) // formula name to packages that depends on it
-	caskDependentsMap := make(map[string][]string)    // cask name to packages that depends on it
-	installedFormulae := make(map[string]struct{})    // track installed formulae to avoid duplicate
-	installedCasks := make(map[string]struct{})       // track installed casks to avoid duplicate
+	formulaDependents := make(map[string][]string) // formula name to packages that depends on it
+	caskDependents := make(map[string][]string)    // cask name to packages that depends on it
+	installedFormulae := make(map[string]struct{}) // track installed formulae to avoid duplicate
+	installedCasks := make(map[string]struct{})    // track installed casks to avoid duplicate
 
 	packages := make([]Package, 0, len(installed.Formulae)+len(installed.Casks)+len(formulae)+len(casks))
 	// Process installed formulae
 	for _, f := range installed.Formulae {
-		packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name], true, formulaSizes[f.Name]))
+		packages = append(packages, packageFromFormula(&f, formulaInstalls, true, formulaSizes[f.Name]))
 		installedFormulae[f.Name] = struct{}{}
 		for _, dep := range f.Dependencies {
-			formulaDependentsMap[dep] = append(formulaDependentsMap[dep], f.Name)
+			formulaDependents[dep] = append(formulaDependents[dep], f.Name)
 		}
 	}
 	// Process installed casks
 	for _, c := range installed.Casks {
-		packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name], true, caskSizes[c.Name]))
+		packages = append(packages, packageFromCask(&c, caskInstalls, true, caskSizes[c.Name]))
 		installedCasks[c.Name] = struct{}{}
 		for _, dep := range c.Dependencies.Formulae {
-			formulaDependentsMap[dep] = append(formulaDependentsMap[dep], c.Name)
+			formulaDependents[dep] = append(formulaDependents[dep], c.Name)
 		}
 		for _, dep := range c.Dependencies.Casks {
-			caskDependentsMap[dep] = append(caskDependentsMap[dep], c.Name)
+			caskDependents[dep] = append(caskDependents[dep], c.Name)
 		}
 	}
 	// Add formulaes to packages, except for installed formulae
 	for _, f := range formulae {
 		if _, installed := installedFormulae[f.Name]; !installed {
-			packages = append(packages, packageFromFormula(&f, formulaAnalyticsMap[f.Name], false, 0))
+			packages = append(packages, packageFromFormula(&f, formulaInstalls, false, 0))
 			for _, dep := range f.Dependencies {
-				formulaDependentsMap[dep] = append(formulaDependentsMap[dep], f.Name)
+				formulaDependents[dep] = append(formulaDependents[dep], f.Name)
 			}
 		}
 	}
 	// Add casks to packages, except for installed casks
 	for _, c := range casks {
 		if _, installed := installedCasks[c.Name]; !installed {
-			packages = append(packages, packageFromCask(&c, caskAnalyticsMap[c.Name], false, 0))
+			packages = append(packages, packageFromCask(&c, caskInstalls, false, 0))
 			for _, dep := range c.Dependencies.Formulae {
-				formulaDependentsMap[dep] = append(formulaDependentsMap[dep], c.Name)
+				formulaDependents[dep] = append(formulaDependents[dep], c.Name)
 			}
 			for _, dep := range c.Dependencies.Casks {
-				caskDependentsMap[dep] = append(caskDependentsMap[dep], c.Name)
+				caskDependents[dep] = append(caskDependents[dep], c.Name)
 			}
 		}
 	}
@@ -436,9 +425,9 @@ func processAllData(
 	// Populate dependents
 	for i, pkg := range packages {
 		if pkg.IsCask {
-			packages[i].Dependents = sortAndUniq(caskDependentsMap[pkg.Name])
+			packages[i].Dependents = sortAndUniq(caskDependents[pkg.Name])
 		} else {
-			packages[i].Dependents = sortAndUniq(formulaDependentsMap[pkg.Name])
+			packages[i].Dependents = sortAndUniq(formulaDependents[pkg.Name])
 		}
 	}
 
@@ -450,7 +439,29 @@ func processAllData(
 	return packages
 }
 
-func packageFromFormula(f *apiFormula, installs int, installed bool, installedSize int64) Package {
+func mapFormulaeInstalls(formulaAnalytics apiFormulaAnalytics) map[string]int {
+	formulaInstalls := make(map[string]int)
+	for _, item := range formulaAnalytics.Items {
+		formulaInstalls[item.Name] = parseInstallCount(item.Count)
+	}
+	return formulaInstalls
+}
+
+func mapCaskInstalls(caskAnalytics apiCaskAnalytics) map[string]int {
+	caskInstalls := make(map[string]int)
+	for _, item := range caskAnalytics.Items {
+		caskInstalls[item.Name] = parseInstallCount(item.Count)
+	}
+	return caskInstalls
+}
+
+func parseInstallCount(str string) int {
+	str = strings.ReplaceAll(str, ",", "")
+	count, _ := strconv.Atoi(str)
+	return count
+}
+
+func packageFromFormula(f *apiFormula, formulaInstalls map[string]int, installed bool, installedSize int64) Package {
 	pkg := Package{
 		Name:              f.Name,
 		Tap:               f.Tap,
@@ -461,7 +472,7 @@ func packageFromFormula(f *apiFormula, installs int, installed bool, installedSi
 		Dependencies:      sortAndUniq(f.Dependencies),
 		BuildDependencies: f.BuildDependencies,
 		Conflicts:         f.Conflicts,
-		InstallCount90d:   installs,
+		InstallCount90d:   formulaInstalls[f.Name],
 		IsCask:            false,
 		IsDeprecated:      f.Deprecated,
 		IsDisabled:        f.Disabled,
@@ -482,7 +493,7 @@ func packageFromFormula(f *apiFormula, installs int, installed bool, installedSi
 	return pkg
 }
 
-func packageFromCask(c *apiCask, installs int, installed bool, installedSize int64) Package {
+func packageFromCask(c *apiCask, caskInstalls map[string]int, installed bool, installedSize int64) Package {
 	pkg := Package{
 		Name:            c.Name,
 		Tap:             c.Tap,
@@ -492,7 +503,7 @@ func packageFromCask(c *apiCask, installs int, installed bool, installedSize int
 		License:         "N/A",
 		Dependencies:    sortAndUniq(append(c.Dependencies.Formulae, c.Dependencies.Casks...)),
 		Conflicts:       sortAndUniq(append(c.Conflicts.Formulae, c.Conflicts.Casks...)),
-		InstallCount90d: installs,
+		InstallCount90d: caskInstalls[c.Name],
 		IsCask:          true,
 		IsDeprecated:    c.Deprecated,
 		IsDisabled:      c.Disabled,
