@@ -53,7 +53,7 @@ const (
 var (
 	highlightColor          = lipgloss.Color("#FFD580")
 	highlightForegroudColor = lipgloss.Color("#2E2E2E")
-	borderColor             = lipgloss.Color("240")
+	borderColor             = lipgloss.Color("#909090")
 	focusedBorderColor      = highlightColor
 	errBorderColor          = deprecatedColor
 	installedColor          = lipgloss.Color("#22C55E")
