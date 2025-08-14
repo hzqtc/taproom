@@ -539,7 +539,7 @@ func (m *model) updateViewport() {
 		if m.isColumnEnabled(colSize) {
 			b.WriteString(fmt.Sprintf("Size: %s\n", pkg.FormattedSize))
 		}
-		b.WriteString(fmt.Sprintf("Installed on: %s\n", pkg.InstalledDate))
+		b.WriteString(fmt.Sprintf("Last installed on: %s\n", pkg.InstalledDate))
 	}
 
 	if len(pkg.Conflicts) > 0 {

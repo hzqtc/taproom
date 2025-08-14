@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Package holds all combined information for a formula or cask.
@@ -98,6 +99,7 @@ func (pkg *Package) MarkInstalled() {
 	pkg.IsInstalled = true
 	pkg.IsOutdated = false
 	pkg.InstalledVersion = pkg.Version
+	pkg.InstalledDate = time.Now().Format(time.DateOnly)
 }
 
 func (pkg *Package) MarkInstalledAsDep() {
