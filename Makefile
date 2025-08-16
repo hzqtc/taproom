@@ -3,6 +3,9 @@ SRC = $(wildcard *.go)
 GOBIN = $(HOME)/.local/bin
 TARGET_OS = darwin
 TARGET_ARCH = arm64 amd64
+VERSION = $(shell cat .version)
+ASSETS  = $(wildcard release/*)
+RELEASE_NOTE = .release-note.md
 
 all: build
 
@@ -39,5 +42,14 @@ release:
 		rm release/$(BINARY_NAME)-$(TARGET_OS)-$$arch; \
 	done
 	(cd release && shasum -a 256 *.tar.gz > checksum.txt)
+
+gh-release: release
+	git tag $(VERSION)
+	git push origin $(VERSION)
+	$(EDITOR) $(RELEASE_NOTE); \
+	gh release create $(VERSION) $(ASSETS) \
+		--title "$(VERSION)" \
+		--notes-file $(RELEASE_NOTE); \
+	rm $(RELEASE_NOTE)
 
 .PHONY: all build run clean install fmt vet test release
