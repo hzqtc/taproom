@@ -34,6 +34,8 @@
   - Default: match keyword in either name or description
   - Prefix `n:`: match the keyword only in name
   - Prefix `d:`: match the keyword only in description
+  - Prefix `-`: turn into a negative keyword, can be combined with `n:` and `d:`
+    - For example: `ebook -facebook` - search for `ebook` but not `facebook`
 - **Filtering:** View all packages, or filter by:
   - Formulae only
   - Casks only

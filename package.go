@@ -44,7 +44,8 @@ const (
 )
 
 const (
-	// TODO: support regex in search
+	negativeKwPrefix = "-"
+
 	kwPrefixName = "n:"
 	kwPrefixDesc = "d:"
 )
@@ -126,23 +127,25 @@ func (pkg *Package) MarkUnpinned() {
 // Test if a package matches the keywords
 func (pkg *Package) MatchKeywords(kws []string) bool {
 	for _, kw := range kws {
-		// Requires the name or description to contain ALL keywords
-		// So we can return false on any unmatched keyword
-		if kw, match := strings.CutPrefix(kw, kwPrefixName); match {
-			if !strings.Contains(strings.ToLower(pkg.Name), kw) {
+		if kw, negative := strings.CutPrefix(kw, negativeKwPrefix); negative {
+			if pkg.matchKeyword(kw) {
 				return false
 			}
-		} else if kw, match := strings.CutPrefix(kw, kwPrefixDesc); match {
-			if !strings.Contains(strings.ToLower(pkg.Desc), kw) {
-				return false
-			}
-		} else {
-			if !strings.Contains(strings.ToLower(pkg.Name), kw) &&
-				!strings.Contains(strings.ToLower(pkg.Desc), kw) &&
-				!strings.Contains(strings.ToLower(pkg.Homepage), kw) {
-				return false
-			}
+		} else if !pkg.matchKeyword(kw) {
+			return false
 		}
 	}
 	return true
+}
+
+func (pkg *Package) matchKeyword(kw string) bool {
+	if kw, match := strings.CutPrefix(kw, kwPrefixName); match {
+		return strings.Contains(strings.ToLower(pkg.Name), kw)
+	} else if kw, match := strings.CutPrefix(kw, kwPrefixDesc); match {
+		return strings.Contains(strings.ToLower(pkg.Desc), kw)
+	} else {
+		return strings.Contains(strings.ToLower(pkg.Name), kw) ||
+			strings.Contains(strings.ToLower(pkg.Desc), kw) ||
+			strings.Contains(strings.ToLower(pkg.Homepage), kw)
+	}
 }
