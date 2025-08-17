@@ -53,7 +53,8 @@ const (
 )
 
 var (
-	flagInvalidateCache = pflag.BoolP("invalidate-cache", "i", false, "Invalidate cache and force re-downloading data")
+	flagInvalidateCache  = pflag.BoolP("invalidate-cache", "i", false, "Invalidate cache and force re-downloading data")
+	flagFetchReleaseInfo = pflag.Bool("fetch-release", false, "Fetching release data for installed packages")
 )
 
 // Structs for parsing Homebrew API Json
@@ -434,7 +435,7 @@ func processAllData(
 
 	// Post processing: fetch release info and populate dependents
 	for i, pkg := range packages {
-		if pkg.IsInstalled {
+		if *flagFetchReleaseInfo && pkg.IsInstalled {
 			// Fetch release note in background as non blocking go routines
 			go func() {
 				pkg.ReleaseInfo = pkg.GetReleaseNote()

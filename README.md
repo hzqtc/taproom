@@ -92,7 +92,8 @@ To build from source, follow these simple steps:
 
 The app's behavior can be further customized with command line flags:
 
-- `--invalidate-cahce` or `-i` in short: immediately invalidate cache and re-download data from brew.sh
+- `--invalidate-cahce` or `-i` in short: invalidate cache and re-download data from brew.sh
+- `--fetch-release`: fetch release information for installed packages. This flag enables displaying release date and 'r' key to open release page
 - `--hide-columns`: hide and skip loading data for specified columns
   - This can be helpful to further simplify the UI
   - While all data loading is done in parallel, some may be slower than others. This flag can be used to skip loading certain data to speed up app load
