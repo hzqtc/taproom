@@ -65,7 +65,15 @@ type apiFormula struct {
 	Versions struct {
 		Stable string `json:"stable"`
 	} `json:"versions"`
-	Homepage          string   `json:"homepage"`
+	Homepage string `json:"homepage"`
+	Urls     struct {
+		Stable struct {
+			Url string `json:"url"`
+		} `json:"stable"`
+		Head struct {
+			Url string `json:"url"`
+		} `json:"head"`
+	} `json:"urls"`
 	License           string   `json:"license"`
 	Dependencies      []string `json:"dependencies"`
 	BuildDependencies []string `json:"build_dependencies"`
@@ -485,6 +493,7 @@ func packageFromFormula(f *apiFormula, formulaInstalls map[string]int, installed
 		Version:           f.Versions.Stable,
 		Desc:              f.Desc,
 		Homepage:          f.Homepage,
+		Urls:              []string{f.Urls.Stable.Url, f.Urls.Head.Url},
 		License:           f.License,
 		Dependencies:      sortAndUniq(f.Dependencies),
 		BuildDependencies: f.BuildDependencies,
@@ -517,6 +526,7 @@ func packageFromCask(c *apiCask, caskInstalls map[string]int, installed bool, in
 		Version:         c.Version,
 		Desc:            c.Desc,
 		Homepage:        c.Homepage,
+		Urls:            []string{c.Url},
 		License:         "N/A",
 		Dependencies:    sortAndUniq(append(c.Dependencies.Formulae, c.Dependencies.Casks...)),
 		Conflicts:       sortAndUniq(append(c.Conflicts.Formulae, c.Conflicts.Casks...)),

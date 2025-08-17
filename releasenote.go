@@ -21,8 +21,8 @@ const (
 )
 
 var (
-	githubRepoUrl = regexp.MustCompile(`^https://github.com/([^/\s]+)/([^/\s]+)/?$`)
-	githubPageUrl = regexp.MustCompile(`^https://([^.\s]+).github.io/([^/\s]+)/?$`)
+	githubRepoUrl = regexp.MustCompile(`^https://github.com/([^/\s]+)/([^/\.\s]+)`)
+	githubPageUrl = regexp.MustCompile(`^https://([^.\s]+).github.io/([^/\s]+)`)
 )
 
 func (pkg *Package) GetReleaseNote() *ReleaseNote {
@@ -30,13 +30,20 @@ func (pkg *Package) GetReleaseNote() *ReleaseNote {
 		return nil
 	}
 
+	for _, url := range pkg.Urls {
+		if matches := githubRepoUrl.FindStringSubmatch(url); len(matches) > 0 {
+			// Package url matches a github repo
+			return fetchLatestRelease(matches[1], matches[2])
+		}
+	}
+
 	if matches := githubRepoUrl.FindStringSubmatch(pkg.Homepage); len(matches) > 0 {
+		// Package home page matches a github repo
 		return fetchLatestRelease(matches[1], matches[2])
 	} else if matches := githubPageUrl.FindStringSubmatch(pkg.Homepage); len(matches) > 0 {
+		// Package home page matches a github page
 		return fetchLatestRelease(matches[1], matches[2])
 	} else {
-		// TODO: add repo look up on github
-		// TODO: scrap release note from non-github
 		return nil
 	}
 }
@@ -55,7 +62,9 @@ func fetchLatestRelease(ghOwner, ghRepo string) *ReleaseNote {
 
 	body, err := cmd.Output()
 	if err != nil {
-		log.Printf("Failed to get release info for %s/%s: %v", ghOwner, ghRepo, err)
+		if e, ok := err.(*exec.ExitError); ok {
+			log.Printf("Failed to get release info for %s/%s: %s", ghOwner, ghRepo, e.Stderr)
+		}
 		return nil
 	}
 

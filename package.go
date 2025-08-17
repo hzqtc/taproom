@@ -14,6 +14,7 @@ type Package struct {
 	InstalledVersion      string
 	Desc                  string
 	Homepage              string
+	Urls                  []string
 	License               string
 	Dependencies          []string
 	BuildDependencies     []string
