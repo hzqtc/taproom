@@ -39,15 +39,15 @@ const (
 // model holds the entire state of the application.
 type model struct {
 	// Package data
-	allPackages  []Package  // The complete list of all packages, sorted by name
+	allPackages  []*Package // The complete list of all packages, sorted by name
 	viewPackages []*Package // The filtered and sorted list of packages to display
 
 	// UI Components from the bubbles library
-	table     table.Model
-	viewport  viewport.Model
-	search    textinput.Model
-	spinner   spinner.Model
-	stopwatch stopwatch.Model
+	table       table.Model
+	detailPanel viewport.Model
+	search      textinput.Model
+	spinner     spinner.Model
+	stopwatch   stopwatch.Model
 
 	// State
 	isLoading      bool
@@ -436,7 +436,7 @@ func (m *model) handleViewportKeys(msg tea.KeyMsg) tea.Cmd {
 		m.focusMode = focusTable
 		m.updateFocusBorder()
 	default:
-		m.viewport, cmd = m.viewport.Update(msg)
+		m.detailPanel, cmd = m.detailPanel.Update(msg)
 	}
 	return cmd
 }
@@ -447,7 +447,7 @@ func (m *model) getPackage(name string) *Package {
 	})
 
 	if index < len(m.allPackages) && m.allPackages[index].Name == name {
-		return &m.allPackages[index]
+		return m.allPackages[index]
 	}
 
 	return nil
@@ -469,7 +469,7 @@ func (m *model) filterAndSortPackages() {
 	keywords := strings.Fields(searchQuery)
 
 	for i := range m.allPackages {
-		pkg := &m.allPackages[i]
+		pkg := m.allPackages[i]
 
 		if !pkg.MatchKeywords(keywords) {
 			continue
@@ -527,7 +527,7 @@ func (m *model) filterAndSortPackages() {
 func (m *model) getOutdatedPackages() []*Package {
 	outdatedPackages := []*Package{}
 	for i := range m.allPackages {
-		if pkg := &m.allPackages[i]; pkg.IsOutdated {
+		if pkg := m.allPackages[i]; pkg.IsOutdated {
 			outdatedPackages = append(outdatedPackages, pkg)
 		}
 	}

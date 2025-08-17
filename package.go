@@ -31,6 +31,7 @@ type Package struct {
 	FormattedSize         string // Formated size like 24.5MB, 230KB
 	InstallSupported      bool   // Whether installing the package is supported in taproom
 	InstalledDate         string
+	NewVersionNote        *ReleaseNote // Only set when package is outdated
 }
 
 const (

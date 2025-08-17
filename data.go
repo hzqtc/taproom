@@ -120,8 +120,13 @@ type installedInfo struct {
 // --- Data Fetching & Processing Logic ---
 
 // Message types for tea.Cmd
-type dataLoadedMsg struct{ packages []Package }
-type dataLoadingErrMsg struct{ err error }
+type dataLoadedMsg struct {
+	packages []*Package
+}
+
+type dataLoadingErrMsg struct {
+	err error
+}
 
 // loadData returns a tea.Cmd that fetches all data concurrently.
 func (m *model) loadData() tea.Cmd {
@@ -371,7 +376,7 @@ func processAllData(
 	caskAnalytics apiCaskAnalytics,
 	formulaSizes map[string]int64,
 	caskSizes map[string]int64,
-) []Package {
+) []*Package {
 	formulaInstalls := mapFormulaeInstalls(formulaAnalytics)
 	caskInstalls := mapCaskInstalls(caskAnalytics)
 
@@ -380,10 +385,17 @@ func processAllData(
 	installedFormulae := make(map[string]struct{}) // track installed formulae to avoid duplicate
 	installedCasks := make(map[string]struct{})    // track installed casks to avoid duplicate
 
-	packages := make([]Package, 0, len(installed.Formulae)+len(installed.Casks)+len(formulae)+len(casks))
+	packages := make([]*Package, 0, len(installed.Formulae)+len(installed.Casks)+len(formulae)+len(casks))
 	// Process installed formulae
 	for _, f := range installed.Formulae {
-		packages = append(packages, packageFromFormula(&f, formulaInstalls, true, formulaSizes[f.Name]))
+		pkg := packageFromFormula(&f, formulaInstalls, true, formulaSizes[f.Name])
+		if pkg.IsOutdated {
+			// Fetch release note in background as non blocking go routines
+			go func() {
+				pkg.NewVersionNote = pkg.GetReleaseNote()
+			}()
+		}
+		packages = append(packages, pkg)
 		installedFormulae[f.Name] = struct{}{}
 		for _, dep := range f.Dependencies {
 			formulaDependents[dep] = append(formulaDependents[dep], f.Name)
@@ -461,7 +473,7 @@ func parseInstallCount(str string) int {
 	return count
 }
 
-func packageFromFormula(f *apiFormula, formulaInstalls map[string]int, installed bool, installedSize int64) Package {
+func packageFromFormula(f *apiFormula, formulaInstalls map[string]int, installed bool, installedSize int64) *Package {
 	pkg := Package{
 		Name:              f.Name,
 		Tap:               f.Tap,
@@ -490,10 +502,10 @@ func packageFromFormula(f *apiFormula, formulaInstalls map[string]int, installed
 		pkg.InstalledDate = time.Unix(inst.Time, 0).Format(time.DateOnly)
 	}
 
-	return pkg
+	return &pkg
 }
 
-func packageFromCask(c *apiCask, caskInstalls map[string]int, installed bool, installedSize int64) Package {
+func packageFromCask(c *apiCask, caskInstalls map[string]int, installed bool, installedSize int64) *Package {
 	pkg := Package{
 		Name:            c.Name,
 		Tap:             c.Tap,
@@ -529,5 +541,5 @@ func packageFromCask(c *apiCask, caskInstalls map[string]int, installed bool, in
 		pkg.InstalledDate = time.Unix(c.InstalledTime, 0).Format(time.DateOnly)
 	}
 
-	return pkg
+	return &pkg
 }

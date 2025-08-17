@@ -97,8 +97,8 @@ var (
 
 	tableStyle = baseStyle
 
-	viewportStyle = baseStyle.
-			Padding(0, 1)
+	detailPanelStyle = baseStyle.
+				Padding(0, 1)
 
 	// The content style for viewport, width-2 to account for padding
 	vpContentStyle = lipgloss.NewStyle().
@@ -145,7 +145,7 @@ func (m model) View() string {
 	mainContent := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		tableStyle.Render(m.table.View()),
-		viewportStyle.Render(m.viewport.View()),
+		detailPanelStyle.Render(m.detailPanel.View()),
 	)
 
 	topContent := lipgloss.JoinHorizontal(
@@ -284,15 +284,15 @@ func (m *model) updateFocusBorder() {
 	case focusSearch:
 		searchStyle = searchStyle.BorderForeground(focusedBorderColor)
 		tableStyle = tableStyle.BorderForeground(borderColor)
-		viewportStyle = viewportStyle.BorderForeground(borderColor)
+		detailPanelStyle = detailPanelStyle.BorderForeground(borderColor)
 	case focusTable:
 		searchStyle = searchStyle.BorderForeground(borderColor)
 		tableStyle = tableStyle.BorderForeground(focusedBorderColor)
-		viewportStyle = viewportStyle.BorderForeground(borderColor)
+		detailPanelStyle = detailPanelStyle.BorderForeground(borderColor)
 	case focusDetail:
 		searchStyle = searchStyle.BorderForeground(borderColor)
 		tableStyle = tableStyle.BorderForeground(borderColor)
-		viewportStyle = viewportStyle.BorderForeground(focusedBorderColor)
+		detailPanelStyle = detailPanelStyle.BorderForeground(focusedBorderColor)
 	}
 }
 
@@ -345,9 +345,9 @@ func (m *model) updateLayout() {
 	filterModeStyle = filterModeStyle.
 		BorderStyle(getRoundedBorderWithTitle("Filters", viewportWidth)).
 		Width(viewportWidth)
-	viewportStyle = viewportStyle.
+	detailPanelStyle = detailPanelStyle.
 		BorderStyle(getRoundedBorderWithTitle("Details", viewportWidth))
-	m.viewport.Width = viewportWidth - 2
+	m.detailPanel.Width = viewportWidth - 2
 	vpContentStyle = vpContentStyle.Width(viewportWidth - 2)
 
 	tableWidth := m.width - viewportWidth - 4
@@ -362,7 +362,7 @@ func (m *model) updateLayout() {
 	mainHeight -= lipgloss.Height(m.renderOutput())
 
 	m.table.SetHeight(mainHeight)
-	m.viewport.Height = mainHeight
+	m.detailPanel.Height = mainHeight
 
 	cols, remainingWidth := m.getVisibleCols(tableWidth)
 	m.visibleColumns = cols
@@ -504,14 +504,14 @@ func (m *model) updateTable() {
 // updateViewport sets the content of the details panel based on the selected package.
 func (m *model) updateViewport() {
 	if len(m.viewPackages) == 0 {
-		m.viewport.SetContent("No packages match the current filter.")
+		m.detailPanel.SetContent("No packages match the current filter.")
 		return
 	}
 
 	// Ensure selected index is valid
 	selectedIndex := m.table.Cursor()
 	if selectedIndex < 0 || selectedIndex >= len(m.viewPackages) {
-		m.viewport.SetContent("No packages selected.")
+		m.detailPanel.SetContent("No packages selected.")
 		return
 	}
 
@@ -593,8 +593,8 @@ func (m *model) updateViewport() {
 		}
 	}
 
-	m.viewport.SetContent(vpContentStyle.Render(b.String()))
-	m.viewport.GotoTop()
+	m.detailPanel.SetContent(vpContentStyle.Render(b.String()))
+	m.detailPanel.GotoTop()
 }
 
 func (m *model) renderStats() string {
