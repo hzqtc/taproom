@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
@@ -30,16 +31,13 @@ var tableWidthMax = func() int {
 }()
 
 const (
-	viewportWidthMin     = 30
+	sidePanelWidthMin    = 30
 	tableAdditionalWidth = 30
 	colSpacing           = 2
 	outputMaxLines       = 10
 )
 
 const (
-	formulaSymbol = ""
-	caskSymbol    = ""
-
 	disabledSymbol    = ""
 	deprecatedSymbol  = ""
 	uninstalledSymbol = "✗"
@@ -100,12 +98,12 @@ var (
 	detailPanelStyle = baseStyle.
 				Padding(0, 1)
 
-	// The content style for viewport, width-2 to account for padding
-	vpContentStyle = lipgloss.NewStyle().
-			Width(viewportWidthMin - 2)
+	// The content style for details panel, width-2 to account for padding
+	detailsContentStyle = lipgloss.NewStyle().
+				Width(sidePanelWidthMin - 2)
 
 	filterModeStyle = baseStyle.
-			Width(viewportWidthMin).
+			Width(sidePanelWidthMin).
 			Padding(0, 1).
 			Margin(1, 0)
 
@@ -243,9 +241,11 @@ func (m *model) renderHelp() string {
 	b.WriteString("\n")
 	b.WriteString("Commands  : ")
 	b.WriteString(renderKey(m.keys.OpenHomePage))
-	b.WriteString(": open home page ")
+	b.WriteString(": home page ")
 	b.WriteString(renderKey(m.keys.OpenBrewUrl))
-	b.WriteString(": open brew.sh ")
+	b.WriteString(": brew.sh ")
+	b.WriteString(renderKey(m.keys.OpenRelease))
+	b.WriteString(": release page ")
 	b.WriteString(renderKey(m.keys.UpgradeAll))
 	b.WriteString(": upgrade all ")
 	b.WriteString(renderKey(m.keys.Upgrade))
@@ -340,17 +340,17 @@ func (m *model) updateLayout() {
 	outputStyle = outputStyle.Width(m.width - 2)
 	helpStyle = helpStyle.Width(m.width - 2)
 
-	viewportWidth := max(viewportWidthMin, m.width-tableWidthMax-4)
-	m.search.Width = m.width - viewportWidth - 8
+	sidePanelWidth := max(sidePanelWidthMin, m.width-tableWidthMax-4)
+	m.search.Width = m.width - sidePanelWidth - 8
 	filterModeStyle = filterModeStyle.
-		BorderStyle(getRoundedBorderWithTitle("Filters", viewportWidth)).
-		Width(viewportWidth)
+		BorderStyle(getRoundedBorderWithTitle("Filters", sidePanelWidth)).
+		Width(sidePanelWidth)
 	detailPanelStyle = detailPanelStyle.
-		BorderStyle(getRoundedBorderWithTitle("Details", viewportWidth))
-	m.detailPanel.Width = viewportWidth - 2
-	vpContentStyle = vpContentStyle.Width(viewportWidth - 2)
+		BorderStyle(getRoundedBorderWithTitle("Details", sidePanelWidth))
+	m.detailPanel.Width = sidePanelWidth - 2
+	detailsContentStyle = detailsContentStyle.Width(sidePanelWidth - 2)
 
-	tableWidth := m.width - viewportWidth - 4
+	tableWidth := m.width - sidePanelWidth - 4
 	m.table.SetWidth(tableWidth)
 
 	mainHeight := m.height - 4
@@ -449,11 +449,7 @@ func getFormattedStatus(pkg *Package) string {
 func getColData(c columnName, pkg *Package) string {
 	switch c {
 	case colSymbol:
-		if pkg.IsCask {
-			return caskSymbol
-		} else {
-			return formulaSymbol
-		}
+		return pkg.Symbol()
 	case colName:
 		return pkg.Name
 	case colVersion:
@@ -498,33 +494,24 @@ func (m *model) updateTable() {
 		m.table.SetCursor(0)
 	}
 
-	m.updateViewport()
+	m.updateDetailsPanel()
 }
 
-// updateViewport sets the content of the details panel based on the selected package.
-func (m *model) updateViewport() {
+// updateDetailsPanel sets the content of the details panel based on the selected package.
+func (m *model) updateDetailsPanel() {
 	if len(m.viewPackages) == 0 {
 		m.detailPanel.SetContent("No packages match the current filter.")
 		return
 	}
 
-	// Ensure selected index is valid
-	selectedIndex := m.table.Cursor()
-	if selectedIndex < 0 || selectedIndex >= len(m.viewPackages) {
+	pkg := m.getSelectedPackage()
+	if pkg == nil {
 		m.detailPanel.SetContent("No packages selected.")
 		return
 	}
 
-	pkg := m.viewPackages[selectedIndex]
-	var pkgSymbol string
-	if pkg.IsCask {
-		pkgSymbol = caskSymbol
-	} else {
-		pkgSymbol = formulaSymbol
-	}
-
 	var b strings.Builder
-	b.WriteString(headerStyle.Render(fmt.Sprintf("%s %s", pkgSymbol, pkg.Name)))
+	b.WriteString(headerStyle.Render(fmt.Sprintf("%s %s", pkg.Symbol(), pkg.Name)))
 	b.WriteString(fmt.Sprintf("\n%s\n\n", pkg.Desc))
 	b.WriteString(fmt.Sprintf("Version: %s\n", pkg.LongVersion()))
 	b.WriteString(fmt.Sprintf("Tap: %s\n", pkg.Tap))
@@ -539,7 +526,10 @@ func (m *model) updateViewport() {
 		if m.isColumnEnabled(colSize) {
 			b.WriteString(fmt.Sprintf("Size: %s\n", pkg.FormattedSize))
 		}
-		b.WriteString(fmt.Sprintf("Last installed on: %s\n", pkg.InstalledDate))
+		b.WriteString(fmt.Sprintf("Installed on: %s\n", pkg.InstalledDate))
+		if release := pkg.ReleaseInfo; release != nil {
+			b.WriteString(fmt.Sprintf("Released on: %s\n", release.PublishDate.Format(time.DateOnly)))
+		}
 	}
 
 	if len(pkg.Conflicts) > 0 {
@@ -593,7 +583,7 @@ func (m *model) updateViewport() {
 		}
 	}
 
-	m.detailPanel.SetContent(vpContentStyle.Render(b.String()))
+	m.detailPanel.SetContent(detailsContentStyle.Render(b.String()))
 	m.detailPanel.GotoTop()
 }
 

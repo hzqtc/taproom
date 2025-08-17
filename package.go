@@ -31,8 +31,13 @@ type Package struct {
 	FormattedSize         string // Formated size like 24.5MB, 230KB
 	InstallSupported      bool   // Whether installing the package is supported in taproom
 	InstalledDate         string
-	NewVersionNote        *ReleaseNote // Only set when package is outdated
+	ReleaseInfo           *ReleaseNote // Only set when package is outdated
 }
+
+const (
+	formulaSymbol = ""
+	caskSymbol    = ""
+)
 
 const (
 	statusDisabled       = "Disabled"
@@ -50,6 +55,14 @@ const (
 	kwPrefixName = "n:"
 	kwPrefixDesc = "d:"
 )
+
+func (pkg *Package) Symbol() string {
+	if pkg.IsCask {
+		return caskSymbol
+	} else {
+		return formulaSymbol
+	}
+}
 
 func (pkg *Package) Status() string {
 	if pkg.IsDisabled {

@@ -276,7 +276,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			default:
 				switch m.focusMode {
 				case focusDetail:
-					cmds = append(cmds, m.handleViewportKeys(msg))
+					cmds = append(cmds, m.handleDetailsPanelKeys(msg))
 				case focusTable:
 					cmds = append(cmds, m.handleTableKeys(msg))
 				}
@@ -311,10 +311,7 @@ func (m *model) handleSearchInputKeys(msg tea.KeyMsg) tea.Cmd {
 
 func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
-	var selectedPkg *Package
-	if len(m.viewPackages) > 0 && m.table.Cursor() >= 0 {
-		selectedPkg = m.viewPackages[m.table.Cursor()]
-	}
+	selectedPkg := m.getSelectedPackage()
 
 	switch {
 	case key.Matches(msg, m.keys.Enter):
@@ -392,6 +389,10 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		if selectedPkg != nil {
 			browser.OpenURL(selectedPkg.BrewUrl())
 		}
+	case key.Matches(msg, m.keys.OpenRelease):
+		if selectedPkg != nil && selectedPkg.ReleaseInfo != nil {
+			browser.OpenURL(selectedPkg.ReleaseInfo.Url)
+		}
 	case key.Matches(msg, m.keys.UpgradeAll):
 		outdatedPkgs := m.getOutdatedPackages()
 		if !m.isExecuting && len(outdatedPkgs) > 0 {
@@ -423,13 +424,13 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 	default:
 		// Let table itself handle the rest of keys
 		m.table, cmd = m.table.Update(msg)
-		m.updateViewport()
+		m.updateDetailsPanel()
 	}
 
 	return cmd
 }
 
-func (m *model) handleViewportKeys(msg tea.KeyMsg) tea.Cmd {
+func (m *model) handleDetailsPanelKeys(msg tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
 	switch {
 	case key.Matches(msg, m.keys.Esc):
@@ -439,6 +440,14 @@ func (m *model) handleViewportKeys(msg tea.KeyMsg) tea.Cmd {
 		m.detailPanel, cmd = m.detailPanel.Update(msg)
 	}
 	return cmd
+}
+
+func (m *model) getSelectedPackage() *Package {
+	if len(m.viewPackages) > 0 && m.table.Cursor() >= 0 {
+		return m.viewPackages[m.table.Cursor()]
+	} else {
+		return nil
+	}
 }
 
 func (m *model) getPackage(name string) *Package {

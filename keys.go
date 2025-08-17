@@ -26,6 +26,7 @@ type keyMap struct {
 	// Package Commands
 	OpenHomePage key.Binding
 	OpenBrewUrl  key.Binding
+	OpenRelease  key.Binding
 	Upgrade      key.Binding
 	UpgradeAll   key.Binding
 	Install      key.Binding
@@ -43,7 +44,7 @@ func defaultKeyMap() keyMap {
 		FocusSearch: key.NewBinding(key.WithKeys("/")),
 		Enter:       key.NewBinding(key.WithKeys("enter")),
 		Esc:         key.NewBinding(key.WithKeys("esc")),
-		Refresh:     key.NewBinding(key.WithKeys("r")),
+		Refresh:     key.NewBinding(key.WithKeys("R")),
 		Quit:        key.NewBinding(key.WithKeys("q", "ctrl+c")),
 
 		// Sorting & Filtering
@@ -60,6 +61,7 @@ func defaultKeyMap() keyMap {
 		// Package Commands
 		OpenHomePage: key.NewBinding(key.WithKeys("h")),
 		OpenBrewUrl:  key.NewBinding(key.WithKeys("b")),
+		OpenRelease:  key.NewBinding(key.WithKeys("r")),
 		Upgrade:      key.NewBinding(key.WithKeys("u")),
 		UpgradeAll:   key.NewBinding(key.WithKeys("U")),
 		Install:      key.NewBinding(key.WithKeys("t")),

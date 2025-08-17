@@ -388,14 +388,7 @@ func processAllData(
 	packages := make([]*Package, 0, len(installed.Formulae)+len(installed.Casks)+len(formulae)+len(casks))
 	// Process installed formulae
 	for _, f := range installed.Formulae {
-		pkg := packageFromFormula(&f, formulaInstalls, true, formulaSizes[f.Name])
-		if pkg.IsOutdated {
-			// Fetch release note in background as non blocking go routines
-			go func() {
-				pkg.NewVersionNote = pkg.GetReleaseNote()
-			}()
-		}
-		packages = append(packages, pkg)
+		packages = append(packages, packageFromFormula(&f, formulaInstalls, true, formulaSizes[f.Name]))
 		installedFormulae[f.Name] = struct{}{}
 		for _, dep := range f.Dependencies {
 			formulaDependents[dep] = append(formulaDependents[dep], f.Name)
@@ -434,8 +427,14 @@ func processAllData(
 		}
 	}
 
-	// Populate dependents
+	// Post processing: fetch release info and populate dependents
 	for i, pkg := range packages {
+		if pkg.IsInstalled {
+			// Fetch release note in background as non blocking go routines
+			go func() {
+				pkg.ReleaseInfo = pkg.GetReleaseNote()
+			}()
+		}
 		if pkg.IsCask {
 			packages[i].Dependents = sortAndUniq(caskDependents[pkg.Name])
 		} else {

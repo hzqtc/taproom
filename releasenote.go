@@ -10,18 +10,14 @@ import (
 )
 
 type ReleaseNote struct {
-	Author struct {
-		Login string `json:"login"`
-	} `json:"author"`
-	Name        string    `json:"name"`
 	PublishDate time.Time `json:"publishedAt"`
-	Notes       string    `json:"body"`
 	TagName     string    `json:"tagName"`
+	Url         string    `json:"url"`
 }
 
 const (
 	gh            = "gh"
-	releaseFields = "author,name,publishedAt,tagName,body"
+	releaseFields = "publishedAt,tagName,url"
 )
 
 var (
