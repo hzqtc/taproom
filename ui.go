@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/spf13/pflag"
 )
 
 var colWidthMap = map[columnName]int{
@@ -44,6 +45,10 @@ const (
 	installedSymbol   = "✓"
 	outdatedSymbol    = ""
 	pinnedSymbol      = ""
+)
+
+var (
+	flagHideHelp = pflag.Bool("hide-help", false, "Hide the help text")
 )
 
 // --- Styles ---
@@ -160,7 +165,7 @@ func (m model) View() string {
 	if output := m.renderOutput(); output != "" {
 		views = append(views, output)
 	}
-	if !m.hideHelp {
+	if !*flagHideHelp {
 		views = append(views, m.renderHelp())
 	}
 
@@ -356,7 +361,7 @@ func (m *model) updateLayout() {
 	mainHeight := m.height - 4
 	mainHeight -= lipgloss.Height(searchStyle.Render(m.search.View()))
 	mainHeight -= lipgloss.Height(m.renderStats())
-	if !m.hideHelp {
+	if !*flagHideHelp {
 		mainHeight -= lipgloss.Height(m.renderHelp())
 	}
 	mainHeight -= lipgloss.Height(m.renderOutput())

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/pflag"
 )
 
 // --- Constants & Data Structures ---
@@ -49,6 +50,10 @@ const (
 	casksAnalyticsCache    = "casks-analytics-90d.json"
 
 	urlCacheTtl = 6 * time.Hour
+)
+
+var (
+	flagInvalidateCache = pflag.BoolP("invalidate-cache", "i", false, "Invalidate cache and force re-downloading data")
 )
 
 // Structs for parsing Homebrew API Json
@@ -151,14 +156,14 @@ func (m *model) loadData() tea.Cmd {
 
 		loadingTasksNum := cap(errChan)
 
-		go fetchJsonWithCache(apiFormulaURL, formulaCache, m.noCache, &[]apiFormula{}, formulaeChan, errChan)
+		go fetchJsonWithCache(apiFormulaURL, formulaCache, &[]apiFormula{}, formulaeChan, errChan)
 		m.loadingPrgs.AddTask(formulaeChan, "Loading all Formulae")
-		go fetchJsonWithCache(apiCaskURL, casksCache, m.noCache, &[]apiCask{}, casksChan, errChan)
+		go fetchJsonWithCache(apiCaskURL, casksCache, &[]apiCask{}, casksChan, errChan)
 		m.loadingPrgs.AddTask(casksChan, "Loading all Casks")
 		if m.isColumnEnabled(colInstalls) {
-			go fetchJsonWithCache(apiFormulaAnalyticsURL, formulaeAnalyticsCache, m.noCache, &apiFormulaAnalytics{}, formulaAnalyticsChan, errChan)
+			go fetchJsonWithCache(apiFormulaAnalyticsURL, formulaeAnalyticsCache, &apiFormulaAnalytics{}, formulaAnalyticsChan, errChan)
 			m.loadingPrgs.AddTask(formulaAnalyticsChan, "Loading Formulae 90d analytics")
-			go fetchJsonWithCache(apiCaskAnalyticsURL, casksAnalyticsCache, m.noCache, &apiCaskAnalytics{}, caskAnalyticsChan, errChan)
+			go fetchJsonWithCache(apiCaskAnalyticsURL, casksAnalyticsCache, &apiCaskAnalytics{}, caskAnalyticsChan, errChan)
 			m.loadingPrgs.AddTask(caskAnalyticsChan, "Loading Cask 90d analytics")
 		} else {
 			loadingTasksNum -= 2
@@ -235,11 +240,11 @@ func readCacheData(cachePath string) []byte {
 }
 
 // fetchJsonWithCache is a generic function to fetch and decode Json from a URL, with caching.
-func fetchJsonWithCache[T any](url, filename string, noCache bool, target *T, dataChan chan T, errChan chan error) {
+func fetchJsonWithCache[T any](url, filename string, target *T, dataChan chan T, errChan chan error) {
 	cachePath := filepath.Join(cacheDir, filename)
 
 	// Attempt to load from cache first
-	if !noCache {
+	if !*flagInvalidateCache {
 		if cacheData := readCacheData(cachePath); cacheData != nil {
 			if err := json.Unmarshal(cacheData, &target); err == nil {
 				log.Printf("Loaded %s from cache file %s", url, filename)

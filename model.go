@@ -16,16 +16,8 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pkg/browser"
+	"github.com/spf13/pflag"
 )
-
-type Flags struct {
-	noCache       bool
-	showLoadTimer bool
-	hiddenColumns []string
-	filters       []string
-	sortColumn    string
-	hideHelp      bool
-}
 
 // focusMode defines which component is currently focused
 type focusMode int
@@ -34,6 +26,28 @@ const (
 	focusTable focusMode = iota
 	focusDetail
 	focusSearch
+)
+
+var (
+	flagShowLoadTimer = pflag.BoolP("load-timer", "t", false, "Show a timer in the loading screen")
+	flagHideCols      = pflag.StringSlice(
+		"hide-columns",
+		[]string{},
+		"Hide specific columns seprated by comma (no spaces): Version, Tap, Description, Installs, Size, Status",
+	)
+	flagSortColumn = pflag.StringP(
+		"sort-column",
+		"s",
+		"Name",
+		"Choose which column (Name, Tap, Installs, Size, Status) to sort by initially",
+	)
+	flagFilters = pflag.StringSliceP(
+		"filters",
+		"f",
+		[]string{},
+		"Filters to enable (comma separated no space).\n"+
+			"Pick 0 or 1 filter from each group: (Formulae, Casks), (Installed, Outdated, Expl. Installed, Active)",
+	)
 )
 
 // model holds the entire state of the application.
@@ -51,9 +65,8 @@ type model struct {
 
 	// State
 	isLoading      bool
-	noCache        bool
-	loadingPrgs    *LoadingProgress
 	loadTimer      bool
+	loadingPrgs    *LoadingProgress
 	focusMode      focusMode
 	filters        filterGroup
 	sortColumn     columnName
@@ -62,7 +75,6 @@ type model struct {
 	height         int
 	columns        []columnName // Enabled table columns
 	visibleColumns []columnName // Columns currently visible in the UI, depending on screen width
-	hideHelp       bool
 
 	// Keybindings
 	keys keyMap
@@ -74,7 +86,7 @@ type model struct {
 }
 
 // initialModel creates the starting state of the application.
-func initialModel(flags Flags) model {
+func initialModel() model {
 	// Search input
 	searchInput := textinput.New()
 	searchInput.Placeholder = "Search packages..."
@@ -85,7 +97,7 @@ func initialModel(flags Flags) model {
 	s.Spinner = spinner.Dot
 
 	var sw stopwatch.Model
-	if flags.showLoadTimer {
+	if *flagShowLoadTimer {
 		sw = stopwatch.NewWithInterval(time.Millisecond)
 	}
 
@@ -97,7 +109,7 @@ func initialModel(flags Flags) model {
 
 	// Parse hidden columns from command line flag into a set
 	hiddenColumns := make(map[columnName]bool)
-	for _, c := range flags.hiddenColumns {
+	for _, c := range *flagHideCols {
 		if col, err := parseColumnName(c); err == nil {
 			if col.Hideable() {
 				hiddenColumns[col] = true
@@ -120,7 +132,7 @@ func initialModel(flags Flags) model {
 		}
 	}
 
-	sortCol, err := parseColumnName(flags.sortColumn)
+	sortCol, err := parseColumnName(*flagSortColumn)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -129,7 +141,7 @@ func initialModel(flags Flags) model {
 		os.Exit(1)
 	}
 
-	fg, err := parseFilterGroup(flags.filters)
+	fg, err := parseFilterGroup(*flagFilters)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -141,13 +153,11 @@ func initialModel(flags Flags) model {
 		stopwatch:   sw,
 		table:       tbl,
 		isLoading:   true,
-		noCache:     flags.noCache,
+		loadTimer:   *flagShowLoadTimer,
 		loadingPrgs: NewLoadingProgress(),
-		loadTimer:   flags.showLoadTimer,
 		filters:     fg,
 		sortColumn:  sortCol,
 		columns:     columns,
-		hideHelp:    flags.hideHelp,
 		keys:        defaultKeyMap(),
 	}
 }
