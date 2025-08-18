@@ -44,6 +44,7 @@ func (pkg *Package) GetReleaseNote() *ReleaseNote {
 		// Package home page matches a github page
 		return fetchLatestRelease(matches[1], matches[2])
 	} else {
+		log.Printf("Failed to locate a github repo for package %s", pkg.Name)
 		return nil
 	}
 }

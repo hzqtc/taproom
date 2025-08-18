@@ -50,9 +50,11 @@
 
 ### Dependencies
 
-- du (MacOS builtin command)
-- [Homebrew](https://brew.sh/)
 - A terminal emulator with a [nerd font](https://www.nerdfonts.com/)
+- `du` (MacOS builtin command)
+- `brew` [Homebrew](https://brew.sh/)
+- `gh` [Github CLI](https://github.com/cli/cli)
+  - Optional, used for getting release info when `--fetch-release` flag is set
 
 ### Install from pre-built binary
 
@@ -94,6 +96,9 @@ The app's behavior can be further customized with command line flags:
 
 - `--invalidate-cahce` or `-i` in short: invalidate cache and re-download data from brew.sh
 - `--fetch-release`: fetch release information for installed packages. This flag enables displaying release date and 'r' key to open release page
+  - Note release information is only available when homebrew url or home page points to a github repo with releases
+  - About 60% packages would show release date and support 'r' to open release page with this flag enabled
+  - Requires `gh` (Github CLI) to be in the PATH
 - `--hide-columns`: hide and skip loading data for specified columns
   - This can be helpful to further simplify the UI
   - While all data loading is done in parallel, some may be slower than others. This flag can be used to skip loading certain data to speed up app load
