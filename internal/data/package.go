@@ -1,10 +1,16 @@
-package main
+package data
 
 import (
 	"fmt"
 	"strings"
 	"time"
 )
+
+type ReleaseInfo struct {
+	PublishDate time.Time `json:"publishedAt"`
+	TagName     string    `json:"tagName"`
+	Url         string    `json:"url"`
+}
 
 // Package holds all combined information for a formula or cask.
 type Package struct {
@@ -32,7 +38,7 @@ type Package struct {
 	FormattedSize         string // Formated size like 24.5MB, 230KB
 	InstallSupported      bool   // Whether installing the package is supported in taproom
 	InstalledDate         string
-	ReleaseInfo           *ReleaseNote // Only set when package is outdated
+	ReleaseInfo           *ReleaseInfo // Only set when package is outdated
 }
 
 const (

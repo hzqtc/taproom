@@ -1,4 +1,4 @@
-package main
+package gh
 
 import (
 	"encoding/json"
@@ -6,14 +6,8 @@ import (
 	"log"
 	"os/exec"
 	"regexp"
-	"time"
+	"taproom/internal/data"
 )
-
-type ReleaseNote struct {
-	PublishDate time.Time `json:"publishedAt"`
-	TagName     string    `json:"tagName"`
-	Url         string    `json:"url"`
-}
 
 const (
 	gh            = "gh"
@@ -25,7 +19,7 @@ var (
 	githubPageUrl = regexp.MustCompile(`^https://([^.\s]+).github.io/([^/\s]+)`)
 )
 
-func (pkg *Package) GetReleaseNote() *ReleaseNote {
+func GetGithubReleaseInfo(pkg *data.Package) *data.ReleaseInfo {
 	if !isGhInstalled() {
 		return nil
 	}
@@ -57,8 +51,8 @@ func isGhInstalled() bool {
 	}
 }
 
-func fetchLatestRelease(ghOwner, ghRepo string) *ReleaseNote {
-	var note ReleaseNote
+func fetchLatestRelease(ghOwner, ghRepo string) *data.ReleaseInfo {
+	var note data.ReleaseInfo
 	cmd := exec.Command(gh, "release", "view", "--repo", fmt.Sprintf("%s/%s", ghOwner, ghRepo), "--json", releaseFields)
 
 	body, err := cmd.Output()

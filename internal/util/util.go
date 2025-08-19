@@ -1,11 +1,11 @@
-package main
+package util
 
 import (
 	"fmt"
 	"slices"
 )
 
-func sortAndUniq(input []string) []string {
+func SortAndUniq(input []string) []string {
 	if len(input) == 0 {
 		return input
 	}
@@ -32,7 +32,7 @@ var (
 )
 
 // Format size in KBs to proper size units
-func formatSize(kbs int64) string {
+func FormatSize(kbs int64) string {
 	for _, unit := range sizeUnits {
 		if multiplier := sizeMultipliers[unit]; kbs >= multiplier {
 			value := float64(kbs) / float64(multiplier)

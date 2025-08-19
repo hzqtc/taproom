@@ -6,6 +6,10 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"taproom/internal/brew"
+	"taproom/internal/data"
+	"taproom/internal/loading"
+	"taproom/internal/util"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -53,8 +57,8 @@ var (
 // model holds the entire state of the application.
 type model struct {
 	// Package data
-	allPackages  []*Package // The complete list of all packages, sorted by name
-	viewPackages []*Package // The filtered and sorted list of packages to display
+	allPackages  []*data.Package // The complete list of all packages, sorted by name
+	viewPackages []*data.Package // The filtered and sorted list of packages to display
 
 	// UI Components from the bubbles library
 	table       table.Model
@@ -66,7 +70,7 @@ type model struct {
 	// State
 	isLoading      bool
 	loadTimer      bool
-	loadingPrgs    *LoadingProgress
+	loadingPrgs    *loading.LoadingProgress
 	focusMode      focusMode
 	filters        filterGroup
 	sortColumn     columnName
@@ -154,7 +158,7 @@ func initialModel() model {
 		table:       tbl,
 		isLoading:   true,
 		loadTimer:   *flagShowLoadTimer,
-		loadingPrgs: NewLoadingProgress(),
+		loadingPrgs: loading.NewLoadingProgress(),
 		filters:     fg,
 		sortColumn:  sortCol,
 		columns:     columns,
@@ -165,7 +169,7 @@ func initialModel() model {
 // Init is the first command that is run when the application starts.
 func (m model) Init() tea.Cmd {
 	// Start the spinner and load the data from Homebrew APIs.
-	cmds := []tea.Cmd{m.spinner.Tick, m.loadData()}
+	cmds := []tea.Cmd{m.spinner.Tick, brew.LoadData(m.isColumnEnabled(colInstalls), m.isColumnEnabled(colSize), m.loadingPrgs)}
 	if m.loadTimer {
 		cmds = append(cmds, m.stopwatch.Start())
 	}
@@ -188,25 +192,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateTable()
 
 	// Data has been successfully loaded
-	case dataLoadedMsg:
+	case brew.DataLoadedMsg:
 		m.isLoading = false
 		m.loadingPrgs.Reset()
 		if m.loadTimer {
 			cmds = append(cmds, m.stopwatch.Stop(), m.stopwatch.Reset())
 		}
-		m.allPackages = msg.packages
+		m.allPackages = msg.Packages
 		m.filterAndSortPackages()
 		m.updateLayout()
 		m.updateTable()
 
 	// An error occurred during data loading
-	case dataLoadingErrMsg:
+	case brew.DataLoadingErrMsg:
 		m.isLoading = false
 		if m.loadTimer {
 			cmds = append(cmds, m.stopwatch.Stop())
 		}
 		// Data loading error is fatal
-		m.errorMsg = msg.err.Error()
+		m.errorMsg = msg.Err.Error()
 
 	// Spinner tick (for animation)
 	case spinner.TickMsg:
@@ -226,26 +230,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 	// Command execution start
-	case commandStartMsg:
+	case brew.CommandStartMsg:
 		m.isExecuting = true
 		m.output = []string{}
 		m.commandErr = false
 
 	// Command execution output
-	case commandOutputMsg:
-		if msg.line != "" {
-			m.output = append(m.output, msg.line)
+	case brew.CommandOutputMsg:
+		if msg.Line != "" {
+			m.output = append(m.output, msg.Line)
 			m.updateLayout()
 		}
-		cmds = append(cmds, streamOutput(msg.ch))
+		cmds = append(cmds, brew.StreamOutput(msg.Ch))
 
 	// Command execution finish
-	case commandFinishMsg:
+	case brew.CommandFinishMsg:
 		m.isExecuting = false
-		if msg.err == nil {
+		if msg.Err == nil {
 			// Command was successful, clear output and update package state
 			m.output = m.output[:0]
-			m.updatePackageForAction(msg.action, msg.pkgs)
+			m.updatePackageForAction(msg.Command, msg.Pkgs)
 			m.updateTable()
 		} else {
 			m.commandErr = true
@@ -277,7 +281,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.keys.Refresh):
 				m.isLoading = true
 				m.output = []string{}
-				cmds = append(cmds, m.spinner.Tick, m.loadData())
+				cmds = append(cmds, m.spinner.Tick, brew.LoadData(m.isColumnEnabled(colInstalls), m.isColumnEnabled(colSize), m.loadingPrgs))
 				if m.loadTimer {
 					cmds = append(cmds, m.stopwatch.Start())
 				}
@@ -406,30 +410,30 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 	case key.Matches(msg, m.keys.UpgradeAll):
 		outdatedPkgs := m.getOutdatedPackages()
 		if !m.isExecuting && len(outdatedPkgs) > 0 {
-			cmd = upgradeAllPackages(outdatedPkgs)
+			cmd = brew.UpgradeAllPackages(outdatedPkgs)
 		}
 	case key.Matches(msg, m.keys.Upgrade):
 		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsOutdated && !selectedPkg.IsPinned {
-			cmd = upgradePackage(selectedPkg)
+			cmd = brew.UpgradePackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.Install):
 		if !m.isExecuting && selectedPkg != nil && !selectedPkg.IsInstalled {
-			cmd = installPackage(selectedPkg)
+			cmd = brew.InstallPackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.Remove):
 		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsInstalled {
-			cmd = uninstallPackage(selectedPkg)
+			cmd = brew.UninstallPackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.Pin):
 		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsInstalled && !selectedPkg.IsCask && !selectedPkg.IsPinned {
-			cmd = pinPackage(selectedPkg)
+			cmd = brew.PinPackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.Unpin):
 		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsPinned {
-			cmd = unpinPackage(selectedPkg)
+			cmd = brew.UnpinPackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.CleanUp):
-		cmd = cleanup()
+		cmd = brew.Cleanup()
 
 	default:
 		// Let table itself handle the rest of keys
@@ -452,7 +456,7 @@ func (m *model) handleDetailsPanelKeys(msg tea.KeyMsg) tea.Cmd {
 	return cmd
 }
 
-func (m *model) getSelectedPackage() *Package {
+func (m *model) getSelectedPackage() *data.Package {
 	if len(m.viewPackages) > 0 && m.table.Cursor() >= 0 {
 		return m.viewPackages[m.table.Cursor()]
 	} else {
@@ -460,7 +464,7 @@ func (m *model) getSelectedPackage() *Package {
 	}
 }
 
-func (m *model) getPackage(name string) *Package {
+func (m *model) getPackage(name string) *data.Package {
 	index := sort.Search(len(m.allPackages), func(i int) bool {
 		return m.allPackages[i].Name >= name
 	})
@@ -482,7 +486,7 @@ func (m *model) isColumnVisible(c columnName) bool {
 
 // filterAndSortPackages updates the viewPackages based on current filters and sort mode.
 func (m *model) filterAndSortPackages() {
-	m.viewPackages = []*Package{}
+	m.viewPackages = []*data.Package{}
 
 	searchQuery := strings.ToLower(m.search.Value())
 	keywords := strings.Fields(searchQuery)
@@ -543,8 +547,8 @@ func (m *model) filterAndSortPackages() {
 	}
 }
 
-func (m *model) getOutdatedPackages() []*Package {
-	outdatedPackages := []*Package{}
+func (m *model) getOutdatedPackages() []*data.Package {
+	outdatedPackages := []*data.Package{}
 	for i := range m.allPackages {
 		if pkg := m.allPackages[i]; pkg.IsOutdated {
 			outdatedPackages = append(outdatedPackages, pkg)
@@ -553,13 +557,13 @@ func (m *model) getOutdatedPackages() []*Package {
 	return outdatedPackages
 }
 
-func (m *model) updatePackageForAction(action commandAction, pkgs []*Package) {
-	switch action {
-	case actionUpgradeAll, actionUpgrade:
+func (m *model) updatePackageForAction(command brew.BrewCommand, pkgs []*data.Package) {
+	switch command {
+	case brew.BrewCommandUpgradeAll, brew.BrewCommandUpgrade:
 		for _, pkg := range pkgs {
 			pkg.MarkInstalled()
 		}
-	case actionInstall:
+	case brew.BrewCommandInstall:
 		for _, pkg := range pkgs {
 			pkg.MarkInstalled()
 			// Also mark uninstalled dependencies as installed
@@ -567,18 +571,18 @@ func (m *model) updatePackageForAction(action commandAction, pkgs []*Package) {
 				m.getPackage(depName).MarkInstalled()
 			}
 
-			pkg.Size = fetchPackageSize(pkg)
-			pkg.FormattedSize = formatSize(pkg.Size)
+			pkg.Size = brew.FetchPackageSize(pkg)
+			pkg.FormattedSize = util.FormatSize(pkg.Size)
 		}
-	case actionUninstall:
+	case brew.BrewCommandUninstall:
 		for _, pkg := range pkgs {
 			pkg.MarkUninstalled()
 		}
-	case actionPin:
+	case brew.BrewCommandPin:
 		for _, pkg := range pkgs {
 			pkg.MarkPinned()
 		}
-	case actionUnpin:
+	case brew.BrewCommandUnpin:
 		for _, pkg := range pkgs {
 			pkg.MarkUnpinned()
 		}

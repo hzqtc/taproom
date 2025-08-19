@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"taproom/internal/data"
+	"taproom/internal/util"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -433,7 +435,7 @@ func (m *model) getTableCols(remainingWidth int) []table.Column {
 	return columns
 }
 
-func getFormattedStatus(pkg *Package) string {
+func getFormattedStatus(pkg *data.Package) string {
 	var statusSymbol string
 	if pkg.IsDisabled {
 		statusSymbol = deprecatedStyle.Render(disabledSymbol)
@@ -451,7 +453,7 @@ func getFormattedStatus(pkg *Package) string {
 	return fmt.Sprintf("%s %s", statusSymbol, pkg.Status())
 }
 
-func getColData(c columnName, pkg *Package) string {
+func getColData(c columnName, pkg *data.Package) string {
 	switch c {
 	case colSymbol:
 		return pkg.Symbol()
@@ -556,7 +558,7 @@ func (m *model) updateDetailsPanel() {
 			} else {
 				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
 				// For uninstall dependencies, show all recursive uninstalled dependencies
-				recursiveMissingDeps := sortAndUniq(m.getRecursiveMissingDeps(dep))
+				recursiveMissingDeps := util.SortAndUniq(m.getRecursiveMissingDeps(dep))
 				for _, d := range recursiveMissingDeps {
 					if p := m.getPackage(d); !p.IsInstalled {
 						b.WriteString(fmt.Sprintf("    %s %s\n", uninstalledStyle.Render("✗"), d))
@@ -625,8 +627,8 @@ func (m *model) renderStats() string {
 			keyStyle.Render(fmt.Sprintf("%d", casksNum)),
 			keyStyle.Render(fmt.Sprintf("%d", installedFormulaeNum)),
 			keyStyle.Render(fmt.Sprintf("%d", installedFormulaeDepNum)),
-			keyStyle.Render(formatSize(formulaeSize)),
+			keyStyle.Render(util.FormatSize(formulaeSize)),
 			keyStyle.Render(fmt.Sprintf("%d", installedCasksNum)),
-			keyStyle.Render(formatSize(casksSize)),
+			keyStyle.Render(util.FormatSize(casksSize)),
 		))
 }
