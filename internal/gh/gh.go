@@ -7,7 +7,14 @@ import (
 	"os/exec"
 	"regexp"
 	"taproom/internal/data"
+	"time"
 )
+
+type ghReleaseInfo struct {
+	PublishDate time.Time `json:"publishedAt"`
+	TagName     string    `json:"tagName"`
+	Url         string    `json:"url"`
+}
 
 const (
 	gh            = "gh"
@@ -52,7 +59,7 @@ func isGhInstalled() bool {
 }
 
 func fetchLatestRelease(ghOwner, ghRepo string) *data.ReleaseInfo {
-	var note data.ReleaseInfo
+	var note ghReleaseInfo
 	cmd := exec.Command(gh, "release", "view", "--repo", fmt.Sprintf("%s/%s", ghOwner, ghRepo), "--json", releaseFields)
 
 	body, err := cmd.Output()
@@ -68,6 +75,14 @@ func fetchLatestRelease(ghOwner, ghRepo string) *data.ReleaseInfo {
 		return nil
 	} else {
 		log.Printf("Successfully fetched release info from gh: %s/%s", ghOwner, ghRepo)
-		return &note
+		return toReleaseInfo(&note)
+	}
+}
+
+func toReleaseInfo(info *ghReleaseInfo) *data.ReleaseInfo {
+	return &data.ReleaseInfo{
+		Date:    info.PublishDate,
+		Version: info.TagName,
+		Url:     info.Url,
 	}
 }

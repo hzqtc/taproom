@@ -535,7 +535,7 @@ func (m *model) updateDetailsPanel() {
 		}
 		b.WriteString(fmt.Sprintf("Installed on: %s\n", pkg.InstalledDate))
 		if release := pkg.ReleaseInfo; release != nil {
-			b.WriteString(fmt.Sprintf("Released on: %s\n", release.PublishDate.Format(time.DateOnly)))
+			b.WriteString(fmt.Sprintf("Released on: %s\n", release.Date.Format(time.DateOnly)))
 		}
 	}
 

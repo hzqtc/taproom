@@ -7,9 +7,9 @@ import (
 )
 
 type ReleaseInfo struct {
-	PublishDate time.Time `json:"publishedAt"`
-	TagName     string    `json:"tagName"`
-	Url         string    `json:"url"`
+	Date    time.Time
+	Version string
+	Url     string
 }
 
 // Package holds all combined information for a formula or cask.
