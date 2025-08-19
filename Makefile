@@ -1,5 +1,4 @@
 BINARY_NAME = taproom
-SRC = $(wildcard *.go)
 GOBIN = $(HOME)/.local/bin
 TARGET_OS = darwin
 TARGET_ARCH = arm64 amd64
@@ -9,7 +8,7 @@ RELEASE_NOTE = .release-note.md
 
 all: build
 
-$(BINARY_NAME): $(SRC)
+$(BINARY_NAME):
 	go mod tidy
 	go build -o $(BINARY_NAME)
 
@@ -25,18 +24,13 @@ clean:
 install: build
 	GOBIN=$(GOBIN) go install
 
-fmt:
-	gofmt -w -s $(SRC)
-
-vet:
-	go vet $(SRC)
-
 test:
 	go test
 
 release:
 	mkdir -p release
 	for arch in $(TARGET_ARCH); do \
+		echo "Building release/$(BINARY_NAME)-$$os-$$arch"; \
 		GOOS=$(TARGET_OS) GOARCH=$$arch go build -o release/$(BINARY_NAME)-$(TARGET_OS)-$$arch; \
 		tar -C release -czf release/$(BINARY_NAME)-$(TARGET_OS)-$$arch.tar.gz $(BINARY_NAME)-$(TARGET_OS)-$$arch; \
 		rm release/$(BINARY_NAME)-$(TARGET_OS)-$$arch; \
@@ -46,10 +40,10 @@ release:
 gh-release: release
 	git tag $(VERSION)
 	git push origin $(VERSION)
-	$(EDITOR) $(RELEASE_NOTE); \
+	$(EDITOR) $(RELEASE_NOTE)
 	gh release create $(VERSION) $(ASSETS) \
 		--title "$(VERSION)" \
-		--notes-file $(RELEASE_NOTE); \
+		--notes-file $(RELEASE_NOTE)
 	rm $(RELEASE_NOTE)
 
 .PHONY: all build run clean install fmt vet test release
