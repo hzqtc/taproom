@@ -1,4 +1,4 @@
-package main
+package model
 
 // Generated with 'figlet -f epic taproom'
 const logo = `

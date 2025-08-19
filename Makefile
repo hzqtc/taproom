@@ -25,7 +25,7 @@ install: build
 	GOBIN=$(GOBIN) go install
 
 test:
-	go test
+	go test ./...
 
 release:
 	mkdir -p release

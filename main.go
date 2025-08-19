@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"taproom/internal/model"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/pflag"
@@ -40,7 +41,7 @@ func main() {
 	log.SetOutput(f)
 
 	// The WithAltScreen() option provides a full-screen TUI experience.
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	p := tea.NewProgram(model.InitialModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)

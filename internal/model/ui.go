@@ -1,4 +1,4 @@
-package main
+package model
 
 import (
 	"fmt"
@@ -407,14 +407,14 @@ func (m *model) getTableCols(remainingWidth int) []table.Column {
 		colWidth := colWidthMap[col]
 		// Add sort indicator
 		if col == m.sortColumn {
-			if col.ReverseSort() {
+			if col.reverseSort() {
 				colTitle = fmt.Sprintf("↓ %s", colTitle)
 			} else {
 				colTitle = fmt.Sprintf("↑ %s", colTitle)
 			}
 		}
 		// Right align columns
-		if col.RightAligned() {
+		if col.rightAligned() {
 			colTitle = fmt.Sprintf("%*s", colWidth, colTitle)
 		}
 		// Adjust column width to use remainingWidth
@@ -487,7 +487,7 @@ func (m *model) updateTable() {
 		rowData := []string{}
 		for _, col := range m.visibleColumns {
 			colData := getColData(col, pkg)
-			if col.RightAligned() {
+			if col.rightAligned() {
 				colData = fmt.Sprintf("%*s", colWidthMap[col], colData)
 			}
 			rowData = append(rowData, colData)

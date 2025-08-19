@@ -1,4 +1,4 @@
-package main
+package model
 
 import (
 	"fmt"
@@ -68,18 +68,18 @@ func parseColumnName(name string) (columnName, error) {
 	}
 }
 
-func (c columnName) Hideable() bool {
+func (c columnName) hideable() bool {
 	return c != colSymbol && c != colName
 }
 
-func (c columnName) Sortable() bool {
+func (c columnName) sortable() bool {
 	return c == colName || c == colTap || c == colInstalls || c == colSize || c == colStatus
 }
 
-func (c columnName) ReverseSort() bool {
+func (c columnName) reverseSort() bool {
 	return c == colInstalls || c == colSize
 }
 
-func (c columnName) RightAligned() bool {
+func (c columnName) rightAligned() bool {
 	return c == colInstalls || c == colSize
 }

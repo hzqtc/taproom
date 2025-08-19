@@ -1,4 +1,4 @@
-package main
+package model
 
 import (
 	"fmt"
@@ -89,8 +89,7 @@ type model struct {
 	commandErr  bool
 }
 
-// initialModel creates the starting state of the application.
-func initialModel() model {
+func InitialModel() model {
 	// Search input
 	searchInput := textinput.New()
 	searchInput.Placeholder = "Search packages..."
@@ -115,7 +114,7 @@ func initialModel() model {
 	hiddenColumns := make(map[columnName]bool)
 	for _, c := range *flagHideCols {
 		if col, err := parseColumnName(c); err == nil {
-			if col.Hideable() {
+			if col.hideable() {
 				hiddenColumns[col] = true
 			} else {
 				fmt.Fprintf(os.Stderr, "Column %s can not be hidden\n", col.String())
@@ -140,7 +139,7 @@ func initialModel() model {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
-	} else if !sortCol.Sortable() {
+	} else if !sortCol.sortable() {
 		fmt.Fprintf(os.Stderr, "Can not sort by column: %s\n", sortCol.String())
 		os.Exit(1)
 	}
@@ -344,7 +343,7 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		// Sort by the next sortable and visible column
 		for {
 			m.sortColumn = (m.sortColumn + 1) % totalNumColumns
-			if m.sortColumn.Sortable() && m.isColumnVisible(m.sortColumn) {
+			if m.sortColumn.sortable() && m.isColumnVisible(m.sortColumn) {
 				break
 			}
 		}
@@ -358,7 +357,7 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 			if m.sortColumn < 0 {
 				m.sortColumn = totalNumColumns - 1
 			}
-			if m.sortColumn.Sortable() && m.isColumnVisible(m.sortColumn) {
+			if m.sortColumn.sortable() && m.isColumnVisible(m.sortColumn) {
 				break
 			}
 		}
