@@ -2,42 +2,20 @@ package model
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"taproom/internal/data"
+	"taproom/internal/ui"
 	"taproom/internal/util"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/pflag"
 )
 
-var colWidthMap = map[columnName]int{
-	colSymbol:      2,
-	colName:        15,
-	colVersion:     15,
-	colTap:         15,
-	colDescription: 30,
-	colInstalls:    10,
-	colSize:        8,
-	colStatus:      15,
-}
-
-var tableWidthMax = func() int {
-	widthMax := 0
-	for _, colWidth := range colWidthMap {
-		widthMax += colWidth + colSpacing
-	}
-	return widthMax + tableAdditionalWidth // Allow table to expand up to the additional width
-}()
-
 const (
-	sidePanelWidthMin    = 30
-	tableAdditionalWidth = 30
-	colSpacing           = 2
-	outputMaxLines       = 10
+	sidePanelWidthMin = 30
+	outputMaxLines    = 10
 )
 
 const (
@@ -149,7 +127,7 @@ func (m model) View() string {
 
 	mainContent := lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		tableStyle.Render(m.table.View()),
+		m.table.View(),
 		detailPanelStyle.Render(m.detailPanel.View()),
 	)
 
@@ -213,7 +191,7 @@ func (m *model) renderHelp() string {
 	b.WriteString(": clear search ")
 	b.WriteString(renderKey(m.keys.Enter))
 	b.WriteString(": exit search ")
-	b.WriteString(renderKey(m.keys.SortByNext) + "/" + renderKey(m.keys.SortByPrev))
+	b.WriteString(keyStyle.Render("s") + "/" + keyStyle.Render("S"))
 	b.WriteString(": sorting")
 	b.WriteString("\n")
 	b.WriteString("Navigation: ")
@@ -269,21 +247,6 @@ func (m *model) renderHelp() string {
 	b.WriteString(": cleanup")
 
 	return helpStyle.Render(b.String())
-}
-
-func getTableStyles() table.Styles {
-	tableStyles := table.DefaultStyles()
-	tableStyles.Header = tableStyles.Header.
-		Foreground(highlightColor).
-		BorderStyle(roundedBorder).
-		BorderForeground(borderColor).
-		BorderBottom(true).
-		Bold(true)
-	tableStyles.Selected = tableStyles.Selected.
-		Foreground(highlightForegroudColor).
-		Background(highlightColor).
-		Bold(true)
-	return tableStyles
 }
 
 func (m *model) updateFocusBorder() {
@@ -347,7 +310,7 @@ func (m *model) updateLayout() {
 	outputStyle = outputStyle.Width(m.width - 2)
 	helpStyle = helpStyle.Width(m.width - 2)
 
-	sidePanelWidth := max(sidePanelWidthMin, m.width-tableWidthMax-4)
+	sidePanelWidth := max(sidePanelWidthMin, m.width-ui.MaxTableWidth-4)
 	m.search.Width = m.width - sidePanelWidth - 8
 	filterModeStyle = filterModeStyle.
 		BorderStyle(getRoundedBorderWithTitle("Filters", sidePanelWidth)).
@@ -356,9 +319,7 @@ func (m *model) updateLayout() {
 		BorderStyle(getRoundedBorderWithTitle("Details", sidePanelWidth))
 	m.detailPanel.Width = sidePanelWidth - 2
 	detailsContentStyle = detailsContentStyle.Width(sidePanelWidth - 2)
-
 	tableWidth := m.width - sidePanelWidth - 4
-	m.table.SetWidth(tableWidth)
 
 	mainHeight := m.height - 4
 	mainHeight -= lipgloss.Height(searchStyle.Render(m.search.View()))
@@ -368,71 +329,8 @@ func (m *model) updateLayout() {
 	}
 	mainHeight -= lipgloss.Height(m.renderOutput())
 
-	m.table.SetHeight(mainHeight)
+	m.table.SetDimensions(tableWidth, mainHeight)
 	m.detailPanel.Height = mainHeight
-
-	cols, remainingWidth := m.getVisibleCols(tableWidth)
-	m.visibleColumns = cols
-	columns := m.getTableCols(remainingWidth)
-
-	if len(m.table.Columns()) != len(columns) {
-		// Clear data when number of columns changes, this needs to be before SetColumns()
-		m.table.SetRows([]table.Row{})
-	}
-	m.table.SetColumns(columns)
-}
-
-// Dynamically determine visible columns based on table width
-// Returns the visible columns and unused width
-func (m *model) getVisibleCols(tableWidth int) ([]columnName, int) {
-	visibleCols := []columnName{}
-	visibleColsWidth := 0
-
-	for _, col := range m.columns {
-		colWidth := colWidthMap[col]
-		if tableWidth > visibleColsWidth+colWidth+colSpacing {
-			visibleCols = append(visibleCols, col)
-			visibleColsWidth += colWidth + colSpacing
-		}
-	}
-
-	return visibleCols, tableWidth - visibleColsWidth
-}
-
-// Build the columns for the table view
-func (m *model) getTableCols(remainingWidth int) []table.Column {
-	columns := []table.Column{}
-	for _, col := range m.visibleColumns {
-		colTitle := col.String()
-		colWidth := colWidthMap[col]
-		// Add sort indicator
-		if col == m.sortColumn {
-			if col.reverseSort() {
-				colTitle = fmt.Sprintf("↓ %s", colTitle)
-			} else {
-				colTitle = fmt.Sprintf("↑ %s", colTitle)
-			}
-		}
-		// Right align columns
-		if col.rightAligned() {
-			colTitle = fmt.Sprintf("%*s", colWidth, colTitle)
-		}
-		// Adjust column width to use remainingWidth
-		// If desc column is not visible, the name column takes all remaining width
-		if col == colName {
-			if !slices.Contains(m.visibleColumns, colDescription) {
-				colWidth += remainingWidth
-				remainingWidth = 0
-			}
-		}
-		// If desc column is visible, it takes all remaining width
-		if col == colDescription {
-			colWidth += remainingWidth
-			remainingWidth = 0
-		}
-		columns = append(columns, table.Column{Title: colTitle, Width: colWidth})
-	}
-	return columns
 }
 
 func getFormattedStatus(pkg *data.Package) string {
@@ -453,65 +351,9 @@ func getFormattedStatus(pkg *data.Package) string {
 	return fmt.Sprintf("%s %s", statusSymbol, pkg.Status())
 }
 
-func getColData(c columnName, pkg *data.Package) string {
-	switch c {
-	case colSymbol:
-		return pkg.Symbol()
-	case colName:
-		return pkg.Name
-	case colVersion:
-		return pkg.ShortVersion()
-	case colTap:
-		return pkg.Tap
-	case colDescription:
-		return pkg.Desc
-	case colInstalls:
-		return fmt.Sprintf("%d", pkg.InstallCount90d)
-	case colSize:
-		if pkg.IsInstalled {
-			return pkg.FormattedSize
-		} else {
-			return "N/A"
-		}
-	case colStatus:
-		return pkg.Status()
-	default:
-		return ""
-	}
-}
-
-// updateTable populates the table with the current viewPackages.
-func (m *model) updateTable() {
-	rows := make([]table.Row, len(m.viewPackages))
-	for i, pkg := range m.viewPackages {
-		rowData := []string{}
-		for _, col := range m.visibleColumns {
-			colData := getColData(col, pkg)
-			if col.rightAligned() {
-				colData = fmt.Sprintf("%*s", colWidthMap[col], colData)
-			}
-			rowData = append(rowData, colData)
-		}
-		rows[i] = table.Row(rowData)
-	}
-	m.table.SetRows(rows)
-
-	// Reset cursor if it's out of bounds
-	if m.table.Cursor() >= len(rows) {
-		m.table.SetCursor(0)
-	}
-
-	m.updateDetailsPanel()
-}
-
 // updateDetailsPanel sets the content of the details panel based on the selected package.
 func (m *model) updateDetailsPanel() {
-	if len(m.viewPackages) == 0 {
-		m.detailPanel.SetContent("No packages match the current filter.")
-		return
-	}
-
-	pkg := m.getSelectedPackage()
+	pkg := m.table.Selected()
 	if pkg == nil {
 		m.detailPanel.SetContent("No packages selected.")
 		return
@@ -524,13 +366,13 @@ func (m *model) updateDetailsPanel() {
 	b.WriteString(fmt.Sprintf("Tap: %s\n", pkg.Tap))
 	b.WriteString(fmt.Sprintf("Homepage: %s\n", pkg.Homepage))
 	b.WriteString(fmt.Sprintf("License: %s\n", pkg.License))
-	if m.isColumnEnabled(colInstalls) {
+	if m.table.ShowPackageInstalls() {
 		b.WriteString(fmt.Sprintf("Installs (90d): %d\n", pkg.InstallCount90d))
 	}
 
 	b.WriteString(fmt.Sprintf("\nStatus: %s\n", getFormattedStatus(pkg)))
 	if pkg.IsInstalled {
-		if m.isColumnEnabled(colSize) {
+		if m.table.ShowPackageSizes() {
 			b.WriteString(fmt.Sprintf("Size: %s\n", pkg.FormattedSize))
 		}
 		b.WriteString(fmt.Sprintf("Installed on: %s\n", pkg.InstalledDate))
@@ -598,7 +440,7 @@ func (m *model) renderStats() string {
 	var formulaeNum, casksNum int
 	var installedFormulaeNum, installedFormulaeDepNum, installedCasksNum int
 	var formulaeSize, casksSize int64
-	for _, pkg := range m.viewPackages {
+	for _, pkg := range m.table.Packages() {
 		if pkg.IsCask {
 			casksNum++
 		} else {

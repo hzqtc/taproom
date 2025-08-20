@@ -3,19 +3,18 @@ package model
 import (
 	"fmt"
 	"os"
-	"slices"
 	"sort"
 	"strings"
 	"taproom/internal/brew"
 	"taproom/internal/data"
 	"taproom/internal/loading"
+	"taproom/internal/ui"
 	"taproom/internal/util"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/stopwatch"
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -34,18 +33,7 @@ const (
 
 var (
 	flagShowLoadTimer = pflag.BoolP("load-timer", "t", false, "Show a timer in the loading screen")
-	flagHideCols      = pflag.StringSlice(
-		"hide-columns",
-		[]string{},
-		"Hide specific columns seprated by comma (no spaces): Version, Tap, Description, Installs, Size, Status",
-	)
-	flagSortColumn = pflag.StringP(
-		"sort-column",
-		"s",
-		"Name",
-		"Choose which column (Name, Tap, Installs, Size, Status) to sort by initially",
-	)
-	flagFilters = pflag.StringSliceP(
+	flagFilters       = pflag.StringSliceP(
 		"filters",
 		"f",
 		[]string{},
@@ -57,28 +45,24 @@ var (
 // model holds the entire state of the application.
 type model struct {
 	// Package data
-	allPackages  []*data.Package // The complete list of all packages, sorted by name
-	viewPackages []*data.Package // The filtered and sorted list of packages to display
+	allPackages []*data.Package // The complete list of all packages, sorted by name
 
 	// UI Components from the bubbles library
-	table       table.Model
+	table       ui.PackageTableModel
 	detailPanel viewport.Model
 	search      textinput.Model
 	spinner     spinner.Model
 	stopwatch   stopwatch.Model
 
 	// State
-	isLoading      bool
-	loadTimer      bool
-	loadingPrgs    *loading.LoadingProgress
-	focusMode      focusMode
-	filters        filterGroup
-	sortColumn     columnName
-	errorMsg       string
-	width          int
-	height         int
-	columns        []columnName // Enabled table columns
-	visibleColumns []columnName // Columns currently visible in the UI, depending on screen width
+	isLoading   bool
+	loadTimer   bool
+	loadingPrgs *loading.LoadingProgress
+	focusMode   focusMode
+	filters     filterGroup
+	errorMsg    string
+	width       int
+	height      int
 
 	// Keybindings
 	keys keyMap
@@ -104,46 +88,6 @@ func InitialModel() model {
 		sw = stopwatch.NewWithInterval(time.Millisecond)
 	}
 
-	// Main table
-	tbl := table.New(
-		table.WithFocused(true),
-	)
-	tbl.SetStyles(getTableStyles())
-
-	// Parse hidden columns from command line flag into a set
-	hiddenColumns := make(map[columnName]bool)
-	for _, c := range *flagHideCols {
-		if col, err := parseColumnName(c); err == nil {
-			if col.hideable() {
-				hiddenColumns[col] = true
-			} else {
-				fmt.Fprintf(os.Stderr, "Column %s can not be hidden\n", col.String())
-				os.Exit(1)
-			}
-		} else {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-	}
-
-	// Add all non-hidden columns
-	columns := []columnName{}
-	for i := range int(totalNumColumns) {
-		col := columnName(i)
-		if _, hidden := hiddenColumns[col]; !hidden {
-			columns = append(columns, col)
-		}
-	}
-
-	sortCol, err := parseColumnName(*flagSortColumn)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	} else if !sortCol.sortable() {
-		fmt.Fprintf(os.Stderr, "Can not sort by column: %s\n", sortCol.String())
-		os.Exit(1)
-	}
-
 	fg, err := parseFilterGroup(*flagFilters)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -154,13 +98,11 @@ func InitialModel() model {
 		search:      searchInput,
 		spinner:     s,
 		stopwatch:   sw,
-		table:       tbl,
+		table:       ui.NewPackageTableModel(),
 		isLoading:   true,
 		loadTimer:   *flagShowLoadTimer,
 		loadingPrgs: loading.NewLoadingProgress(),
 		filters:     fg,
-		sortColumn:  sortCol,
-		columns:     columns,
 		keys:        defaultKeyMap(),
 	}
 }
@@ -168,7 +110,7 @@ func InitialModel() model {
 // Init is the first command that is run when the application starts.
 func (m model) Init() tea.Cmd {
 	// Start the spinner and load the data from Homebrew APIs.
-	cmds := []tea.Cmd{m.spinner.Tick, brew.LoadData(m.isColumnEnabled(colInstalls), m.isColumnEnabled(colSize), m.loadingPrgs)}
+	cmds := []tea.Cmd{m.spinner.Tick, brew.LoadData(m.table.ShowPackageInstalls(), m.table.ShowPackageSizes(), m.loadingPrgs)}
 	if m.loadTimer {
 		cmds = append(cmds, m.stopwatch.Start())
 	}
@@ -188,7 +130,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.updateLayout()
-		m.updateTable()
 
 	// Data has been successfully loaded
 	case brew.DataLoadedMsg:
@@ -198,9 +139,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.stopwatch.Stop(), m.stopwatch.Reset())
 		}
 		m.allPackages = msg.Packages
-		m.filterAndSortPackages()
+		m.filterPackages()
 		m.updateLayout()
-		m.updateTable()
 
 	// An error occurred during data loading
 	case brew.DataLoadingErrMsg:
@@ -249,12 +189,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Command was successful, clear output and update package state
 			m.output = m.output[:0]
 			m.updatePackageForAction(msg.Command, msg.Pkgs)
-			m.updateTable()
+			m.table.UpdateRows()
 		} else {
 			m.commandErr = true
 		}
 		// If there are error, it should already be displayed in the output
 		m.updateLayout()
+
+	case ui.TableSelectionChangedMsg:
+		m.updateDetailsPanel()
 
 	// A key was pressed
 	case tea.KeyMsg:
@@ -280,7 +223,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.keys.Refresh):
 				m.isLoading = true
 				m.output = []string{}
-				cmds = append(cmds, m.spinner.Tick, brew.LoadData(m.isColumnEnabled(colInstalls), m.isColumnEnabled(colSize), m.loadingPrgs))
+				cmds = append(cmds, m.spinner.Tick, brew.LoadData(m.table.ShowPackageInstalls(), m.table.ShowPackageSizes(), m.loadingPrgs))
 				if m.loadTimer {
 					cmds = append(cmds, m.stopwatch.Start())
 				}
@@ -312,19 +255,17 @@ func (m *model) handleSearchInputKeys(msg tea.KeyMsg) tea.Cmd {
 		m.focusMode = focusTable
 		m.updateFocusBorder()
 		m.search.SetValue("")
-		m.filterAndSortPackages()
-		m.updateTable()
+		m.filterPackages()
 	default:
 		m.search, cmd = m.search.Update(msg)
-		m.filterAndSortPackages()
-		m.updateTable()
+		m.filterPackages()
 	}
 	return cmd
 }
 
 func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
-	selectedPkg := m.getSelectedPackage()
+	selectedPkg := m.table.Selected()
 
 	switch {
 	case key.Matches(msg, m.keys.Enter):
@@ -334,64 +275,30 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		m.search.SetValue("")
 		m.output = []string{}
 		m.commandErr = false
-		m.filterAndSortPackages()
-		m.updateTable()
+		m.filterPackages()
 		m.updateLayout()
 
-	// Sorting & Filtering
-	case key.Matches(msg, m.keys.SortByNext):
-		// Sort by the next sortable and visible column
-		for {
-			m.sortColumn = (m.sortColumn + 1) % totalNumColumns
-			if m.sortColumn.sortable() && m.isColumnVisible(m.sortColumn) {
-				break
-			}
-		}
-		m.updateLayout() // Needs to update table column header
-		m.filterAndSortPackages()
-		m.updateTable()
-	case key.Matches(msg, m.keys.SortByPrev):
-		// Sort by the previous sortable and visible column
-		for {
-			m.sortColumn = m.sortColumn - 1
-			if m.sortColumn < 0 {
-				m.sortColumn = totalNumColumns - 1
-			}
-			if m.sortColumn.sortable() && m.isColumnVisible(m.sortColumn) {
-				break
-			}
-		}
-		m.updateLayout() // Needs to update table column header
-		m.filterAndSortPackages()
-		m.updateTable()
 	case key.Matches(msg, m.keys.FilterAll):
 		m.filters.reset()
-		m.filterAndSortPackages()
-		m.updateTable()
+		m.filterPackages()
 	case key.Matches(msg, m.keys.FilterFormulae):
 		m.filters.toggleFilter(filterFormulae)
-		m.filterAndSortPackages()
-		m.updateTable()
+		m.filterPackages()
 	case key.Matches(msg, m.keys.FilterCasks):
 		m.filters.toggleFilter(filterCasks)
-		m.filterAndSortPackages()
-		m.updateTable()
+		m.filterPackages()
 	case key.Matches(msg, m.keys.FilterInstalled):
 		m.filters.toggleFilter(filterInstalled)
-		m.filterAndSortPackages()
-		m.updateTable()
+		m.filterPackages()
 	case key.Matches(msg, m.keys.FilterOutdated):
 		m.filters.toggleFilter(filterOutdated)
-		m.filterAndSortPackages()
-		m.updateTable()
+		m.filterPackages()
 	case key.Matches(msg, m.keys.FilterExplicit):
 		m.filters.toggleFilter(filterExplicitlyInstalled)
-		m.filterAndSortPackages()
-		m.updateTable()
+		m.filterPackages()
 	case key.Matches(msg, m.keys.FilterActive):
 		m.filters.toggleFilter(filterActive)
-		m.filterAndSortPackages()
-		m.updateTable()
+		m.filterPackages()
 
 	// Commands
 	case key.Matches(msg, m.keys.OpenHomePage):
@@ -437,7 +344,6 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 	default:
 		// Let table itself handle the rest of keys
 		m.table, cmd = m.table.Update(msg)
-		m.updateDetailsPanel()
 	}
 
 	return cmd
@@ -455,14 +361,6 @@ func (m *model) handleDetailsPanelKeys(msg tea.KeyMsg) tea.Cmd {
 	return cmd
 }
 
-func (m *model) getSelectedPackage() *data.Package {
-	if len(m.viewPackages) > 0 && m.table.Cursor() >= 0 {
-		return m.viewPackages[m.table.Cursor()]
-	} else {
-		return nil
-	}
-}
-
 func (m *model) getPackage(name string) *data.Package {
 	index := sort.Search(len(m.allPackages), func(i int) bool {
 		return m.allPackages[i].Name >= name
@@ -475,17 +373,9 @@ func (m *model) getPackage(name string) *data.Package {
 	return nil
 }
 
-func (m *model) isColumnEnabled(c columnName) bool {
-	return slices.Contains(m.columns, c)
-}
-
-func (m *model) isColumnVisible(c columnName) bool {
-	return slices.Contains(m.visibleColumns, c)
-}
-
 // filterAndSortPackages updates the viewPackages based on current filters and sort mode.
-func (m *model) filterAndSortPackages() {
-	m.viewPackages = []*data.Package{}
+func (m *model) filterPackages() {
+	viewPackages := []*data.Package{}
 
 	searchQuery := strings.ToLower(m.search.Value())
 	keywords := strings.Fields(searchQuery)
@@ -520,30 +410,11 @@ func (m *model) filterAndSortPackages() {
 		}
 
 		if passesFilter {
-			m.viewPackages = append(m.viewPackages, pkg)
+			viewPackages = append(viewPackages, pkg)
 		}
 	}
 
-	switch m.sortColumn {
-	case colName:
-		// No need to sort by name becuase m.allPackages are sorted by name
-	case colTap:
-		sort.Slice(m.viewPackages, func(i, j int) bool {
-			return m.viewPackages[i].Tap < m.viewPackages[j].Tap
-		})
-	case colInstalls:
-		sort.Slice(m.viewPackages, func(i, j int) bool {
-			return m.viewPackages[i].InstallCount90d > m.viewPackages[j].InstallCount90d
-		})
-	case colSize:
-		sort.Slice(m.viewPackages, func(i, j int) bool {
-			return m.viewPackages[i].Size > m.viewPackages[j].Size
-		})
-	case colStatus:
-		sort.Slice(m.viewPackages, func(i, j int) bool {
-			return m.viewPackages[i].Status() < m.viewPackages[j].Status()
-		})
-	}
+	m.table.SetPackages(viewPackages)
 }
 
 func (m *model) getOutdatedPackages() []*data.Package {
