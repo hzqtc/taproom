@@ -40,6 +40,10 @@ var MaxTableWidth = func() int {
 	return maxWidth + tableAdditionalWidth // Allow table to expand up to the additional width
 }()
 
+var (
+	tableStyle = baseStyle.BorderForeground(focusedBorderColor)
+)
+
 type TableSelectionChangedMsg struct {
 	Selected *data.Package
 }
@@ -169,6 +173,14 @@ func (m *PackageTableModel) SetPackages(pkgs []*data.Package) tea.Cmd {
 
 func (m *PackageTableModel) Packages() []*data.Package {
 	return m.packages
+}
+
+func (m *PackageTableModel) SetFocused(focused bool) {
+	if focused {
+		tableStyle = tableStyle.BorderForeground(focusedBorderColor)
+	} else {
+		tableStyle = tableStyle.BorderForeground(borderColor)
+	}
 }
 
 func (m *PackageTableModel) Selected() *data.Package {

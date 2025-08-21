@@ -25,7 +25,7 @@ const (
 )
 
 var colWidthMap = map[packageTableColumn]int{
-	colSymbol:      2,
+	colSymbol:      1,
 	colName:        15,
 	colVersion:     15,
 	colTap:         15,

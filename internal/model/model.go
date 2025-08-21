@@ -139,7 +139,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.stopwatch.Stop(), m.stopwatch.Reset())
 		}
 		m.allPackages = msg.Packages
-		m.filterPackages()
+		cmds = append(cmds, m.filterPackages())
 		m.updateLayout()
 
 	// An error occurred during data loading
@@ -255,10 +255,10 @@ func (m *model) handleSearchInputKeys(msg tea.KeyMsg) tea.Cmd {
 		m.focusMode = focusTable
 		m.updateFocusBorder()
 		m.search.SetValue("")
-		m.filterPackages()
+		cmd = m.filterPackages()
 	default:
 		m.search, cmd = m.search.Update(msg)
-		m.filterPackages()
+		cmd = m.filterPackages()
 	}
 	return cmd
 }
@@ -275,30 +275,30 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		m.search.SetValue("")
 		m.output = []string{}
 		m.commandErr = false
-		m.filterPackages()
+		cmd = m.filterPackages()
 		m.updateLayout()
 
 	case key.Matches(msg, m.keys.FilterAll):
 		m.filters.reset()
-		m.filterPackages()
+		cmd = m.filterPackages()
 	case key.Matches(msg, m.keys.FilterFormulae):
 		m.filters.toggleFilter(filterFormulae)
-		m.filterPackages()
+		cmd = m.filterPackages()
 	case key.Matches(msg, m.keys.FilterCasks):
 		m.filters.toggleFilter(filterCasks)
-		m.filterPackages()
+		cmd = m.filterPackages()
 	case key.Matches(msg, m.keys.FilterInstalled):
 		m.filters.toggleFilter(filterInstalled)
-		m.filterPackages()
+		cmd = m.filterPackages()
 	case key.Matches(msg, m.keys.FilterOutdated):
 		m.filters.toggleFilter(filterOutdated)
-		m.filterPackages()
+		cmd = m.filterPackages()
 	case key.Matches(msg, m.keys.FilterExplicit):
 		m.filters.toggleFilter(filterExplicitlyInstalled)
-		m.filterPackages()
+		cmd = m.filterPackages()
 	case key.Matches(msg, m.keys.FilterActive):
 		m.filters.toggleFilter(filterActive)
-		m.filterPackages()
+		cmd = m.filterPackages()
 
 	// Commands
 	case key.Matches(msg, m.keys.OpenHomePage):
@@ -374,7 +374,7 @@ func (m *model) getPackage(name string) *data.Package {
 }
 
 // filterAndSortPackages updates the viewPackages based on current filters and sort mode.
-func (m *model) filterPackages() {
+func (m *model) filterPackages() tea.Cmd {
 	viewPackages := []*data.Package{}
 
 	searchQuery := strings.ToLower(m.search.Value())
@@ -414,7 +414,7 @@ func (m *model) filterPackages() {
 		}
 	}
 
-	m.table.SetPackages(viewPackages)
+	return m.table.SetPackages(viewPackages)
 }
 
 func (m *model) getOutdatedPackages() []*data.Package {

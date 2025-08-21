@@ -78,8 +78,6 @@ var (
 	searchStyle = baseStyle.
 			Margin(1 /* top */, 0 /* horizontal */, 0 /* bottom */)
 
-	tableStyle = baseStyle
-
 	detailPanelStyle = baseStyle.
 				Padding(0, 1)
 
@@ -253,16 +251,16 @@ func (m *model) updateFocusBorder() {
 	switch m.focusMode {
 	case focusSearch:
 		searchStyle = searchStyle.BorderForeground(focusedBorderColor)
-		tableStyle = tableStyle.BorderForeground(borderColor)
 		detailPanelStyle = detailPanelStyle.BorderForeground(borderColor)
+		m.table.SetFocused(false)
 	case focusTable:
 		searchStyle = searchStyle.BorderForeground(borderColor)
-		tableStyle = tableStyle.BorderForeground(focusedBorderColor)
 		detailPanelStyle = detailPanelStyle.BorderForeground(borderColor)
+		m.table.SetFocused(true)
 	case focusDetail:
 		searchStyle = searchStyle.BorderForeground(borderColor)
-		tableStyle = tableStyle.BorderForeground(borderColor)
 		detailPanelStyle = detailPanelStyle.BorderForeground(focusedBorderColor)
+		m.table.SetFocused(false)
 	}
 }
 
