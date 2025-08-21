@@ -23,7 +23,9 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// --- Constants & Data Structures ---
+// Holding all packages
+var allBrewPackages []*data.Package
+
 var cacheDir = func() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -224,7 +226,7 @@ func LoadData(fetchAnalytics, fetchSize bool, loadingPrgs *loading.LoadingProgre
 			}
 		}
 
-		packages := processAllData(
+		allBrewPackages = processAllData(
 			allInstalled,
 			allFormulae,
 			allCasks,
@@ -233,7 +235,7 @@ func LoadData(fetchAnalytics, fetchSize bool, loadingPrgs *loading.LoadingProgre
 			formulaSizes,
 			caskSizes,
 		)
-		return DataLoadedMsg{Packages: packages}
+		return DataLoadedMsg{Packages: allBrewPackages}
 	}
 }
 
@@ -343,7 +345,7 @@ func fetchDirectorySizes(sizesChan chan map[string]int64, errChan chan error, di
 	}
 }
 
-func FetchPackageSize(pkg *data.Package) int64 {
+func fetchPackageSize(pkg *data.Package) int64 {
 	if !pkg.IsInstalled {
 		return 0
 	}
@@ -406,7 +408,7 @@ func processAllData(
 	packages := make([]*data.Package, 0, len(installed.Formulae)+len(installed.Casks)+len(formulae)+len(casks))
 	// Process installed formulae
 	for _, f := range installed.Formulae {
-		packages = append(packages, packageFromFormula(&f, formulaInstalls, true, formulaSizes[f.Name]))
+		packages = append(packages, packageFromFormula(&f, formulaInstalls[f.Name], true, formulaSizes[f.Name]))
 		installedFormulae[f.Name] = struct{}{}
 		for _, dep := range f.Dependencies {
 			formulaDependents[dep] = append(formulaDependents[dep], f.Name)
@@ -414,7 +416,7 @@ func processAllData(
 	}
 	// Process installed casks
 	for _, c := range installed.Casks {
-		packages = append(packages, packageFromCask(&c, caskInstalls, true, caskSizes[c.Name]))
+		packages = append(packages, packageFromCask(&c, caskInstalls[c.Name], true, caskSizes[c.Name]))
 		installedCasks[c.Name] = struct{}{}
 		for _, dep := range c.Dependencies.Formulae {
 			formulaDependents[dep] = append(formulaDependents[dep], c.Name)
@@ -426,7 +428,7 @@ func processAllData(
 	// Add formulaes to packages, except for installed formulae
 	for _, f := range formulae {
 		if _, installed := installedFormulae[f.Name]; !installed {
-			packages = append(packages, packageFromFormula(&f, formulaInstalls, false, 0))
+			packages = append(packages, packageFromFormula(&f, formulaInstalls[f.Name], false, 0))
 			for _, dep := range f.Dependencies {
 				formulaDependents[dep] = append(formulaDependents[dep], f.Name)
 			}
@@ -435,7 +437,7 @@ func processAllData(
 	// Add casks to packages, except for installed casks
 	for _, c := range casks {
 		if _, installed := installedCasks[c.Name]; !installed {
-			packages = append(packages, packageFromCask(&c, caskInstalls, false, 0))
+			packages = append(packages, packageFromCask(&c, caskInstalls[c.Name], false, 0))
 			for _, dep := range c.Dependencies.Formulae {
 				formulaDependents[dep] = append(formulaDependents[dep], c.Name)
 			}
@@ -490,7 +492,7 @@ func parseInstallCount(str string) int {
 	return count
 }
 
-func packageFromFormula(f *apiFormula, formulaInstalls map[string]int, installed bool, installedSize int64) *data.Package {
+func packageFromFormula(f *apiFormula, installs int, installed bool, installedSize int64) *data.Package {
 	pkg := data.Package{
 		Name:              f.Name,
 		Tap:               f.Tap,
@@ -502,7 +504,7 @@ func packageFromFormula(f *apiFormula, formulaInstalls map[string]int, installed
 		Dependencies:      util.SortAndUniq(f.Dependencies),
 		BuildDependencies: f.BuildDependencies,
 		Conflicts:         f.Conflicts,
-		InstallCount90d:   formulaInstalls[f.Name],
+		InstallCount90d:   installs,
 		IsCask:            false,
 		IsDeprecated:      f.Deprecated,
 		IsDisabled:        f.Disabled,
@@ -523,7 +525,7 @@ func packageFromFormula(f *apiFormula, formulaInstalls map[string]int, installed
 	return &pkg
 }
 
-func packageFromCask(c *apiCask, caskInstalls map[string]int, installed bool, installedSize int64) *data.Package {
+func packageFromCask(c *apiCask, installs int, installed bool, installedSize int64) *data.Package {
 	pkg := data.Package{
 		Name:            c.Name,
 		Tap:             c.Tap,
@@ -534,7 +536,7 @@ func packageFromCask(c *apiCask, caskInstalls map[string]int, installed bool, in
 		License:         "N/A",
 		Dependencies:    util.SortAndUniq(append(c.Dependencies.Formulae, c.Dependencies.Casks...)),
 		Conflicts:       util.SortAndUniq(append(c.Conflicts.Formulae, c.Conflicts.Casks...)),
-		InstallCount90d: caskInstalls[c.Name],
+		InstallCount90d: installs,
 		IsCask:          true,
 		IsDeprecated:    c.Deprecated,
 		IsDisabled:      c.Disabled,
@@ -561,4 +563,40 @@ func packageFromCask(c *apiCask, caskInstalls map[string]int, installed bool, in
 	}
 
 	return &pkg
+}
+
+func GetPackage(name string) *data.Package {
+	// allBrewPackages is sorted by name
+	index := sort.Search(len(allBrewPackages), func(i int) bool {
+		return allBrewPackages[i].Name >= name
+	})
+
+	if index < len(allBrewPackages) && allBrewPackages[index].Name == name {
+		return allBrewPackages[index]
+	}
+
+	return nil
+}
+
+func GetOutdatedPackages() []*data.Package {
+	outdatedPackages := []*data.Package{}
+	for i := range allBrewPackages {
+		if pkg := allBrewPackages[i]; pkg.IsOutdated {
+			outdatedPackages = append(outdatedPackages, pkg)
+		}
+	}
+	return outdatedPackages
+}
+
+func GetRecursiveMissingDeps(pkgName string) []string {
+	pkg := GetPackage(pkgName)
+	if pkg.IsInstalled {
+		return []string{}
+	} else {
+		deps := pkg.Dependencies
+		for _, dep := range pkg.Dependencies {
+			deps = append(deps, GetRecursiveMissingDeps(dep)...)
+		}
+		return deps
+	}
 }

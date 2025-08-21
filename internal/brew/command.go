@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"taproom/internal/data"
+	"taproom/internal/util"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -157,4 +158,36 @@ func UnpinPackage(pkg *data.Package) tea.Cmd {
 
 func Cleanup() tea.Cmd {
 	return tea.Batch(startCommand(), execute(BrewCommandCleanup, []*data.Package{}, "cleanup", "--prune=all"))
+}
+
+func UpdatePackageForAction(command BrewCommand, pkgs []*data.Package) {
+	switch command {
+	case BrewCommandUpgradeAll, BrewCommandUpgrade:
+		for _, pkg := range pkgs {
+			pkg.MarkInstalled()
+		}
+	case BrewCommandInstall:
+		for _, pkg := range pkgs {
+			pkg.MarkInstalled()
+			// Also mark uninstalled dependencies as installed
+			for _, depName := range GetRecursiveMissingDeps(pkg.Name) {
+				GetPackage(depName).MarkInstalled()
+			}
+
+			pkg.Size = fetchPackageSize(pkg)
+			pkg.FormattedSize = util.FormatSize(pkg.Size)
+		}
+	case BrewCommandUninstall:
+		for _, pkg := range pkgs {
+			pkg.MarkUninstalled()
+		}
+	case BrewCommandPin:
+		for _, pkg := range pkgs {
+			pkg.MarkPinned()
+		}
+	case BrewCommandUnpin:
+		for _, pkg := range pkgs {
+			pkg.MarkUnpinned()
+		}
+	}
 }

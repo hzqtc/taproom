@@ -3,20 +3,17 @@ package model
 import (
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"taproom/internal/brew"
 	"taproom/internal/data"
 	"taproom/internal/loading"
 	"taproom/internal/ui"
-	"taproom/internal/util"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/stopwatch"
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pkg/browser"
 	"github.com/spf13/pflag"
@@ -49,7 +46,7 @@ type model struct {
 
 	// UI Components from the bubbles library
 	table       ui.PackageTableModel
-	detailPanel viewport.Model
+	detailPanel ui.DetailsPanelModel
 	search      textinput.Model
 	spinner     spinner.Model
 	stopwatch   stopwatch.Model
@@ -99,6 +96,7 @@ func InitialModel() model {
 		spinner:     s,
 		stopwatch:   sw,
 		table:       ui.NewPackageTableModel(),
+		detailPanel: ui.NewDetailsPanelModel(),
 		isLoading:   true,
 		loadTimer:   *flagShowLoadTimer,
 		loadingPrgs: loading.NewLoadingProgress(),
@@ -188,7 +186,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err == nil {
 			// Command was successful, clear output and update package state
 			m.output = m.output[:0]
-			m.updatePackageForAction(msg.Command, msg.Pkgs)
+			brew.UpdatePackageForAction(msg.Command, msg.Pkgs)
 			m.table.UpdateRows()
 		} else {
 			m.commandErr = true
@@ -197,7 +195,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateLayout()
 
 	case ui.TableSelectionChangedMsg:
-		m.updateDetailsPanel()
+		m.detailPanel.SetPackage(msg.Selected)
 
 	// A key was pressed
 	case tea.KeyMsg:
@@ -314,7 +312,7 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 			browser.OpenURL(selectedPkg.ReleaseInfo.Url)
 		}
 	case key.Matches(msg, m.keys.UpgradeAll):
-		outdatedPkgs := m.getOutdatedPackages()
+		outdatedPkgs := brew.GetOutdatedPackages()
 		if !m.isExecuting && len(outdatedPkgs) > 0 {
 			cmd = brew.UpgradeAllPackages(outdatedPkgs)
 		}
@@ -361,18 +359,6 @@ func (m *model) handleDetailsPanelKeys(msg tea.KeyMsg) tea.Cmd {
 	return cmd
 }
 
-func (m *model) getPackage(name string) *data.Package {
-	index := sort.Search(len(m.allPackages), func(i int) bool {
-		return m.allPackages[i].Name >= name
-	})
-
-	if index < len(m.allPackages) && m.allPackages[index].Name == name {
-		return m.allPackages[index]
-	}
-
-	return nil
-}
-
 // filterAndSortPackages updates the viewPackages based on current filters and sort mode.
 func (m *model) filterPackages() tea.Cmd {
 	viewPackages := []*data.Package{}
@@ -415,60 +401,4 @@ func (m *model) filterPackages() tea.Cmd {
 	}
 
 	return m.table.SetPackages(viewPackages)
-}
-
-func (m *model) getOutdatedPackages() []*data.Package {
-	outdatedPackages := []*data.Package{}
-	for i := range m.allPackages {
-		if pkg := m.allPackages[i]; pkg.IsOutdated {
-			outdatedPackages = append(outdatedPackages, pkg)
-		}
-	}
-	return outdatedPackages
-}
-
-func (m *model) updatePackageForAction(command brew.BrewCommand, pkgs []*data.Package) {
-	switch command {
-	case brew.BrewCommandUpgradeAll, brew.BrewCommandUpgrade:
-		for _, pkg := range pkgs {
-			pkg.MarkInstalled()
-		}
-	case brew.BrewCommandInstall:
-		for _, pkg := range pkgs {
-			pkg.MarkInstalled()
-			// Also mark uninstalled dependencies as installed
-			for _, depName := range m.getRecursiveMissingDeps(pkg.Name) {
-				m.getPackage(depName).MarkInstalled()
-			}
-
-			pkg.Size = brew.FetchPackageSize(pkg)
-			pkg.FormattedSize = util.FormatSize(pkg.Size)
-		}
-	case brew.BrewCommandUninstall:
-		for _, pkg := range pkgs {
-			pkg.MarkUninstalled()
-		}
-	case brew.BrewCommandPin:
-		for _, pkg := range pkgs {
-			pkg.MarkPinned()
-		}
-	case brew.BrewCommandUnpin:
-		for _, pkg := range pkgs {
-			pkg.MarkUnpinned()
-		}
-	}
-}
-
-func (m *model) getRecursiveMissingDeps(pkgName string) []string {
-	pkg := m.getPackage(pkgName)
-	if pkg.IsInstalled {
-		return []string{}
-	} else {
-		deps := pkg.Dependencies
-		depsCopy := append([]string{}, deps...)
-		for _, dep := range depsCopy {
-			deps = append(deps, m.getRecursiveMissingDeps(dep)...)
-		}
-		return deps
-	}
 }

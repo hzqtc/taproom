@@ -3,10 +3,8 @@ package model
 import (
 	"fmt"
 	"strings"
-	"taproom/internal/data"
 	"taproom/internal/ui"
 	"taproom/internal/util"
-	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
@@ -18,15 +16,6 @@ const (
 	outputMaxLines    = 10
 )
 
-const (
-	disabledSymbol    = ""
-	deprecatedSymbol  = ""
-	uninstalledSymbol = "✗"
-	installedSymbol   = "✓"
-	outdatedSymbol    = ""
-	pinnedSymbol      = ""
-)
-
 var (
 	flagHideHelp = pflag.Bool("hide-help", false, "Hide the help text")
 )
@@ -34,36 +23,17 @@ var (
 // --- Styles ---
 
 var (
-	highlightColor          = lipgloss.Color("#FFD580")
-	highlightForegroudColor = lipgloss.Color("#2E2E2E")
-	borderColor             = lipgloss.Color("#909090")
-	focusedBorderColor      = highlightColor
-	errBorderColor          = deprecatedColor
-	installedColor          = lipgloss.Color("#22C55E")
-	deprecatedColor         = lipgloss.Color("#EF4444")
-	uninstalledColor        = lipgloss.Color("#FBBF24")
-	pinnedColor             = lipgloss.Color("#B57EDC")
+	highlightColor     = lipgloss.Color("#FFD580")
+	borderColor        = lipgloss.Color("#909090")
+	focusedBorderColor = highlightColor
+	errBorderColor     = deprecatedColor
+	deprecatedColor    = lipgloss.Color("#EF4444")
 
 	roundedBorder = lipgloss.RoundedBorder()
 
 	baseStyle = lipgloss.NewStyle().
 			BorderStyle(roundedBorder).
 			BorderForeground(borderColor)
-
-	installedStyle = lipgloss.NewStyle().
-			Foreground(installedColor)
-
-	deprecatedStyle = lipgloss.NewStyle().
-			Foreground(deprecatedColor)
-
-	uninstalledStyle = lipgloss.NewStyle().
-				Foreground(uninstalledColor)
-
-	outdatedStyle = lipgloss.NewStyle().
-			Foreground(highlightColor)
-
-	pinnedStyle = lipgloss.NewStyle().
-			Foreground(pinnedColor)
 
 	headerStyle = lipgloss.NewStyle().
 			Foreground(highlightColor).
@@ -77,13 +47,6 @@ var (
 
 	searchStyle = baseStyle.
 			Margin(1 /* top */, 0 /* horizontal */, 0 /* bottom */)
-
-	detailPanelStyle = baseStyle.
-				Padding(0, 1)
-
-	// The content style for details panel, width-2 to account for padding
-	detailsContentStyle = lipgloss.NewStyle().
-				Width(sidePanelWidthMin - 2)
 
 	filterModeStyle = baseStyle.
 			Width(sidePanelWidthMin).
@@ -126,7 +89,7 @@ func (m model) View() string {
 	mainContent := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		m.table.View(),
-		detailPanelStyle.Render(m.detailPanel.View()),
+		m.detailPanel.View(),
 	)
 
 	topContent := lipgloss.JoinHorizontal(
@@ -251,16 +214,16 @@ func (m *model) updateFocusBorder() {
 	switch m.focusMode {
 	case focusSearch:
 		searchStyle = searchStyle.BorderForeground(focusedBorderColor)
-		detailPanelStyle = detailPanelStyle.BorderForeground(borderColor)
 		m.table.SetFocused(false)
+		m.detailPanel.SetFocused(false)
 	case focusTable:
 		searchStyle = searchStyle.BorderForeground(borderColor)
-		detailPanelStyle = detailPanelStyle.BorderForeground(borderColor)
 		m.table.SetFocused(true)
+		m.detailPanel.SetFocused(false)
 	case focusDetail:
 		searchStyle = searchStyle.BorderForeground(borderColor)
-		detailPanelStyle = detailPanelStyle.BorderForeground(focusedBorderColor)
 		m.table.SetFocused(false)
+		m.detailPanel.SetFocused(true)
 	}
 }
 
@@ -313,10 +276,6 @@ func (m *model) updateLayout() {
 	filterModeStyle = filterModeStyle.
 		BorderStyle(getRoundedBorderWithTitle("Filters", sidePanelWidth)).
 		Width(sidePanelWidth)
-	detailPanelStyle = detailPanelStyle.
-		BorderStyle(getRoundedBorderWithTitle("Details", sidePanelWidth))
-	m.detailPanel.Width = sidePanelWidth - 2
-	detailsContentStyle = detailsContentStyle.Width(sidePanelWidth - 2)
 	tableWidth := m.width - sidePanelWidth - 4
 
 	mainHeight := m.height - 4
@@ -328,110 +287,7 @@ func (m *model) updateLayout() {
 	mainHeight -= lipgloss.Height(m.renderOutput())
 
 	m.table.SetDimensions(tableWidth, mainHeight)
-	m.detailPanel.Height = mainHeight
-}
-
-func getFormattedStatus(pkg *data.Package) string {
-	var statusSymbol string
-	if pkg.IsDisabled {
-		statusSymbol = deprecatedStyle.Render(disabledSymbol)
-	} else if pkg.IsDeprecated {
-		statusSymbol = deprecatedStyle.Render(deprecatedSymbol)
-	} else if pkg.IsPinned {
-		statusSymbol = pinnedStyle.Render(pinnedSymbol)
-	} else if pkg.IsOutdated {
-		statusSymbol = outdatedStyle.Render(outdatedSymbol)
-	} else if pkg.IsInstalled {
-		statusSymbol = installedStyle.Render(installedSymbol)
-	} else {
-		statusSymbol = uninstalledStyle.Render(uninstalledSymbol)
-	}
-	return fmt.Sprintf("%s %s", statusSymbol, pkg.Status())
-}
-
-// updateDetailsPanel sets the content of the details panel based on the selected package.
-func (m *model) updateDetailsPanel() {
-	pkg := m.table.Selected()
-	if pkg == nil {
-		m.detailPanel.SetContent("No packages selected.")
-		return
-	}
-
-	var b strings.Builder
-	b.WriteString(headerStyle.Render(fmt.Sprintf("%s %s", pkg.Symbol(), pkg.Name)))
-	b.WriteString(fmt.Sprintf("\n%s\n\n", pkg.Desc))
-	b.WriteString(fmt.Sprintf("Version: %s\n", pkg.LongVersion()))
-	b.WriteString(fmt.Sprintf("Tap: %s\n", pkg.Tap))
-	b.WriteString(fmt.Sprintf("Homepage: %s\n", pkg.Homepage))
-	b.WriteString(fmt.Sprintf("License: %s\n", pkg.License))
-	if m.table.ShowPackageInstalls() {
-		b.WriteString(fmt.Sprintf("Installs (90d): %d\n", pkg.InstallCount90d))
-	}
-
-	b.WriteString(fmt.Sprintf("\nStatus: %s\n", getFormattedStatus(pkg)))
-	if pkg.IsInstalled {
-		if m.table.ShowPackageSizes() {
-			b.WriteString(fmt.Sprintf("Size: %s\n", pkg.FormattedSize))
-		}
-		b.WriteString(fmt.Sprintf("Installed on: %s\n", pkg.InstalledDate))
-		if release := pkg.ReleaseInfo; release != nil {
-			b.WriteString(fmt.Sprintf("Released on: %s\n", release.Date.Format(time.DateOnly)))
-		}
-	}
-
-	if len(pkg.Conflicts) > 0 {
-		b.WriteString("\nConflicts:\n")
-		for _, c := range pkg.Conflicts {
-			if conflictPkg := m.getPackage(c); conflictPkg != nil && conflictPkg.IsInstalled {
-				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), c))
-			} else {
-				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), c))
-			}
-		}
-	}
-
-	if len(pkg.Dependencies) > 0 {
-		b.WriteString("\nDependencies:\n")
-		for _, dep := range pkg.Dependencies {
-			if depPkg := m.getPackage(dep); depPkg != nil && depPkg.IsInstalled {
-				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
-			} else {
-				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
-				// For uninstall dependencies, show all recursive uninstalled dependencies
-				recursiveMissingDeps := util.SortAndUniq(m.getRecursiveMissingDeps(dep))
-				for _, d := range recursiveMissingDeps {
-					if p := m.getPackage(d); !p.IsInstalled {
-						b.WriteString(fmt.Sprintf("    %s %s\n", uninstalledStyle.Render("✗"), d))
-					}
-				}
-			}
-		}
-	}
-
-	if len(pkg.BuildDependencies) > 0 {
-		b.WriteString("\nBuild Dependencies:\n")
-		for _, dep := range pkg.BuildDependencies {
-			if depPkg := m.getPackage(dep); depPkg != nil && depPkg.IsInstalled {
-				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
-			} else {
-				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
-			}
-		}
-	}
-
-	if len(pkg.Dependents) > 0 {
-		b.WriteString("\nRequired By:\n")
-		for _, dep := range pkg.Dependents {
-			if depPkg := m.getPackage(dep); depPkg != nil && depPkg.IsInstalled {
-				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
-			} else {
-				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
-			}
-		}
-	}
-
-	m.detailPanel.SetContent(detailsContentStyle.Render(b.String()))
-	m.detailPanel.GotoTop()
+	m.detailPanel.SetDimension(sidePanelWidth-2, mainHeight)
 }
 
 func (m *model) renderStats() string {
