@@ -1,4 +1,4 @@
-package model
+package ui
 
 import (
 	"fmt"
@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-// filter defines which subset of packages is currently being viewed.
-type filter uint
+// Filter defines which subset of packages is currently being viewed.
+type Filter uint
 
 // filterGroup is a bitmask collection of multiple 'filter'
 type filterGroup uint
@@ -18,12 +18,12 @@ const (
 
 // Filters are individual bit flags
 const (
-	filterFormulae            filter = 1 << iota // 0000 0001
-	filterCasks                                  // 0000 0010
-	filterInstalled                              // 0000 0100
-	filterOutdated                               // 0000 1000
-	filterExplicitlyInstalled                    // 0001 0000
-	filterActive                                 // 0010 0000
+	FilterFormulae            Filter = 1 << iota // 0000 0001
+	FilterCasks                                  // 0000 0010
+	FilterInstalled                              // 0000 0100
+	FilterOutdated                               // 0000 1000
+	FilterExplicitlyInstalled                    // 0001 0000
+	FilterActive                                 // 0010 0000
 
 	filterMax
 	filterUnknown
@@ -32,11 +32,11 @@ const (
 // Mutually exclusive filter groups
 // Filters from different groups can co-exist
 var conflictFilters = []filterGroup{
-	filterGroup(filterFormulae | filterCasks),
-	filterGroup(filterInstalled | filterOutdated | filterExplicitlyInstalled | filterActive),
+	filterGroup(FilterFormulae | FilterCasks),
+	filterGroup(FilterInstalled | FilterOutdated | FilterExplicitlyInstalled | FilterActive),
 }
 
-func (f filter) getConflictFilters() filterGroup {
+func (f Filter) getConflictFilters() filterGroup {
 	for _, fg := range conflictFilters {
 		if fg.isFilterEnabled(f) {
 			return fg
@@ -45,7 +45,7 @@ func (f filter) getConflictFilters() filterGroup {
 	return emptyFilterGroup
 }
 
-func (fg filterGroup) isFilterEnabled(f filter) bool {
+func (fg filterGroup) isFilterEnabled(f Filter) bool {
 	return fg&filterGroup(f) != emptyFilterGroup
 }
 
@@ -54,7 +54,7 @@ func (fg *filterGroup) reset() filterGroup {
 	return *fg
 }
 
-func (fg *filterGroup) enableFilter(f filter) filterGroup {
+func (fg *filterGroup) enableFilter(f Filter) filterGroup {
 	// Clear all conflicting filters
 	*fg &= ^f.getConflictFilters()
 	// Enable the filter
@@ -62,12 +62,12 @@ func (fg *filterGroup) enableFilter(f filter) filterGroup {
 	return *fg
 }
 
-func (fg *filterGroup) disableFilter(f filter) filterGroup {
+func (fg *filterGroup) disableFilter(f Filter) filterGroup {
 	*fg &= ^filterGroup(f)
 	return *fg
 }
 
-func (fg *filterGroup) toggleFilter(f filter) filterGroup {
+func (fg *filterGroup) toggleFilter(f Filter) filterGroup {
 	filterEnabled := fg.isFilterEnabled(f)
 	if filterEnabled {
 		return fg.disableFilter(f)
@@ -76,49 +76,49 @@ func (fg *filterGroup) toggleFilter(f filter) filterGroup {
 	}
 }
 
-func (fg filterGroup) split() []filter {
-	filters := []filter{}
+func (fg filterGroup) split() []Filter {
+	filters := []Filter{}
 	for i := uint(1); i < uint(filterMax); i <<= 1 {
-		if fg.isFilterEnabled(filter(i)) {
-			filters = append(filters, filter(i))
+		if fg.isFilterEnabled(Filter(i)) {
+			filters = append(filters, Filter(i))
 		}
 	}
 	return filters
 }
 
-func (f filter) String() string {
+func (f Filter) String() string {
 	switch f {
-	case filterFormulae:
+	case FilterFormulae:
 		return "Formulae"
-	case filterCasks:
+	case FilterCasks:
 		return "Casks"
-	case filterInstalled:
+	case FilterInstalled:
 		return "Installed"
-	case filterOutdated:
+	case FilterOutdated:
 		return "Outdated"
-	case filterExplicitlyInstalled:
+	case FilterExplicitlyInstalled:
 		return "Expl. Installed"
-	case filterActive:
+	case FilterActive:
 		return "Active"
 	default:
 		return "Unknown"
 	}
 }
 
-func parseFilter(s string) (filter, error) {
+func parseFilter(s string) (Filter, error) {
 	switch s {
 	case "Formulae":
-		return filterFormulae, nil
+		return FilterFormulae, nil
 	case "Casks":
-		return filterCasks, nil
+		return FilterCasks, nil
 	case "Installed":
-		return filterInstalled, nil
+		return FilterInstalled, nil
 	case "Outdated":
-		return filterOutdated, nil
+		return FilterOutdated, nil
 	case "Expl. Installed":
-		return filterExplicitlyInstalled, nil
+		return FilterExplicitlyInstalled, nil
 	case "Active":
-		return filterActive, nil
+		return FilterActive, nil
 	default:
 		return filterUnknown, fmt.Errorf("Unknown filter: %s", s)
 	}

@@ -1,8 +1,6 @@
 package model
 
 import (
-	"fmt"
-	"os"
 	"strings"
 	"taproom/internal/brew"
 	"taproom/internal/data"
@@ -30,13 +28,6 @@ const (
 
 var (
 	flagShowLoadTimer = pflag.BoolP("load-timer", "t", false, "Show a timer in the loading screen")
-	flagFilters       = pflag.StringSliceP(
-		"filters",
-		"f",
-		[]string{},
-		"Filters to enable (comma separated no space).\n"+
-			"Pick 0 or 1 filter from each group: (Formulae, Casks), (Installed, Outdated, Expl. Installed, Active)",
-	)
 )
 
 // model holds the entire state of the application.
@@ -48,6 +39,7 @@ type model struct {
 	table       ui.PackageTableModel
 	detailPanel ui.DetailsPanelModel
 	search      ui.SearchInputModel
+	filterView  ui.FilterViewModel
 	spinner     spinner.Model
 	stopwatch   stopwatch.Model
 
@@ -56,7 +48,6 @@ type model struct {
 	loadTimer   bool
 	loadingPrgs *loading.LoadingProgress
 	focusMode   focusMode
-	filters     filterGroup
 	errorMsg    string
 	width       int
 	height      int
@@ -81,22 +72,16 @@ func InitialModel() model {
 		sw = stopwatch.NewWithInterval(time.Millisecond)
 	}
 
-	fg, err := parseFilterGroup(*flagFilters)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
 	return model{
-		search:      ui.NewSearchInputModel(),
 		spinner:     s,
 		stopwatch:   sw,
 		table:       ui.NewPackageTableModel(),
 		detailPanel: ui.NewDetailsPanelModel(),
+		search:      ui.NewSearchInputModel(),
+		filterView:  ui.NewFilterViewModel(),
 		isLoading:   true,
 		loadTimer:   *flagShowLoadTimer,
 		loadingPrgs: loading.NewLoadingProgress(),
-		filters:     fg,
 		keys:        defaultKeyMap(),
 	}
 }
@@ -196,6 +181,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ui.SearchMsg:
 		cmds = append(cmds, m.filterPackages())
 
+	case ui.FilterChangedMsg:
+		cmds = append(cmds, m.filterPackages())
+
 	// A key was pressed
 	case tea.KeyMsg:
 		if m.focusMode == focusSearch {
@@ -270,28 +258,6 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		cmd = m.filterPackages()
 		m.updateLayout()
 
-	case key.Matches(msg, m.keys.FilterAll):
-		m.filters.reset()
-		cmd = m.filterPackages()
-	case key.Matches(msg, m.keys.FilterFormulae):
-		m.filters.toggleFilter(filterFormulae)
-		cmd = m.filterPackages()
-	case key.Matches(msg, m.keys.FilterCasks):
-		m.filters.toggleFilter(filterCasks)
-		cmd = m.filterPackages()
-	case key.Matches(msg, m.keys.FilterInstalled):
-		m.filters.toggleFilter(filterInstalled)
-		cmd = m.filterPackages()
-	case key.Matches(msg, m.keys.FilterOutdated):
-		m.filters.toggleFilter(filterOutdated)
-		cmd = m.filterPackages()
-	case key.Matches(msg, m.keys.FilterExplicit):
-		m.filters.toggleFilter(filterExplicitlyInstalled)
-		cmd = m.filterPackages()
-	case key.Matches(msg, m.keys.FilterActive):
-		m.filters.toggleFilter(filterActive)
-		cmd = m.filterPackages()
-
 	// Commands
 	case key.Matches(msg, m.keys.OpenHomePage):
 		if selectedPkg != nil && selectedPkg.Homepage != "" {
@@ -334,8 +300,10 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		cmd = brew.Cleanup()
 
 	default:
-		// Let table itself handle the rest of keys
-		m.table, cmd = m.table.Update(msg)
+		m.filterView, cmd = m.filterView.Update(msg)
+		if cmd == nil {
+			m.table, cmd = m.table.Update(msg)
+		}
 	}
 
 	return cmd
@@ -368,19 +336,19 @@ func (m *model) filterPackages() tea.Cmd {
 		}
 
 		passesFilter := true
-		for _, f := range m.filters.split() {
+		for _, f := range m.filterView.Value() {
 			switch f {
-			case filterFormulae:
+			case ui.FilterFormulae:
 				passesFilter = !pkg.IsCask
-			case filterCasks:
+			case ui.FilterCasks:
 				passesFilter = pkg.IsCask
-			case filterInstalled:
+			case ui.FilterInstalled:
 				passesFilter = pkg.IsInstalled
-			case filterOutdated:
+			case ui.FilterOutdated:
 				passesFilter = pkg.IsOutdated
-			case filterExplicitlyInstalled:
+			case ui.FilterExplicitlyInstalled:
 				passesFilter = pkg.IsInstalled && !pkg.InstalledAsDependency
-			case filterActive:
+			case ui.FilterActive:
 				passesFilter = !pkg.IsDisabled && !pkg.IsDeprecated
 			}
 			// A package needs to pass all filters, so break early when it doesn't pass any filter

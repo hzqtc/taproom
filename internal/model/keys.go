@@ -12,15 +12,6 @@ type keyMap struct {
 	Refresh     key.Binding
 	Quit        key.Binding
 
-	// Filtering & Sorting
-	FilterAll       key.Binding
-	FilterFormulae  key.Binding
-	FilterCasks     key.Binding
-	FilterInstalled key.Binding
-	FilterOutdated  key.Binding
-	FilterExplicit  key.Binding
-	FilterActive    key.Binding
-
 	// Package Commands
 	OpenHomePage key.Binding
 	OpenBrewUrl  key.Binding
@@ -44,15 +35,6 @@ func defaultKeyMap() keyMap {
 		Esc:         key.NewBinding(key.WithKeys("esc")),
 		Refresh:     key.NewBinding(key.WithKeys("R")),
 		Quit:        key.NewBinding(key.WithKeys("q", "ctrl+c")),
-
-		// Sorting & Filtering
-		FilterAll:       key.NewBinding(key.WithKeys("a")),
-		FilterFormulae:  key.NewBinding(key.WithKeys("f")),
-		FilterCasks:     key.NewBinding(key.WithKeys("c")),
-		FilterInstalled: key.NewBinding(key.WithKeys("i")),
-		FilterOutdated:  key.NewBinding(key.WithKeys("o")),
-		FilterExplicit:  key.NewBinding(key.WithKeys("e")),
-		FilterActive:    key.NewBinding(key.WithKeys("v")),
 
 		// Package Commands
 		OpenHomePage: key.NewBinding(key.WithKeys("h")),

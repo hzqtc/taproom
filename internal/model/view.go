@@ -44,11 +44,6 @@ var (
 	keyStyle = lipgloss.NewStyle().
 			Foreground(highlightColor)
 
-	filterModeStyle = baseStyle.
-			Width(sidePanelWidthMin).
-			Padding(0, 1).
-			Margin(1, 0)
-
 	outputStyle = baseStyle.
 			Margin(1 /* top */, 0 /* horizontal */, 0 /* bottom */).
 			Padding(0, 1)
@@ -91,7 +86,7 @@ func (m model) View() string {
 	topContent := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		m.search.View(),
-		filterModeStyle.Render(m.filters.String()),
+		m.filterView.View(),
 	)
 
 	views := []string{
@@ -166,19 +161,19 @@ func (m *model) renderHelp() string {
 	b.WriteString(": go to bottom")
 	b.WriteString("\n")
 	b.WriteString("Filter    : ")
-	b.WriteString(renderKey(m.keys.FilterAll))
+	b.WriteString(keyStyle.Render("a"))
 	b.WriteString(": all (no filter) ")
-	b.WriteString(renderKey(m.keys.FilterFormulae))
+	b.WriteString(keyStyle.Render("f"))
 	b.WriteString(": formulae ")
-	b.WriteString(renderKey(m.keys.FilterCasks))
+	b.WriteString(keyStyle.Render("c"))
 	b.WriteString(": casks ")
-	b.WriteString(renderKey(m.keys.FilterInstalled))
+	b.WriteString(keyStyle.Render("i"))
 	b.WriteString(": installed ")
-	b.WriteString(renderKey(m.keys.FilterOutdated))
+	b.WriteString(keyStyle.Render("o"))
 	b.WriteString(": outdated ")
-	b.WriteString(renderKey(m.keys.FilterExplicit))
+	b.WriteString(keyStyle.Render("e"))
 	b.WriteString(": explicitly installed ")
-	b.WriteString(renderKey(m.keys.FilterActive))
+	b.WriteString(keyStyle.Render("v"))
 	b.WriteString(": active")
 	b.WriteString("\n")
 	b.WriteString("Commands  : ")
@@ -223,42 +218,6 @@ func (m *model) updateFocusBorder() {
 	}
 }
 
-// Build a custom border top for lipgloss that embeds a title in it
-func getBorderTopWithTitle(title string, width int) string {
-	const filler = "─"
-	const lead = 1
-
-	if width <= 0 {
-		return ""
-	} else if width <= len(title) {
-		return title[:width] // truncate if title too long
-	}
-
-	// Compute how many dashes go on each side
-	var left, right int
-	if width <= len(title)+lead {
-		left = 1
-	} else {
-		left = lead
-	}
-	right = width - len(title) - left
-
-	return strings.Repeat(filler, left) + title + strings.Repeat(filler, right)
-}
-
-func getRoundedBorderWithTitle(title string, width int) lipgloss.Border {
-	return lipgloss.Border{
-		Top:         getBorderTopWithTitle(title, width),
-		Bottom:      roundedBorder.Bottom,
-		Left:        roundedBorder.Left,
-		Right:       roundedBorder.Right,
-		TopLeft:     roundedBorder.TopLeft,
-		TopRight:    roundedBorder.TopRight,
-		BottomLeft:  roundedBorder.BottomLeft,
-		BottomRight: roundedBorder.BottomRight,
-	}
-}
-
 // updateLayout recalculates component dimensions based on window size.
 func (m *model) updateLayout() {
 	m.updateFocusBorder()
@@ -268,10 +227,6 @@ func (m *model) updateLayout() {
 	helpStyle = helpStyle.Width(m.width - 2)
 
 	sidePanelWidth := max(sidePanelWidthMin, m.width-ui.MaxTableWidth-4)
-	m.search.SetWidth(m.width - sidePanelWidth - 8)
-	filterModeStyle = filterModeStyle.
-		BorderStyle(getRoundedBorderWithTitle("Filters", sidePanelWidth)).
-		Width(sidePanelWidth)
 	tableWidth := m.width - sidePanelWidth - 4
 
 	mainHeight := m.height - 4
@@ -282,6 +237,8 @@ func (m *model) updateLayout() {
 	}
 	mainHeight -= lipgloss.Height(m.renderOutput())
 
+	m.filterView.SetWidth(sidePanelWidth)
+	m.search.SetWidth(m.width - sidePanelWidth - 8)
 	m.table.SetDimensions(tableWidth, mainHeight)
 	m.detailPanel.SetDimension(sidePanelWidth-2, mainHeight)
 }
