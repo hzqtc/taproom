@@ -18,6 +18,9 @@ var (
 			BorderStyle(roundedBorder).
 			BorderForeground(borderColor)
 
+	keyStyle = lipgloss.NewStyle().
+			Foreground(highlightColor)
+
 	installedStyle = lipgloss.NewStyle().
 			Foreground(installedColor)
 

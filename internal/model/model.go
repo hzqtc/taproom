@@ -40,6 +40,7 @@ type model struct {
 	detailPanel ui.DetailsPanelModel
 	search      ui.SearchInputModel
 	filterView  ui.FilterViewModel
+	helpView    ui.HelpModel
 	spinner     spinner.Model
 	stopwatch   stopwatch.Model
 
@@ -79,6 +80,7 @@ func InitialModel() model {
 		detailPanel: ui.NewDetailsPanelModel(),
 		search:      ui.NewSearchInputModel(),
 		filterView:  ui.NewFilterViewModel(),
+		helpView:    ui.NewHelpModel(),
 		isLoading:   true,
 		loadTimer:   *flagShowLoadTimer,
 		loadingPrgs: loading.NewLoadingProgress(),

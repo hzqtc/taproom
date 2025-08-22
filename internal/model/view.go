@@ -6,7 +6,6 @@ import (
 	"taproom/internal/ui"
 	"taproom/internal/util"
 
-	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/pflag"
 )
@@ -38,7 +37,7 @@ var (
 			Foreground(highlightColor).
 			Bold(true)
 
-	helpStyle = lipgloss.NewStyle().
+	statsStyle = lipgloss.NewStyle().
 			Padding(1 /* top */, 2 /* horizontal */, 0 /* bottom */)
 
 	keyStyle = lipgloss.NewStyle().
@@ -98,7 +97,7 @@ func (m model) View() string {
 		views = append(views, output)
 	}
 	if !*flagHideHelp {
-		views = append(views, m.renderHelp())
+		views = append(views, m.helpView.View())
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, views...)
@@ -121,84 +120,6 @@ func (m *model) renderOutput() string {
 	} else {
 		return outputStyle.Render(output)
 	}
-}
-
-func renderKey(k key.Binding) string {
-	return keyStyle.Render(k.Keys()[0])
-}
-
-func (m *model) renderHelp() string {
-	var b strings.Builder
-
-	b.WriteString("General   : ")
-	b.WriteString(renderKey(m.keys.Quit))
-	b.WriteString(": quit ")
-	b.WriteString(renderKey(m.keys.Refresh))
-	b.WriteString(": refresh ")
-	b.WriteString(renderKey(m.keys.SwitchFocus))
-	b.WriteString(": switch focus ")
-	b.WriteString(renderKey(m.keys.FocusSearch))
-	b.WriteString(": search ")
-	b.WriteString(renderKey(m.keys.Esc))
-	b.WriteString(": clear search ")
-	b.WriteString(renderKey(m.keys.Enter))
-	b.WriteString(": exit search ")
-	b.WriteString(keyStyle.Render("s") + "/" + keyStyle.Render("S"))
-	b.WriteString(": sorting")
-	b.WriteString("\n")
-	b.WriteString("Navigation: ")
-	b.WriteString(keyStyle.Render("j") + "/" + keyStyle.Render("↓"))
-	b.WriteString(": cursor down ")
-	b.WriteString(keyStyle.Render("k") + "/" + keyStyle.Render("↑"))
-	b.WriteString(": cursor up ")
-	b.WriteString(keyStyle.Render("PageUp"))
-	b.WriteString(": prev page ")
-	b.WriteString(keyStyle.Render("PageDown"))
-	b.WriteString(": next page ")
-	b.WriteString(keyStyle.Render("g"))
-	b.WriteString(": go to top ")
-	b.WriteString(keyStyle.Render("G"))
-	b.WriteString(": go to bottom")
-	b.WriteString("\n")
-	b.WriteString("Filter    : ")
-	b.WriteString(keyStyle.Render("a"))
-	b.WriteString(": all (no filter) ")
-	b.WriteString(keyStyle.Render("f"))
-	b.WriteString(": formulae ")
-	b.WriteString(keyStyle.Render("c"))
-	b.WriteString(": casks ")
-	b.WriteString(keyStyle.Render("i"))
-	b.WriteString(": installed ")
-	b.WriteString(keyStyle.Render("o"))
-	b.WriteString(": outdated ")
-	b.WriteString(keyStyle.Render("e"))
-	b.WriteString(": explicitly installed ")
-	b.WriteString(keyStyle.Render("v"))
-	b.WriteString(": active")
-	b.WriteString("\n")
-	b.WriteString("Commands  : ")
-	b.WriteString(renderKey(m.keys.OpenHomePage))
-	b.WriteString(": home page ")
-	b.WriteString(renderKey(m.keys.OpenBrewUrl))
-	b.WriteString(": brew.sh ")
-	b.WriteString(renderKey(m.keys.OpenRelease))
-	b.WriteString(": release page ")
-	b.WriteString(renderKey(m.keys.UpgradeAll))
-	b.WriteString(": upgrade all ")
-	b.WriteString(renderKey(m.keys.Upgrade))
-	b.WriteString(": upgrade ")
-	b.WriteString(renderKey(m.keys.Install))
-	b.WriteString(": install ")
-	b.WriteString(renderKey(m.keys.Remove))
-	b.WriteString(": uninstall ")
-	b.WriteString(renderKey(m.keys.Pin))
-	b.WriteString(": pin ")
-	b.WriteString(renderKey(m.keys.Unpin))
-	b.WriteString(": unpin ")
-	b.WriteString(renderKey(m.keys.CleanUp))
-	b.WriteString(": cleanup")
-
-	return helpStyle.Render(b.String())
 }
 
 func (m *model) updateFocusBorder() {
@@ -224,7 +145,7 @@ func (m *model) updateLayout() {
 
 	// 2, 4, 6, 8 are used to account for border, margin and prompt width (search box only)
 	outputStyle = outputStyle.Width(m.width - 2)
-	helpStyle = helpStyle.Width(m.width - 2)
+	m.helpView.SetWidth(m.width - 2)
 
 	sidePanelWidth := max(sidePanelWidthMin, m.width-ui.MaxTableWidth-4)
 	tableWidth := m.width - sidePanelWidth - 4
@@ -233,7 +154,7 @@ func (m *model) updateLayout() {
 	mainHeight -= lipgloss.Height(m.search.View())
 	mainHeight -= lipgloss.Height(m.renderStats())
 	if !*flagHideHelp {
-		mainHeight -= lipgloss.Height(m.renderHelp())
+		mainHeight -= lipgloss.Height(m.helpView.View())
 	}
 	mainHeight -= lipgloss.Height(m.renderOutput())
 
@@ -269,7 +190,7 @@ func (m *model) renderStats() string {
 			}
 		}
 	}
-	return helpStyle.Render(
+	return statsStyle.Render(
 		fmt.Sprintf(
 			"%s Formulae available | %s Casks available | %s Formulae (incl. %s deps) installed taking %s | %s Casks installed taking %s",
 			keyStyle.Render(fmt.Sprintf("%d", formulaeNum)),
