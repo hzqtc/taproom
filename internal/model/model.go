@@ -41,6 +41,7 @@ type model struct {
 	search      ui.SearchInputModel
 	filterView  ui.FilterViewModel
 	helpView    ui.HelpModel
+	statsView   ui.StatsModel
 	spinner     spinner.Model
 	stopwatch   stopwatch.Model
 
@@ -81,6 +82,7 @@ func InitialModel() model {
 		search:      ui.NewSearchInputModel(),
 		filterView:  ui.NewFilterViewModel(),
 		helpView:    ui.NewHelpModel(),
+		statsView:   ui.NewStatsModel(),
 		isLoading:   true,
 		loadTimer:   *flagShowLoadTimer,
 		loadingPrgs: loading.NewLoadingProgress(),
@@ -364,5 +366,6 @@ func (m *model) filterPackages() tea.Cmd {
 		}
 	}
 
+	m.statsView.SetPackages(viewPackages)
 	return m.table.SetPackages(viewPackages)
 }

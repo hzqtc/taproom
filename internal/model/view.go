@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"taproom/internal/ui"
-	"taproom/internal/util"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/pflag"
@@ -36,12 +35,6 @@ var (
 	headerStyle = lipgloss.NewStyle().
 			Foreground(highlightColor).
 			Bold(true)
-
-	statsStyle = lipgloss.NewStyle().
-			Padding(1 /* top */, 2 /* horizontal */, 0 /* bottom */)
-
-	keyStyle = lipgloss.NewStyle().
-			Foreground(highlightColor)
 
 	outputStyle = baseStyle.
 			Margin(1 /* top */, 0 /* horizontal */, 0 /* bottom */).
@@ -91,7 +84,7 @@ func (m model) View() string {
 	views := []string{
 		topContent,
 		mainContent,
-		m.renderStats(),
+		m.statsView.View(),
 	}
 	if output := m.renderOutput(); output != "" {
 		views = append(views, output)
@@ -145,6 +138,7 @@ func (m *model) updateLayout() {
 
 	// 2, 4, 6, 8 are used to account for border, margin and prompt width (search box only)
 	outputStyle = outputStyle.Width(m.width - 2)
+	m.statsView.SetWidth(m.width - 2)
 	m.helpView.SetWidth(m.width - 2)
 
 	sidePanelWidth := max(sidePanelWidthMin, m.width-ui.MaxTableWidth-4)
@@ -152,7 +146,7 @@ func (m *model) updateLayout() {
 
 	mainHeight := m.height - 4
 	mainHeight -= lipgloss.Height(m.search.View())
-	mainHeight -= lipgloss.Height(m.renderStats())
+	mainHeight -= lipgloss.Height(m.statsView.View())
 	if !*flagHideHelp {
 		mainHeight -= lipgloss.Height(m.helpView.View())
 	}
@@ -162,43 +156,4 @@ func (m *model) updateLayout() {
 	m.search.SetWidth(m.width - sidePanelWidth - 8)
 	m.table.SetDimensions(tableWidth, mainHeight)
 	m.detailPanel.SetDimension(sidePanelWidth-2, mainHeight)
-}
-
-func (m *model) renderStats() string {
-	var formulaeNum, casksNum int
-	var installedFormulaeNum, installedFormulaeDepNum, installedCasksNum int
-	var formulaeSize, casksSize int64
-	for _, pkg := range m.table.Packages() {
-		if pkg.IsCask {
-			casksNum++
-		} else {
-			formulaeNum++
-		}
-
-		if !pkg.IsInstalled {
-			continue
-		}
-
-		if pkg.IsCask {
-			installedCasksNum++
-			casksSize += pkg.Size
-		} else {
-			installedFormulaeNum++
-			formulaeSize += pkg.Size
-			if pkg.InstalledAsDependency {
-				installedFormulaeDepNum++
-			}
-		}
-	}
-	return statsStyle.Render(
-		fmt.Sprintf(
-			"%s Formulae available | %s Casks available | %s Formulae (incl. %s deps) installed taking %s | %s Casks installed taking %s",
-			keyStyle.Render(fmt.Sprintf("%d", formulaeNum)),
-			keyStyle.Render(fmt.Sprintf("%d", casksNum)),
-			keyStyle.Render(fmt.Sprintf("%d", installedFormulaeNum)),
-			keyStyle.Render(fmt.Sprintf("%d", installedFormulaeDepNum)),
-			keyStyle.Render(util.FormatSize(formulaeSize)),
-			keyStyle.Render(fmt.Sprintf("%d", installedCasksNum)),
-			keyStyle.Render(util.FormatSize(casksSize)),
-		))
 }
