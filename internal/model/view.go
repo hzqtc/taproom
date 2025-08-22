@@ -23,11 +23,10 @@ var (
 // --- Styles ---
 
 var (
-	highlightColor     = lipgloss.Color("#FFD580")
-	borderColor        = lipgloss.Color("#909090")
-	focusedBorderColor = highlightColor
-	errBorderColor     = deprecatedColor
-	deprecatedColor    = lipgloss.Color("#EF4444")
+	highlightColor  = lipgloss.Color("#FFD580")
+	borderColor     = lipgloss.Color("#909090")
+	errBorderColor  = deprecatedColor
+	deprecatedColor = lipgloss.Color("#EF4444")
 
 	roundedBorder = lipgloss.RoundedBorder()
 
@@ -44,9 +43,6 @@ var (
 
 	keyStyle = lipgloss.NewStyle().
 			Foreground(highlightColor)
-
-	searchStyle = baseStyle.
-			Margin(1 /* top */, 0 /* horizontal */, 0 /* bottom */)
 
 	filterModeStyle = baseStyle.
 			Width(sidePanelWidthMin).
@@ -94,7 +90,7 @@ func (m model) View() string {
 
 	topContent := lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		searchStyle.Render(m.search.View()),
+		m.search.View(),
 		filterModeStyle.Render(m.filters.String()),
 	)
 
@@ -213,15 +209,15 @@ func (m *model) renderHelp() string {
 func (m *model) updateFocusBorder() {
 	switch m.focusMode {
 	case focusSearch:
-		searchStyle = searchStyle.BorderForeground(focusedBorderColor)
+		m.search.SetFocused(true)
 		m.table.SetFocused(false)
 		m.detailPanel.SetFocused(false)
 	case focusTable:
-		searchStyle = searchStyle.BorderForeground(borderColor)
+		m.search.SetFocused(false)
 		m.table.SetFocused(true)
 		m.detailPanel.SetFocused(false)
 	case focusDetail:
-		searchStyle = searchStyle.BorderForeground(borderColor)
+		m.search.SetFocused(false)
 		m.table.SetFocused(false)
 		m.detailPanel.SetFocused(true)
 	}
@@ -272,14 +268,14 @@ func (m *model) updateLayout() {
 	helpStyle = helpStyle.Width(m.width - 2)
 
 	sidePanelWidth := max(sidePanelWidthMin, m.width-ui.MaxTableWidth-4)
-	m.search.Width = m.width - sidePanelWidth - 8
+	m.search.SetWidth(m.width - sidePanelWidth - 8)
 	filterModeStyle = filterModeStyle.
 		BorderStyle(getRoundedBorderWithTitle("Filters", sidePanelWidth)).
 		Width(sidePanelWidth)
 	tableWidth := m.width - sidePanelWidth - 4
 
 	mainHeight := m.height - 4
-	mainHeight -= lipgloss.Height(searchStyle.Render(m.search.View()))
+	mainHeight -= lipgloss.Height(m.search.View())
 	mainHeight -= lipgloss.Height(m.renderStats())
 	if !*flagHideHelp {
 		mainHeight -= lipgloss.Height(m.renderHelp())

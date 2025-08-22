@@ -47,7 +47,7 @@ type model struct {
 	// UI Components from the bubbles library
 	table       ui.PackageTableModel
 	detailPanel ui.DetailsPanelModel
-	search      textinput.Model
+	search      ui.SearchInputModel
 	spinner     spinner.Model
 	stopwatch   stopwatch.Model
 
@@ -71,10 +71,6 @@ type model struct {
 }
 
 func InitialModel() model {
-	// Search input
-	searchInput := textinput.New()
-	searchInput.Placeholder = "Search packages..."
-	searchInput.Prompt = " / "
 
 	// Spinner for loading state
 	s := spinner.New()
@@ -92,7 +88,7 @@ func InitialModel() model {
 	}
 
 	return model{
-		search:      searchInput,
+		search:      ui.NewSearchInputModel(),
 		spinner:     s,
 		stopwatch:   sw,
 		table:       ui.NewPackageTableModel(),
@@ -197,6 +193,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ui.TableSelectionChangedMsg:
 		m.detailPanel.SetPackage(msg.Selected)
 
+	case ui.SearchMsg:
+		cmds = append(cmds, m.filterPackages())
+
 	// A key was pressed
 	case tea.KeyMsg:
 		if m.focusMode == focusSearch {
@@ -215,7 +214,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateFocusBorder()
 			case key.Matches(msg, m.keys.FocusSearch):
 				m.focusMode = focusSearch
-				m.search.Focus()
 				m.updateFocusBorder()
 				cmds = append(cmds, textinput.Blink)
 			case key.Matches(msg, m.keys.Refresh):
@@ -245,18 +243,14 @@ func (m *model) handleSearchInputKeys(msg tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
 	switch {
 	case key.Matches(msg, m.keys.Enter) || key.Matches(msg, m.keys.SwitchFocus):
-		m.search.Blur()
 		m.focusMode = focusTable
 		m.updateFocusBorder()
 	case key.Matches(msg, m.keys.Esc):
-		m.search.Blur()
 		m.focusMode = focusTable
 		m.updateFocusBorder()
-		m.search.SetValue("")
-		cmd = m.filterPackages()
+		cmd = m.search.Clear()
 	default:
 		m.search, cmd = m.search.Update(msg)
-		cmd = m.filterPackages()
 	}
 	return cmd
 }
@@ -270,7 +264,7 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		m.focusMode = focusDetail
 		m.updateFocusBorder()
 	case key.Matches(msg, m.keys.Esc):
-		m.search.SetValue("")
+		m.search.Clear()
 		m.output = []string{}
 		m.commandErr = false
 		cmd = m.filterPackages()
