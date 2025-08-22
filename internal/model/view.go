@@ -11,7 +11,6 @@ import (
 
 const (
 	sidePanelWidthMin = 30
-	outputMaxLines    = 10
 )
 
 var (
@@ -21,24 +20,11 @@ var (
 // --- Styles ---
 
 var (
-	highlightColor  = lipgloss.Color("#FFD580")
-	borderColor     = lipgloss.Color("#909090")
-	errBorderColor  = deprecatedColor
-	deprecatedColor = lipgloss.Color("#EF4444")
-
-	roundedBorder = lipgloss.RoundedBorder()
-
-	baseStyle = lipgloss.NewStyle().
-			BorderStyle(roundedBorder).
-			BorderForeground(borderColor)
+	highlightColor = lipgloss.Color("#FFD580")
 
 	headerStyle = lipgloss.NewStyle().
 			Foreground(highlightColor).
 			Bold(true)
-
-	outputStyle = baseStyle.
-			Margin(1 /* top */, 0 /* horizontal */, 0 /* bottom */).
-			Padding(0, 1)
 
 	spinnerStyle = lipgloss.NewStyle().
 			Foreground(highlightColor)
@@ -86,7 +72,7 @@ func (m model) View() string {
 		mainContent,
 		m.statsView.View(),
 	}
-	if output := m.renderOutput(); output != "" {
+	if output := m.outputView.View(); output != "" {
 		views = append(views, output)
 	}
 	if !*flagHideHelp {
@@ -94,25 +80,6 @@ func (m model) View() string {
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, views...)
-}
-
-func (m *model) renderOutput() string {
-	if len(m.output) == 0 {
-		return ""
-	}
-
-	var output string
-	if len(m.output) > outputMaxLines {
-		output = strings.Join(m.output[len(m.output)-outputMaxLines:], "\n")
-	} else {
-		output = strings.Join(m.output, "\n")
-	}
-
-	if m.commandErr {
-		return outputStyle.BorderForeground(errBorderColor).Render(output)
-	} else {
-		return outputStyle.Render(output)
-	}
 }
 
 func (m *model) updateFocusBorder() {
@@ -137,7 +104,7 @@ func (m *model) updateLayout() {
 	m.updateFocusBorder()
 
 	// 2, 4, 6, 8 are used to account for border, margin and prompt width (search box only)
-	outputStyle = outputStyle.Width(m.width - 2)
+	m.outputView.SetWidth(m.width - 2)
 	m.statsView.SetWidth(m.width - 2)
 	m.helpView.SetWidth(m.width - 2)
 
@@ -150,7 +117,9 @@ func (m *model) updateLayout() {
 	if !*flagHideHelp {
 		mainHeight -= lipgloss.Height(m.helpView.View())
 	}
-	mainHeight -= lipgloss.Height(m.renderOutput())
+	if output := m.outputView.View(); output != "" {
+		mainHeight -= lipgloss.Height(output)
+	}
 
 	m.filterView.SetWidth(sidePanelWidth)
 	m.search.SetWidth(m.width - sidePanelWidth - 8)

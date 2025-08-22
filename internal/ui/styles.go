@@ -7,6 +7,7 @@ var (
 	highlightForegroudColor = lipgloss.Color("#2E2E2E")
 	borderColor             = lipgloss.Color("#909090")
 	focusedBorderColor      = highlightColor
+	errBorderColor          = deprecatedColor
 	installedColor          = lipgloss.Color("#22C55E")
 	deprecatedColor         = lipgloss.Color("#EF4444")
 	uninstalledColor        = lipgloss.Color("#FBBF24")

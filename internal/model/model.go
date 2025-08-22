@@ -42,6 +42,7 @@ type model struct {
 	filterView  ui.FilterViewModel
 	helpView    ui.HelpModel
 	statsView   ui.StatsModel
+	outputView  ui.OutputModel
 	spinner     spinner.Model
 	stopwatch   stopwatch.Model
 
@@ -59,8 +60,6 @@ type model struct {
 
 	// Command execution
 	isExecuting bool
-	output      []string
-	commandErr  bool
 }
 
 func InitialModel() model {
@@ -83,6 +82,7 @@ func InitialModel() model {
 		filterView:  ui.NewFilterViewModel(),
 		helpView:    ui.NewHelpModel(),
 		statsView:   ui.NewStatsModel(),
+		outputView:  ui.NewOutputModel(),
 		isLoading:   true,
 		loadTimer:   *flagShowLoadTimer,
 		loadingPrgs: loading.NewLoadingProgress(),
@@ -154,13 +154,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Command execution start
 	case brew.CommandStartMsg:
 		m.isExecuting = true
-		m.output = []string{}
-		m.commandErr = false
+		m.outputView.Clear()
 
 	// Command execution output
 	case brew.CommandOutputMsg:
 		if msg.Line != "" {
-			m.output = append(m.output, msg.Line)
+			m.outputView.Append(msg.Line)
 			m.updateLayout()
 		}
 		cmds = append(cmds, brew.StreamOutput(msg.Ch))
@@ -170,11 +169,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.isExecuting = false
 		if msg.Err == nil {
 			// Command was successful, clear output and update package state
-			m.output = m.output[:0]
+			m.outputView.Clear()
 			brew.UpdatePackageForAction(msg.Command, msg.Pkgs)
 			m.table.UpdateRows()
 		} else {
-			m.commandErr = true
+			m.outputView.SetError()
 		}
 		// If there are error, it should already be displayed in the output
 		m.updateLayout()
@@ -210,7 +209,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, textinput.Blink)
 			case key.Matches(msg, m.keys.Refresh):
 				m.isLoading = true
-				m.output = []string{}
 				cmds = append(cmds, m.spinner.Tick, brew.LoadData(m.table.ShowPackageInstalls(), m.table.ShowPackageSizes(), m.loadingPrgs))
 				if m.loadTimer {
 					cmds = append(cmds, m.stopwatch.Start())
@@ -257,8 +255,7 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		m.updateFocusBorder()
 	case key.Matches(msg, m.keys.Esc):
 		m.search.Clear()
-		m.output = []string{}
-		m.commandErr = false
+		m.outputView.Clear()
 		cmd = m.filterPackages()
 		m.updateLayout()
 
