@@ -1,8 +1,6 @@
 package model
 
 import (
-	"fmt"
-	"strings"
 	"taproom/internal/ui"
 
 	"github.com/charmbracelet/lipgloss"
@@ -17,42 +15,9 @@ var (
 	flagHideHelp = pflag.Bool("hide-help", false, "Hide the help text")
 )
 
-// --- Styles ---
-
-var (
-	highlightColor = lipgloss.Color("#FFD580")
-
-	headerStyle = lipgloss.NewStyle().
-			Foreground(highlightColor).
-			Bold(true)
-
-	spinnerStyle = lipgloss.NewStyle().
-			Foreground(highlightColor)
-)
-
-// --- View & Layout ---
-
-// View is the main render function for the application.
 func (m model) View() string {
-	if m.errorMsg != "" {
-		return fmt.Sprintf("An error occurred: %s\nPress 'q' to quit.", m.errorMsg)
-	}
-
-	if m.isLoading {
-		var b strings.Builder
-		m.spinner.Style = spinnerStyle
-		b.WriteString(
-			fmt.Sprintf(
-				"%s\n%s\n\n%s Loading...",
-				headerStyle.Render(logo),
-				m.loadingPrgs.Progress(headerStyle.Render("Done")),
-				m.spinner.View(),
-			),
-		)
-		if m.loadTimer {
-			b.WriteString(m.stopwatch.View())
-		}
-		return b.String()
+	if loading := m.loadingView.View(); loading != "" {
+		return loading
 	}
 
 	mainContent := lipgloss.JoinHorizontal(

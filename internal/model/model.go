@@ -4,9 +4,7 @@ import (
 	"strings"
 	"taproom/internal/brew"
 	"taproom/internal/data"
-	"taproom/internal/loading"
 	"taproom/internal/ui"
-	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -14,7 +12,6 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pkg/browser"
-	"github.com/spf13/pflag"
 )
 
 // focusMode defines which component is currently focused
@@ -26,14 +23,9 @@ const (
 	focusSearch
 )
 
-var (
-	flagShowLoadTimer = pflag.BoolP("load-timer", "t", false, "Show a timer in the loading screen")
-)
-
-// model holds the entire state of the application.
 type model struct {
-	// Package data
-	allPackages []*data.Package // The complete list of all packages, sorted by name
+	// The complete list of all packages, sorted by name
+	allPackages []*data.Package
 
 	// UI Components from the bubbles library
 	table       ui.PackageTableModel
@@ -43,39 +35,20 @@ type model struct {
 	helpView    ui.HelpModel
 	statsView   ui.StatsModel
 	outputView  ui.OutputModel
-	spinner     spinner.Model
-	stopwatch   stopwatch.Model
+	loadingView ui.LoadingScreenModel
 
 	// State
-	isLoading   bool
-	loadTimer   bool
-	loadingPrgs *loading.LoadingProgress
+	isExecuting bool
 	focusMode   focusMode
-	errorMsg    string
 	width       int
 	height      int
 
 	// Keybindings
 	keys keyMap
-
-	// Command execution
-	isExecuting bool
 }
 
 func InitialModel() model {
-
-	// Spinner for loading state
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-
-	var sw stopwatch.Model
-	if *flagShowLoadTimer {
-		sw = stopwatch.NewWithInterval(time.Millisecond)
-	}
-
 	return model{
-		spinner:     s,
-		stopwatch:   sw,
 		table:       ui.NewPackageTableModel(),
 		detailPanel: ui.NewDetailsPanelModel(),
 		search:      ui.NewSearchInputModel(),
@@ -83,24 +56,22 @@ func InitialModel() model {
 		helpView:    ui.NewHelpModel(),
 		statsView:   ui.NewStatsModel(),
 		outputView:  ui.NewOutputModel(),
-		isLoading:   true,
-		loadTimer:   *flagShowLoadTimer,
-		loadingPrgs: loading.NewLoadingProgress(),
+		loadingView: ui.NewLoadingScreenModel(),
 		keys:        defaultKeyMap(),
 	}
 }
 
-// Init is the first command that is run when the application starts.
 func (m model) Init() tea.Cmd {
-	// Start the spinner and load the data from Homebrew APIs.
-	cmds := []tea.Cmd{m.spinner.Tick, brew.LoadData(m.table.ShowPackageInstalls(), m.table.ShowPackageSizes(), m.loadingPrgs)}
-	if m.loadTimer {
-		cmds = append(cmds, m.stopwatch.Start())
-	}
-	return tea.Batch(cmds...)
+	return m.loadData()
 }
 
-// Update handles all incoming messages and returns a new model and command.
+func (m *model) loadData() tea.Cmd {
+	return tea.Batch(
+		m.loadingView.StartLoading(),
+		brew.LoadData(m.table.ShowPackageInstalls(), m.table.ShowPackageSizes(), m.loadingView.Progress()),
+	)
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
@@ -108,55 +79,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	)
 
 	switch msg := msg.(type) {
-	// Window was resized
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.updateLayout()
 
-	// Data has been successfully loaded
 	case brew.DataLoadedMsg:
-		m.isLoading = false
-		m.loadingPrgs.Reset()
-		if m.loadTimer {
-			cmds = append(cmds, m.stopwatch.Stop(), m.stopwatch.Reset())
-		}
 		m.allPackages = msg.Packages
-		cmds = append(cmds, m.filterPackages())
+		cmds = append(cmds, m.loadingView.StopLoading(), m.filterPackages())
 		m.updateLayout()
 
-	// An error occurred during data loading
 	case brew.DataLoadingErrMsg:
-		m.isLoading = false
-		if m.loadTimer {
-			cmds = append(cmds, m.stopwatch.Stop())
-		}
-		// Data loading error is fatal
-		m.errorMsg = msg.Err.Error()
+		cmds = append(cmds, m.loadingView.SetError(msg.Err.Error()))
 
-	// Spinner tick (for animation)
-	case spinner.TickMsg:
-		if m.isLoading {
-			m.spinner, cmd = m.spinner.Update(msg)
-			cmds = append(cmds, cmd)
-		}
-
-	case stopwatch.TickMsg:
-		if m.isLoading {
-			m.stopwatch, cmd = m.stopwatch.Update(msg)
-			cmds = append(cmds, cmd)
-		}
-
-	case stopwatch.StartStopMsg, stopwatch.ResetMsg:
-		m.stopwatch, cmd = m.stopwatch.Update(msg)
+	case spinner.TickMsg, stopwatch.TickMsg, stopwatch.StartStopMsg, stopwatch.ResetMsg:
+		m.loadingView, cmd = m.loadingView.Update(msg)
 		cmds = append(cmds, cmd)
 
-	// Command execution start
 	case brew.CommandStartMsg:
 		m.isExecuting = true
 		m.outputView.Clear()
 
-	// Command execution output
 	case brew.CommandOutputMsg:
 		if msg.Line != "" {
 			m.outputView.Append(msg.Line)
@@ -164,7 +107,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		cmds = append(cmds, brew.StreamOutput(msg.Ch))
 
-	// Command execution finish
 	case brew.CommandFinishMsg:
 		m.isExecuting = false
 		if msg.Err == nil {
@@ -187,7 +129,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ui.FilterChangedMsg:
 		cmds = append(cmds, m.filterPackages())
 
-	// A key was pressed
 	case tea.KeyMsg:
 		if m.focusMode == focusSearch {
 			cmds = append(cmds, m.handleSearchInputKeys(msg))
@@ -208,11 +149,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateFocusBorder()
 				cmds = append(cmds, textinput.Blink)
 			case key.Matches(msg, m.keys.Refresh):
-				m.isLoading = true
-				cmds = append(cmds, m.spinner.Tick, brew.LoadData(m.table.ShowPackageInstalls(), m.table.ShowPackageSizes(), m.loadingPrgs))
-				if m.loadTimer {
-					cmds = append(cmds, m.stopwatch.Start())
-				}
+				cmds = append(cmds, m.loadData())
 			case key.Matches(msg, m.keys.Quit):
 				return m, tea.Quit
 			default:

@@ -38,7 +38,7 @@ func (lp *LoadingProgress) MarkCompleted(t any) {
 	lp.taskCompleted[t] = true
 }
 
-func (lp *LoadingProgress) Progress(completedTaskSuffix string) string {
+func (lp *LoadingProgress) String(completedTaskSuffix string) string {
 	var b strings.Builder
 	total := len(lp.tasks)
 	for i, c := range lp.tasks {
