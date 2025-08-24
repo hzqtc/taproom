@@ -588,6 +588,7 @@ func GetOutdatedPackages() []*data.Package {
 	return outdatedPackages
 }
 
+// Recursively find uninstalled dependencies
 func GetRecursiveMissingDeps(pkgName string) []string {
 	pkg := GetPackage(pkgName)
 	if pkg.IsInstalled {
@@ -596,6 +597,20 @@ func GetRecursiveMissingDeps(pkgName string) []string {
 		deps := pkg.Dependencies
 		for _, dep := range pkg.Dependencies {
 			deps = append(deps, GetRecursiveMissingDeps(dep)...)
+		}
+		return deps
+	}
+}
+
+// Recursively find installed dependents
+func GetRecursiveInstalledDependents(pkgName string) []string {
+	pkg := GetPackage(pkgName)
+	if !pkg.IsInstalled {
+		return []string{}
+	} else {
+		deps := pkg.Dependents
+		for _, dep := range pkg.Dependents {
+			deps = append(deps, GetRecursiveInstalledDependents(dep)...)
 		}
 		return deps
 	}

@@ -150,9 +150,9 @@ func (m *DetailsPanelModel) updatePanel() {
 				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
 			} else {
 				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
-				// For uninstall dependencies, show all recursive uninstalled dependencies
-				recursiveMissingDeps := util.SortAndUniq(brew.GetRecursiveMissingDeps(dep))
-				for _, d := range recursiveMissingDeps {
+				// For uninstalled dependencies, show all recursive uninstalled dependencies
+				recursiveDeps := util.SortAndUniq(brew.GetRecursiveMissingDeps(dep))
+				for _, d := range recursiveDeps {
 					if p := brew.GetPackage(d); !p.IsInstalled {
 						b.WriteString(fmt.Sprintf("    %s %s\n", uninstalledStyle.Render("✗"), d))
 					}
@@ -162,7 +162,7 @@ func (m *DetailsPanelModel) updatePanel() {
 	}
 
 	if len(m.pkg.BuildDependencies) > 0 {
-		b.WriteString("\nBuild Dependencies:\n")
+		b.WriteString("\nBuild dependencies:\n")
 		for _, dep := range m.pkg.BuildDependencies {
 			if depPkg := brew.GetPackage(dep); depPkg != nil && depPkg.IsInstalled {
 				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
@@ -177,6 +177,13 @@ func (m *DetailsPanelModel) updatePanel() {
 		for _, dep := range m.pkg.Dependents {
 			if depPkg := brew.GetPackage(dep); depPkg != nil && depPkg.IsInstalled {
 				b.WriteString(fmt.Sprintf("  %s %s\n", installedStyle.Render("✓"), dep))
+				// For installed dependents, show all recursive explicitly installed dependents
+				recursiveDependents := util.SortAndUniq(brew.GetRecursiveInstalledDependents(dep))
+				for _, d := range recursiveDependents {
+					if p := brew.GetPackage(d); p.IsInstalled && !p.InstalledAsDependency {
+						b.WriteString(fmt.Sprintf("    %s %s\n", installedStyle.Render("✓"), d))
+					}
+				}
 			} else {
 				b.WriteString(fmt.Sprintf("  %s %s\n", uninstalledStyle.Render("✗"), dep))
 			}
