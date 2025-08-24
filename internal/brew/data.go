@@ -448,7 +448,7 @@ func processAllData(
 	}
 
 	// Post processing: fetch release info and populate dependents
-	for i, pkg := range packages {
+	for _, pkg := range packages {
 		if *flagFetchReleaseInfo && pkg.IsInstalled {
 			// Fetch release note in background as non blocking go routines
 			go func() {
@@ -456,9 +456,9 @@ func processAllData(
 			}()
 		}
 		if pkg.IsCask {
-			packages[i].Dependents = util.SortAndUniq(caskDependents[pkg.Name])
+			pkg.Dependents = util.SortAndUniq(caskDependents[pkg.Name])
 		} else {
-			packages[i].Dependents = util.SortAndUniq(formulaDependents[pkg.Name])
+			pkg.Dependents = util.SortAndUniq(formulaDependents[pkg.Name])
 		}
 	}
 
