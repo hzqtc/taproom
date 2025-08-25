@@ -26,7 +26,7 @@ type Package struct {
 	BuildDependencies     []string
 	Dependents            []string
 	Conflicts             []string
-	InstallCount90d       int
+	Installs90d           int
 	IsCask                bool
 	IsInstalled           bool
 	IsOutdated            bool

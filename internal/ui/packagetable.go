@@ -249,7 +249,7 @@ func (m *PackageTableModel) sortRows() {
 		})
 	case colInstalls:
 		sort.Slice(m.packages, func(i, j int) bool {
-			return m.packages[i].InstallCount90d > m.packages[j].InstallCount90d
+			return m.packages[i].Installs90d > m.packages[j].Installs90d
 		})
 	case colSize:
 		sort.Slice(m.packages, func(i, j int) bool {

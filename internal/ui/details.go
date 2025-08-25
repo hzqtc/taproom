@@ -114,6 +114,7 @@ func formatStatusSymbol(pkg *data.Package) string {
 		return uninstalledStyle.Render(uninstalledSymbol)
 	}
 }
+
 func (m *DetailsPanelModel) updatePanel() {
 	if m.pkg == nil {
 		m.vp.SetContent("No packages selected.")
@@ -127,7 +128,7 @@ func (m *DetailsPanelModel) updatePanel() {
 	b.WriteString(fmt.Sprintf("Tap: %s\n", m.pkg.Tap))
 	b.WriteString(fmt.Sprintf("Homepage: %s\n", m.pkg.Homepage))
 	b.WriteString(fmt.Sprintf("License: %s\n", m.pkg.License))
-	b.WriteString(fmt.Sprintf("Installs (90d): %d\n", m.pkg.InstallCount90d))
+	b.WriteString(fmt.Sprintf("Installs (90d): %d\n", m.pkg.Installs90d))
 
 	b.WriteString(fmt.Sprintf("\nStatus: %s\n", formatStatus(m.pkg)))
 	if m.pkg.IsInstalled {
