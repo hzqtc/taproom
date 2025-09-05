@@ -45,7 +45,6 @@ func GetGithubReleaseInfo(pkg *data.Package) *data.ReleaseInfo {
 		// Package home page matches a github page
 		return fetchLatestRelease(matches[1], matches[2])
 	} else {
-		log.Printf("Failed to locate a github repo for package %s", pkg.Name)
 		return nil
 	}
 }
@@ -74,7 +73,6 @@ func fetchLatestRelease(ghOwner, ghRepo string) *data.ReleaseInfo {
 		log.Printf("Failed to decode json from 'gh release view' response %s: %v", body, err)
 		return nil
 	} else {
-		log.Printf("Successfully fetched release info from gh: %s/%s", ghOwner, ghRepo)
 		return toReleaseInfo(&note)
 	}
 }
