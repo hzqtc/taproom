@@ -35,15 +35,6 @@ var cacheDir = func() string {
 	return filepath.Join(home, ".cache", "taproom")
 }()
 
-var brewPrefix = func() string {
-	brewPrefixBytes, err := exec.Command("brew", "--prefix").Output()
-	if err != nil {
-		log.Printf("failed to identify brew prefix: %+v\n", err)
-		return ""
-	}
-	return strings.TrimSpace(string(brewPrefixBytes))
-}()
-
 const (
 	apiFormulaURL             = "https://formulae.brew.sh/api/formula.json"
 	apiCaskURL                = "https://formulae.brew.sh/api/cask.json"
@@ -84,15 +75,8 @@ type apiFormula struct {
 	Dependencies      []string `json:"dependencies"`
 	BuildDependencies []string `json:"build_dependencies"`
 	Conflicts         []string `json:"conflicts_with"`
-	Outdated          bool     `json:"outdated"`
-	Pinned            bool     `json:"pinned"`
 	Deprecated        bool     `json:"deprecated"`
 	Disabled          bool     `json:"disabled"`
-	Installed         []struct {
-		Version        string `json:"version"`
-		Time           int64  `json:"time"`
-		InstalledAsDep bool   `json:"installed_as_dependency"`
-	} `json:"installed"`
 }
 
 type apiCask struct {
@@ -110,11 +94,9 @@ type apiCask struct {
 		Formulae []string `json:"formula"`
 		Casks    []string `json:"cask"`
 	} `json:"conflicts_with"`
-	Outdated         bool   `json:"outdated"`
-	Deprecated       bool   `json:"deprecated"`
-	Disabled         bool   `json:"disabled"`
-	InstalledVersion string `json:"installed"`
-	InstalledTime    int64  `json:"installed_time"`
+	AutoUpdate bool `json:"auto_updates"`
+	Deprecated bool `json:"deprecated"`
+	Disabled   bool `json:"disabled"`
 }
 
 type apiFormulaAnalytics struct {
@@ -131,12 +113,6 @@ type apiCaskAnalytics struct {
 	} `json:"items"`
 }
 
-// Structs for parsing `brew info --json=v2 --installed`
-type installedInfo struct {
-	Formulae []apiFormula `json:"formulae"`
-	Casks    []apiCask    `json:"casks"`
-}
-
 // --- Data Fetching & Processing Logic ---
 
 // Message types for tea.Cmd
@@ -151,54 +127,45 @@ type DataLoadingErrMsg struct {
 // loadData returns a tea.Cmd that fetches all data concurrently.
 func LoadData(fetchAnalytics, fetchSize bool, loadingPrgs *loading.LoadingProgress) tea.Cmd {
 	return func() tea.Msg {
-
 		formulaeChan := make(chan []apiFormula)
 		casksChan := make(chan []apiCask)
 		formulaAnalytics90dChan := make(chan apiFormulaAnalytics)
 		caskAnalytics90dChan := make(chan apiCaskAnalytics)
-		installedChan := make(chan installedInfo)
-		formulaSizesChan := make(chan map[string]int64)
-		caskSizesChan := make(chan map[string]int64)
-		errChan := make(chan error, 7)
+		formulaInstallInfoChan := make(chan []*installInfo)
+		caskInstallInfoChan := make(chan []*installInfo)
+		loadingTasksNum := 6
+		errChan := make(chan error, loadingTasksNum)
 
 		var allFormulae []apiFormula
 		var allCasks []apiCask
 		var formulaAnalytics90d apiFormulaAnalytics
 		var caskAnalytics90d apiCaskAnalytics
-		var allInstalled installedInfo
-		var formulaSizes map[string]int64
-		var caskSizes map[string]int64
+		var formulaInstallInfo, caskInstallInfo []*installInfo
 
-		loadingTasksNum := cap(errChan)
-
-		go fetchJsonWithCache(apiFormulaURL, formulaCache, &[]apiFormula{}, formulaeChan, errChan)
+		go fetchJsonWithCache(apiFormulaURL, formulaCache, &allFormulae, formulaeChan, errChan)
 		loadingPrgs.AddTask(formulaeChan, "Loading all Formulae")
-		go fetchJsonWithCache(apiCaskURL, casksCache, &[]apiCask{}, casksChan, errChan)
+		go fetchJsonWithCache(apiCaskURL, casksCache, &allCasks, casksChan, errChan)
 		loadingPrgs.AddTask(casksChan, "Loading all Casks")
 		if fetchAnalytics {
-			go fetchJsonWithCache(apiFormulaAnalytics90dURL, formulaeAnalytics90dCache, &apiFormulaAnalytics{}, formulaAnalytics90dChan, errChan)
+			go fetchJsonWithCache(apiFormulaAnalytics90dURL, formulaeAnalytics90dCache, &formulaAnalytics90d, formulaAnalytics90dChan, errChan)
 			loadingPrgs.AddTask(formulaAnalytics90dChan, "Loading Formulae 90d analytics")
-			go fetchJsonWithCache(apiCaskAnalytics90dURL, casksAnalytics90dCache, &apiCaskAnalytics{}, caskAnalytics90dChan, errChan)
+			go fetchJsonWithCache(apiCaskAnalytics90dURL, casksAnalytics90dCache, &caskAnalytics90d, caskAnalytics90dChan, errChan)
 			loadingPrgs.AddTask(caskAnalytics90dChan, "Loading Cask 90d analytics")
 		} else {
 			loadingTasksNum -= 2
 			formulaAnalytics90d = apiFormulaAnalytics{}
 			caskAnalytics90d = apiCaskAnalytics{}
 		}
-		if fetchSize {
-			go fetchDirectorySizes(formulaSizesChan, errChan, fmt.Sprintf("%s/Cellar", brewPrefix), false)
-			loadingPrgs.AddTask(formulaSizesChan, "Loading installed Formulae sizes")
-			go fetchDirectorySizes(caskSizesChan, errChan, fmt.Sprintf("%s/Caskroom", brewPrefix), true)
-			loadingPrgs.AddTask(caskSizesChan, "Loading installed Casks sizes")
-		} else {
-			loadingTasksNum -= 2
-			formulaSizes = map[string]int64{}
-			caskSizes = map[string]int64{}
-		}
-		go fetchInstalled(installedChan, errChan)
-		loadingPrgs.AddTask(installedChan, "Loading installation data")
+		go fetchInstalledFormulae(fetchSize, formulaInstallInfoChan, errChan)
+		loadingPrgs.AddTask(formulaInstallInfoChan, "Loading formulae installation data")
+		go fetchInstalledCasks(fetchSize, caskInstallInfoChan, errChan)
+		loadingPrgs.AddTask(caskInstallInfoChan, "Loading casks installation data")
 
-		for i := 0; i < loadingTasksNum; i++ {
+		// Update brew in the background, we don't depend on `brew` command to get data
+		// But we need brew to be updated when install/upgrade packages
+		go updateBrew()
+
+		for range loadingTasksNum {
 			select {
 			case f := <-formulaeChan:
 				allFormulae = f
@@ -212,28 +179,24 @@ func LoadData(fetchAnalytics, fetchSize bool, loadingPrgs *loading.LoadingProgre
 			case ca := <-caskAnalytics90dChan:
 				caskAnalytics90d = ca
 				loadingPrgs.MarkCompleted(caskAnalytics90dChan)
-			case inst := <-installedChan:
-				allInstalled = inst
-				loadingPrgs.MarkCompleted(installedChan)
-			case sizes := <-formulaSizesChan:
-				formulaSizes = sizes
-				loadingPrgs.MarkCompleted(formulaSizesChan)
-			case sizes := <-caskSizesChan:
-				caskSizes = sizes
-				loadingPrgs.MarkCompleted(caskSizesChan)
+			case info := <-formulaInstallInfoChan:
+				formulaInstallInfo = info
+				loadingPrgs.MarkCompleted(formulaInstallInfoChan)
+			case info := <-caskInstallInfoChan:
+				caskInstallInfo = info
+				loadingPrgs.MarkCompleted(caskInstallInfoChan)
 			case err := <-errChan:
 				return DataLoadingErrMsg{err}
 			}
 		}
 
 		allBrewPackages = processAllData(
-			allInstalled,
 			allFormulae,
 			allCasks,
 			formulaAnalytics90d,
 			caskAnalytics90d,
-			formulaSizes,
-			caskSizes,
+			formulaInstallInfo,
+			caskInstallInfo,
 		)
 		return DataLoadedMsg{Packages: allBrewPackages}
 	}
@@ -304,120 +267,40 @@ func fetchJsonWithCache[T any](url, filename string, target *T, dataChan chan T,
 	dataChan <- *target
 }
 
-// fetchInstalled runs the `brew info` command and parses its Json output.
-func fetchInstalled(installedChan chan installedInfo, errChan chan error) {
+func updateBrew() {
 	var errOutput bytes.Buffer
-	cmd := exec.Command("brew", "info", "--json=v2", "--installed")
-	cmd.Stderr = &errOutput
-	output, err := cmd.Output()
+	updateCmd := exec.Command("brew", "update")
+	updateCmd.Stderr = &errOutput
+	err := updateCmd.Run()
 	if err != nil {
-		errChan <- fmt.Errorf("failed to get installed packages: %s", errOutput.String())
-		return
+		log.Printf("failed to update homebrew %v: %s", err, errOutput.String())
 	}
-
-	var info installedInfo
-	if err := json.Unmarshal(output, &info); err != nil {
-		errChan <- fmt.Errorf("failed to decode brew info json: %w", err)
-		return
-	}
-	installedChan <- info
-}
-
-func fetchDirectorySizes(sizesChan chan map[string]int64, errChan chan error, dir string, followSymbolLinks bool) {
-	// -k: output in KB
-	// -d 1: output size for each direct sub-directories
-	// -L: follow symbol links (which is used for Casks)
-	args := []string{"-k", "-d", "1"}
-	if followSymbolLinks {
-		args = append(args, "-L")
-	}
-	args = append(args, dir)
-
-	var errOutput bytes.Buffer
-	cmd := exec.Command("du", args...)
-	cmd.Stderr = &errOutput
-	output, err := cmd.Output()
-
-	if err == nil {
-		sizesChan <- parseDuCmdOutput(output)
-	} else {
-		errChan <- fmt.Errorf("failed to get package sizes in %s\n%s", dir, errOutput.String())
-	}
-}
-
-func fetchPackageSize(pkg *data.Package) int64 {
-	if !pkg.IsInstalled {
-		return 0
-	}
-
-	// -k: output in KB
-	// -s: output the total size
-	// -L: follow symbol links (which is used for Casks)
-	args := []string{"-k", "-s"}
-	dir := brewPrefix
-	if pkg.IsCask {
-		args = append(args, "-L")
-		dir += "/Caskroom/"
-	} else {
-		dir += "/Cellar/"
-	}
-	dir += pkg.Name
-	args = append(args, dir)
-
-	cmd := exec.Command("du", args...)
-	output, err := cmd.Output()
-
-	if err == nil {
-		return parseDuCmdOutput(output)[pkg.Name]
-	}
-	return 0
-}
-
-func parseDuCmdOutput(output []byte) map[string]int64 {
-	sizes := make(map[string]int64)
-	lines := strings.SplitSeq(strings.TrimSpace(string(output)), "\n")
-	for line := range lines {
-		fields := strings.Fields(line)
-		if len(fields) == 2 {
-			size, _ := strconv.ParseInt(fields[0], 10, 64)
-			name := filepath.Base(fields[1])
-			sizes[name] = size
-		}
-	}
-	return sizes
 }
 
 // processAllData merges all data sources into a single slice of Package.
 func processAllData(
-	installed installedInfo,
 	formulae []apiFormula,
 	casks []apiCask,
 	formulaAnalytics90d apiFormulaAnalytics,
 	caskAnalytics90d apiCaskAnalytics,
-	formulaSizes map[string]int64,
-	caskSizes map[string]int64,
+	formulaInstallInfo, caskInstallInfo []*installInfo,
 ) []*data.Package {
-	formulaInstalls90d := mapFormulaeInstalls(formulaAnalytics90d)
-	caskInstalls90d := mapCaskInstalls(caskAnalytics90d)
+	formulaInstalls90d := mapFormulaeInstalls(formulaAnalytics90d) // formula name to 90d installs
+	caskInstalls90d := mapCaskInstalls(caskAnalytics90d)           // cask name to 90d installs
+	installedFormulae := mapInstallInfo(formulaInstallInfo)        // formula name to *installInfo
+	installedCasks := mapInstallInfo(caskInstallInfo)              // cask  name to *installInfo
+	formulaDependents := make(map[string][]string)                 // formula name to packages that depends on it
+	caskDependents := make(map[string][]string)                    // cask name to packages that depends on it
 
-	formulaDependents := make(map[string][]string) // formula name to packages that depends on it
-	caskDependents := make(map[string][]string)    // cask name to packages that depends on it
-	installedFormulae := make(map[string]struct{}) // track installed formulae to avoid duplicate
-	installedCasks := make(map[string]struct{})    // track installed casks to avoid duplicate
-
-	packages := make([]*data.Package, 0, len(installed.Formulae)+len(installed.Casks)+len(formulae)+len(casks))
-	// Process installed formulae
-	for _, f := range installed.Formulae {
-		packages = append(packages, packageFromFormula(&f, formulaInstalls90d[f.Name], true, formulaSizes[f.Name]))
-		installedFormulae[f.Name] = struct{}{}
+	packages := make([]*data.Package, 0, len(formulae)+len(casks))
+	for _, f := range formulae {
+		packages = append(packages, packageFromFormula(&f, formulaInstalls90d[f.Name], installedFormulae[f.Name]))
 		for _, dep := range f.Dependencies {
 			formulaDependents[dep] = append(formulaDependents[dep], f.Name)
 		}
 	}
-	// Process installed casks
-	for _, c := range installed.Casks {
-		packages = append(packages, packageFromCask(&c, caskInstalls90d[c.Name], true, caskSizes[c.Name]))
-		installedCasks[c.Name] = struct{}{}
+	for _, c := range casks {
+		packages = append(packages, packageFromCask(&c, caskInstalls90d[c.Name], installedCasks[c.Name]))
 		for _, dep := range c.Dependencies.Formulae {
 			formulaDependents[dep] = append(formulaDependents[dep], c.Name)
 		}
@@ -425,27 +308,7 @@ func processAllData(
 			caskDependents[dep] = append(caskDependents[dep], c.Name)
 		}
 	}
-	// Add formulaes to packages, except for installed formulae
-	for _, f := range formulae {
-		if _, installed := installedFormulae[f.Name]; !installed {
-			packages = append(packages, packageFromFormula(&f, formulaInstalls90d[f.Name], false, 0))
-			for _, dep := range f.Dependencies {
-				formulaDependents[dep] = append(formulaDependents[dep], f.Name)
-			}
-		}
-	}
-	// Add casks to packages, except for installed casks
-	for _, c := range casks {
-		if _, installed := installedCasks[c.Name]; !installed {
-			packages = append(packages, packageFromCask(&c, caskInstalls90d[c.Name], false, 0))
-			for _, dep := range c.Dependencies.Formulae {
-				formulaDependents[dep] = append(formulaDependents[dep], c.Name)
-			}
-			for _, dep := range c.Dependencies.Casks {
-				caskDependents[dep] = append(caskDependents[dep], c.Name)
-			}
-		}
-	}
+	// TODO: add packages from custom taps
 
 	// Post processing: fetch release info and populate dependents
 	for _, pkg := range packages {
@@ -492,7 +355,15 @@ func parseInstallCount(str string) int {
 	return count
 }
 
-func packageFromFormula(f *apiFormula, installs90d int, installed bool, installedSize int64) *data.Package {
+func mapInstallInfo(info []*installInfo) map[string]*installInfo {
+	installedMap := make(map[string]*installInfo)
+	for _, item := range info {
+		installedMap[item.name] = item
+	}
+	return installedMap
+}
+
+func packageFromFormula(f *apiFormula, installs90d int, inst *installInfo) *data.Package {
 	pkg := data.Package{
 		Name:              f.Name,
 		Tap:               f.Tap,
@@ -510,22 +381,21 @@ func packageFromFormula(f *apiFormula, installs90d int, installed bool, installe
 		IsDisabled:        f.Disabled,
 		InstallSupported:  true,
 	}
-	if installed {
-		inst := f.Installed[0]
+	if inst != nil {
 		pkg.IsInstalled = true
-		pkg.InstalledVersion = inst.Version
-		pkg.IsOutdated = f.Outdated
-		pkg.IsPinned = f.Pinned
-		pkg.InstalledAsDependency = inst.InstalledAsDep
-		pkg.Size = installedSize
-		pkg.FormattedSize = util.FormatSize(installedSize)
-		pkg.InstalledDate = time.Unix(inst.Time, 0).Format(time.DateOnly)
+		pkg.InstalledVersion = inst.version
+		pkg.IsOutdated = inst.version != pkg.Version
+		pkg.IsPinned = inst.pinned
+		pkg.InstalledAsDependency = inst.asDep
+		pkg.Size = inst.size
+		pkg.FormattedSize = util.FormatSize(inst.size)
+		pkg.InstalledDate = time.Unix(inst.timestamp, 0).Format(time.DateOnly)
 	}
 
 	return &pkg
 }
 
-func packageFromCask(c *apiCask, installs90d int, installed bool, installedSize int64) *data.Package {
+func packageFromCask(c *apiCask, installs90d int, inst *installInfo) *data.Package {
 	pkg := data.Package{
 		Name:         c.Name,
 		Tap:          c.Tap,
@@ -550,16 +420,21 @@ func packageFromCask(c *apiCask, installs90d int, installed bool, installedSize 
 	// Don't support installing casks in pkg format as they require sudo
 	pkg.InstallSupported = !strings.HasSuffix(url, ".pkg")
 
-	if installed {
+	if inst != nil {
 		pkg.IsInstalled = true
-		pkg.InstalledVersion = c.InstalledVersion
-		pkg.IsOutdated = c.Outdated
-		// Casks can't be pinned or installed as dependencies
-		pkg.IsPinned = false
-		pkg.InstalledAsDependency = false
-		pkg.Size = installedSize
-		pkg.FormattedSize = util.FormatSize(installedSize)
-		pkg.InstalledDate = time.Unix(c.InstalledTime, 0).Format(time.DateOnly)
+		if c.AutoUpdate {
+			// Cask has auto update (not managed by brew), assume it is up-to-date
+			pkg.InstalledVersion = c.Version
+			pkg.IsOutdated = false
+		} else {
+			pkg.InstalledVersion = inst.version
+			pkg.IsOutdated = inst.version != c.Version
+		}
+		pkg.IsPinned = inst.pinned
+		pkg.InstalledAsDependency = inst.asDep
+		pkg.Size = inst.size
+		pkg.FormattedSize = util.FormatSize(inst.size)
+		pkg.InstalledDate = time.Unix(inst.timestamp, 0).Format(time.DateOnly)
 	}
 
 	return &pkg

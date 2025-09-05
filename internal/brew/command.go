@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 	"taproom/internal/data"
-	"taproom/internal/util"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -173,9 +172,6 @@ func UpdatePackageForAction(command BrewCommand, pkgs []*data.Package) {
 			for _, depName := range GetRecursiveMissingDeps(pkg.Name) {
 				GetPackage(depName).MarkInstalled()
 			}
-
-			pkg.Size = fetchPackageSize(pkg)
-			pkg.FormattedSize = util.FormatSize(pkg.Size)
 		}
 	case BrewCommandUninstall:
 		for _, pkg := range pkgs {
