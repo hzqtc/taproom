@@ -13,11 +13,13 @@ import (
 
 type installInfo struct {
 	name      string
+	tap       string
 	version   string
 	asDep     bool
 	pinned    bool
 	timestamp int64
 	size      int64
+	path      string
 }
 
 // struct to parse INSTALL_RECEIPT.json
@@ -29,6 +31,8 @@ type installReceipt struct {
 		Versions struct {
 			Stable string `json:"stable"` // Formula only
 		} `json:"versions"`
+		Tap  string `json:"tap"`
+		Path string `json:"path"`
 	} `json:"source"`
 }
 
@@ -82,7 +86,6 @@ func fetchInstalledFormulae(fetchSize bool, resultCh chan []*installInfo, errCh 
 			continue
 		}
 		info.pinned = pinnedFormulae[info.name]
-		log.Printf("fetched formula install info: %+v", info)
 		infoList = append(infoList, info)
 	}
 	resultCh <- infoList
@@ -107,10 +110,12 @@ func getFormulaInstallInfo(fetchSize bool, name, path string) *installInfo {
 
 	return &installInfo{
 		name:      name,
+		tap:       receipt.Source.Tap,
 		version:   receipt.Source.Versions.Stable,
 		size:      size,
 		asDep:     receipt.InstalledAsDep,
 		timestamp: receipt.InstallTime,
+		path:      receipt.Source.Path,
 	}
 }
 
@@ -159,7 +164,6 @@ func fetchInstalledCasks(fetchSize bool, resultCh chan []*installInfo, errCh cha
 		if info == nil {
 			continue
 		}
-		log.Printf("fetched cask install info: %+v", info)
 		infoList = append(infoList, info)
 	}
 	resultCh <- infoList

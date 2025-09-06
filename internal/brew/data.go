@@ -292,13 +292,36 @@ func processAllData(
 	formulaDependents := make(map[string][]string)                 // formula name to packages that depends on it
 	caskDependents := make(map[string][]string)                    // cask name to packages that depends on it
 
-	packages := make([]*data.Package, 0, len(formulae)+len(casks))
+	packages := []*data.Package{}
+
+	// Add formulae from custom taps
+	for _, info := range formulaInstallInfo {
+		if info.tap != coreTap {
+			pkg, err := getLocalPackage(info)
+			if err == nil {
+				pkg.Installs90d = formulaInstalls90d[pkg.Name]
+				pkg.InstallSupported = true
+				pkg.IsCask = false
+				pkg = updateInstallInfo(pkg, info)
+				packages = append(packages, pkg)
+				for _, dep := range pkg.Dependencies {
+					formulaDependents[dep] = append(formulaDependents[dep], pkg.Name)
+				}
+			} else {
+				log.Printf("failed to retrieve infomation for %s/%s: %v", info.tap, info.name, err)
+			}
+		}
+	}
+
+	// Add formulae
 	for _, f := range formulae {
 		packages = append(packages, packageFromFormula(&f, formulaInstalls90d[f.Name], installedFormulae[f.Name]))
 		for _, dep := range f.Dependencies {
 			formulaDependents[dep] = append(formulaDependents[dep], f.Name)
 		}
 	}
+
+	// Add casks
 	for _, c := range casks {
 		packages = append(packages, packageFromCask(&c, caskInstalls90d[c.Name], installedCasks[c.Name]))
 		for _, dep := range c.Dependencies.Formulae {
@@ -308,7 +331,6 @@ func processAllData(
 			caskDependents[dep] = append(caskDependents[dep], c.Name)
 		}
 	}
-	// TODO: add packages from custom taps
 
 	// Post processing: fetch release info and populate dependents
 	for _, pkg := range packages {
@@ -376,23 +398,16 @@ func packageFromFormula(f *apiFormula, installs90d int, inst *installInfo) *data
 		BuildDependencies: f.BuildDependencies,
 		Conflicts:         f.Conflicts,
 		Installs90d:       installs90d,
-		IsCask:            false,
 		IsDeprecated:      f.Deprecated,
 		IsDisabled:        f.Disabled,
 		InstallSupported:  true,
 	}
-	if inst != nil {
-		pkg.IsInstalled = true
-		pkg.InstalledVersion = inst.version
-		pkg.IsOutdated = inst.version != pkg.Version
-		pkg.IsPinned = inst.pinned
-		pkg.InstalledAsDependency = inst.asDep
-		pkg.Size = inst.size
-		pkg.FormattedSize = util.FormatSize(inst.size)
-		pkg.InstalledDate = time.Unix(inst.timestamp, 0).Format(time.DateOnly)
-	}
 
-	return &pkg
+	if inst != nil {
+		return updateInstallInfo(&pkg, inst)
+	} else {
+		return &pkg
+	}
 }
 
 func packageFromCask(c *apiCask, installs90d int, inst *installInfo) *data.Package {
@@ -408,6 +423,7 @@ func packageFromCask(c *apiCask, installs90d int, inst *installInfo) *data.Packa
 		Conflicts:    util.SortAndUniq(append(c.Conflicts.Formulae, c.Conflicts.Casks...)),
 		Installs90d:  installs90d,
 		IsCask:       true,
+		AutoUpdate:   c.AutoUpdate,
 		IsDeprecated: c.Deprecated,
 		IsDisabled:   c.Disabled,
 	}
@@ -421,23 +437,28 @@ func packageFromCask(c *apiCask, installs90d int, inst *installInfo) *data.Packa
 	pkg.InstallSupported = !strings.HasSuffix(url, ".pkg")
 
 	if inst != nil {
-		pkg.IsInstalled = true
-		if c.AutoUpdate {
-			// Cask has auto update (not managed by brew), assume it is up-to-date
-			pkg.InstalledVersion = c.Version
-			pkg.IsOutdated = false
-		} else {
-			pkg.InstalledVersion = inst.version
-			pkg.IsOutdated = inst.version != c.Version
-		}
-		pkg.IsPinned = inst.pinned
-		pkg.InstalledAsDependency = inst.asDep
-		pkg.Size = inst.size
-		pkg.FormattedSize = util.FormatSize(inst.size)
-		pkg.InstalledDate = time.Unix(inst.timestamp, 0).Format(time.DateOnly)
+		return updateInstallInfo(&pkg, inst)
+	} else {
+		return &pkg
 	}
+}
 
-	return &pkg
+func updateInstallInfo(pkg *data.Package, inst *installInfo) *data.Package {
+	pkg.IsInstalled = true
+	if pkg.IsCask && pkg.AutoUpdate {
+		// Cask has auto update (not managed by brew), assume it is up-to-date
+		pkg.InstalledVersion = pkg.Version
+		pkg.IsOutdated = false
+	} else {
+		pkg.InstalledVersion = inst.version
+		pkg.IsOutdated = inst.version != pkg.Version
+	}
+	pkg.IsPinned = inst.pinned
+	pkg.InstalledAsDependency = inst.asDep
+	pkg.Size = inst.size
+	pkg.FormattedSize = util.FormatSize(inst.size)
+	pkg.InstalledDate = time.Unix(inst.timestamp, 0).Format(time.DateOnly)
+	return pkg
 }
 
 func GetPackage(name string) *data.Package {

@@ -27,6 +27,7 @@ type Package struct {
 	Dependents            []string
 	Conflicts             []string
 	Installs90d           int
+	AutoUpdate            bool
 	IsCask                bool
 	IsInstalled           bool
 	IsOutdated            bool
