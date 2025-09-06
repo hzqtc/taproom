@@ -45,42 +45,42 @@ var brewPrefix = func() string {
 	return strings.TrimSpace(string(brewPrefixBytes))
 }()
 
-func fetchInstalledFormulae(fetchSize bool, resultCh chan []*installInfo, errCh chan error) {
-	dir := filepath.Join(brewPrefix, "var/homebrew/linked")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		errCh <- fmt.Errorf("failed to list linked formulae: %w", err)
+func fetchInstalledPackages(fetchSize bool, cask bool, resultCh chan []*installInfo, errCh chan error) {
+	var dir string
+	if cask {
+		dir = filepath.Join(brewPrefix, "Caskroom")
+	} else {
+		dir = filepath.Join(brewPrefix, "Cellar")
 	}
 
-	installInfoCh := make(chan *installInfo, 16)
-	numFormulae := 0
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		errCh <- fmt.Errorf("failed to read dir %s: %w", dir, err)
+	}
+
+	installInfoCh := make(chan *installInfo, 16 /* chan buffer */)
+	numPackages := 0
 	for _, entry := range entries {
 		name := entry.Name()
-		if name == "" || name[0] == '.' {
+		// Skip hidden file and symlinks
+		if name == "" || name[0] == '.' || entry.Type()&os.ModeSymlink != 0 {
 			continue
 		}
 
 		path := filepath.Join(dir, name)
-		resolvedPath := path
-		if entry.Type()&os.ModeSymlink != 0 {
-			target, err := filepath.EvalSymlinks(path)
-			if err != nil {
-				log.Printf("failed to resolve symlink: %s", path)
-				installInfoCh <- nil
-				continue
-			}
-			resolvedPath = target
-		}
-
-		numFormulae++
+		numPackages++
 		go func() {
-			installInfoCh <- getFormulaInstallInfo(fetchSize, name, resolvedPath)
+			if cask {
+				installInfoCh <- getCaskInstallInfo(fetchSize, path)
+			} else {
+				installInfoCh <- getFormulaInstallInfo(fetchSize, path)
+			}
 		}()
 	}
 
 	pinnedFormulae := getPinnedFormulae()
 	infoList := []*installInfo{}
-	for range numFormulae {
+	for range numPackages {
 		info := <-installInfoCh
 		if info == nil {
 			continue
@@ -91,22 +91,32 @@ func fetchInstalledFormulae(fetchSize bool, resultCh chan []*installInfo, errCh 
 	resultCh <- infoList
 }
 
-func getFormulaInstallInfo(fetchSize bool, name, path string) *installInfo {
+func getFormulaInstallInfo(fetchSize bool, path string) *installInfo {
+	name := filepath.Base(path)
+	entries, err := os.ReadDir(path)
+	var subdir string
+	if err != nil {
+		log.Printf("failed to get formula install info from %s: %v", path, err)
+		return nil
+	} else {
+		for _, entry := range entries {
+			// Expect only one subdirectory, which name is the formula version
+			subdir = entry.Name()
+			if subdir == "" || subdir[0] == '.' {
+				continue
+			} else {
+				break
+			}
+		}
+	}
+	path = filepath.Join(path, subdir)
+
 	var size int64
 	if fetchSize {
 		size = fetchDirSize(path, false)
 	}
 
-	var receipt installReceipt
-	file, err := os.Open(filepath.Join(path, "INSTALL_RECEIPT.json"))
-	if err != nil {
-		log.Printf("failed to open INSTALL_RECEIPT.json in: %s", path)
-
-	}
-	defer file.Close()
-	if err := json.NewDecoder(file).Decode(&receipt); err != nil {
-		log.Printf("failed to parse INSTALL_RECEIPT.json in: %s", path)
-	}
+	receipt := parseInstallReceipt(filepath.Join(path, "INSTALL_RECEIPT.json"))
 
 	return &installInfo{
 		name:      name,
@@ -136,54 +146,10 @@ func getPinnedFormulae() map[string]bool {
 	return formulae
 }
 
-func fetchInstalledCasks(fetchSize bool, resultCh chan []*installInfo, errCh chan error) {
-	dir := filepath.Join(brewPrefix, "Caskroom")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		errCh <- fmt.Errorf("failed to list casks: %w", err)
-	}
-
-	installInfoCh := make(chan *installInfo, 16)
-	numCasks := 0
-	for _, entry := range entries {
-		name := entry.Name()
-		if name == "" || name[0] == '.' {
-			continue
-		}
-
-		path := filepath.Join(dir, name)
-		numCasks++
-		go func() {
-			installInfoCh <- getCaskInstallInfo(fetchSize, path)
-		}()
-	}
-
-	infoList := []*installInfo{}
-	for range numCasks {
-		info := <-installInfoCh
-		if info == nil {
-			continue
-		}
-		infoList = append(infoList, info)
-	}
-	resultCh <- infoList
-}
-
 func getCaskInstallInfo(fetchSize bool, path string) *installInfo {
 	var size int64
 	if fetchSize {
 		size = fetchDirSize(path, true)
-	}
-
-	var receipt installReceipt
-	file, err := os.Open(filepath.Join(path, ".metadata", "INSTALL_RECEIPT.json"))
-	if err != nil {
-		log.Printf("failed to open INSTALL_RECEIPT.json in: %s", path)
-
-	}
-	defer file.Close()
-	if err := json.NewDecoder(file).Decode(&receipt); err != nil {
-		log.Printf("failed to parse INSTALL_RECEIPT.json in: %s", path)
 	}
 
 	var version string
@@ -208,8 +174,12 @@ func getCaskInstallInfo(fetchSize bool, path string) *installInfo {
 			} else {
 				timestamp = info.ModTime().Unix()
 			}
+
+			break
 		}
 	}
+
+	receipt := parseInstallReceipt(filepath.Join(path, ".metadata", "INSTALL_RECEIPT.json"))
 
 	return &installInfo{
 		name:      filepath.Base(path),
@@ -219,6 +189,21 @@ func getCaskInstallInfo(fetchSize bool, path string) *installInfo {
 		asDep:     receipt.InstalledAsDep,
 		timestamp: timestamp,
 	}
+}
+
+func parseInstallReceipt(path string) *installReceipt {
+	var receipt installReceipt
+	file, err := os.Open(path)
+	if err != nil {
+		log.Printf("failed to open INSTALL_RECEIPT.json in: %s", path)
+		return nil
+	}
+	defer file.Close()
+	if err := json.NewDecoder(file).Decode(&receipt); err != nil {
+		log.Printf("failed to parse INSTALL_RECEIPT.json in: %s", path)
+		return nil
+	}
+	return &receipt
 }
 
 func fetchDirSize(path string, followSymlink bool) int64 {

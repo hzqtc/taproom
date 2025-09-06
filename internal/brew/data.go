@@ -156,9 +156,9 @@ func LoadData(fetchAnalytics, fetchSize bool, loadingPrgs *loading.LoadingProgre
 			formulaAnalytics90d = apiFormulaAnalytics{}
 			caskAnalytics90d = apiCaskAnalytics{}
 		}
-		go fetchInstalledFormulae(fetchSize, formulaInstallInfoChan, errChan)
+		go fetchInstalledPackages(fetchSize, false, formulaInstallInfoChan, errChan)
 		loadingPrgs.AddTask(formulaInstallInfoChan, "Loading formulae installation data")
-		go fetchInstalledCasks(fetchSize, caskInstallInfoChan, errChan)
+		go fetchInstalledPackages(fetchSize, true, caskInstallInfoChan, errChan)
 		loadingPrgs.AddTask(caskInstallInfoChan, "Loading casks installation data")
 
 		// Update brew in the background, we don't depend on `brew` command to get data
@@ -294,10 +294,10 @@ func processAllData(
 
 	packages := []*data.Package{}
 
-	// Add formulae from custom taps
+	// Add formulae from custom taps, since they're not in formula.json
 	for _, info := range formulaInstallInfo {
 		if info.tap != coreTap {
-			pkg, err := getLocalPackage(info)
+			pkg, err := getCustomTapPackage(info)
 			if err == nil {
 				pkg.Installs90d = formulaInstalls90d[pkg.Name]
 				pkg.InstallSupported = true
@@ -394,8 +394,8 @@ func packageFromFormula(f *apiFormula, installs90d int, inst *installInfo) *data
 		Homepage:          f.Homepage,
 		Urls:              []string{f.Urls.Stable.Url, f.Urls.Head.Url},
 		License:           f.License,
-		Dependencies:      util.SortAndUniq(f.Dependencies),
-		BuildDependencies: f.BuildDependencies,
+		Dependencies:      util.Sort(f.Dependencies),
+		BuildDependencies: util.Sort(f.BuildDependencies),
 		Conflicts:         f.Conflicts,
 		Installs90d:       installs90d,
 		IsDeprecated:      f.Deprecated,
@@ -419,8 +419,8 @@ func packageFromCask(c *apiCask, installs90d int, inst *installInfo) *data.Packa
 		Homepage:     c.Homepage,
 		Urls:         []string{c.Url},
 		License:      "N/A",
-		Dependencies: util.SortAndUniq(append(c.Dependencies.Formulae, c.Dependencies.Casks...)),
-		Conflicts:    util.SortAndUniq(append(c.Conflicts.Formulae, c.Conflicts.Casks...)),
+		Dependencies: util.Sort(append(c.Dependencies.Formulae, c.Dependencies.Casks...)),
+		Conflicts:    util.Sort(append(c.Conflicts.Formulae, c.Conflicts.Casks...)),
 		Installs90d:  installs90d,
 		IsCask:       true,
 		AutoUpdate:   c.AutoUpdate,

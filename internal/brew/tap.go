@@ -10,16 +10,18 @@ import (
 
 const coreTap = "homebrew/core"
 
-// Get a package using local data
-func getLocalPackage(info *installInfo) (*data.Package, error) {
+// Get a package from locally cloned custom tap data (*.rb files)
+// Ideally this should be called after `brew update`
+func getCustomTapPackage(info *installInfo) (*data.Package, error) {
 	pkg := data.Package{
 		Name: info.name,
 		Tap:  info.tap,
 	}
 
+	// This reads the .rb file located in /opt/homebrew/Library/Taps/
 	data, err := os.ReadFile(info.path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("can't read %s: %w", info.path, err)
 	}
 	content := string(data)
 

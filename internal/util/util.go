@@ -21,6 +21,11 @@ func SortAndUniq(input []string) []string {
 	return result
 }
 
+func Sort(input []string) []string {
+	slices.Sort(input)
+	return input
+}
+
 var (
 	sizeUnits = []string{"GB", "MB", "KB"}
 
