@@ -14,8 +14,9 @@ import (
 )
 
 type DetailsPanelModel struct {
-	pkg *data.Package
-	vp  viewport.Model
+	pkg     *data.Package
+	content string
+	vp      viewport.Model
 }
 
 var (
@@ -64,6 +65,7 @@ func NewDetailsPanelModel() DetailsPanelModel {
 func (m *DetailsPanelModel) SetDimension(width, height int) {
 	m.vp.Width = width
 	m.vp.Height = height
+	m.vp.SetContent(lipgloss.NewStyle().Width(width).Render(m.content))
 }
 
 func (m *DetailsPanelModel) SetPackage(pkg *data.Package) {
@@ -197,6 +199,7 @@ func (m *DetailsPanelModel) updatePanel() {
 		}
 	}
 
-	m.vp.SetContent(lipgloss.NewStyle().Width(m.vp.Width).Render(b.String()))
+	m.content = b.String()
+	m.vp.SetContent(lipgloss.NewStyle().Width(m.vp.Width).Render(m.content))
 	m.vp.GotoTop()
 }
