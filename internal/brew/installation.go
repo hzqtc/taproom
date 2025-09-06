@@ -39,10 +39,24 @@ type installReceipt struct {
 var brewPrefix = func() string {
 	brewPrefixBytes, err := exec.Command("brew", "--prefix").Output()
 	if err != nil {
-		log.Printf("failed to identify brew prefix: %v\n", err)
-		return ""
+		panic(fmt.Sprintf("failed to locate homebrew path: %v", err))
 	}
 	return strings.TrimSpace(string(brewPrefixBytes))
+}()
+
+var pinnedPackages = func() map[string]bool {
+	formulae := make(map[string]bool)
+
+	dir := filepath.Join(brewPrefix, "var/homebrew/pinned")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return formulae
+	}
+
+	for _, entry := range entries {
+		formulae[entry.Name()] = true
+	}
+	return formulae
 }()
 
 func fetchInstalledPackages(fetchSize bool, cask bool, resultCh chan []*installInfo, errCh chan error) {
@@ -78,14 +92,13 @@ func fetchInstalledPackages(fetchSize bool, cask bool, resultCh chan []*installI
 		}()
 	}
 
-	pinnedFormulae := getPinnedFormulae()
 	infoList := []*installInfo{}
 	for range numPackages {
 		info := <-installInfoCh
 		if info == nil {
 			continue
 		}
-		info.pinned = pinnedFormulae[info.name]
+		info.pinned = pinnedPackages[info.name]
 		infoList = append(infoList, info)
 	}
 	resultCh <- infoList
@@ -127,23 +140,6 @@ func getFormulaInstallInfo(fetchSize bool, path string) *installInfo {
 		timestamp: receipt.InstallTime,
 		path:      receipt.Source.Path,
 	}
-}
-
-func getPinnedFormulae() map[string]bool {
-	formulae := make(map[string]bool)
-
-	dir := filepath.Join(brewPrefix, "var/homebrew/pinned")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		log.Printf("failed to list pinned formulae: %v", err)
-		return formulae
-	}
-
-	for _, entry := range entries {
-		formulae[entry.Name()] = true
-	}
-
-	return formulae
 }
 
 func getCaskInstallInfo(fetchSize bool, path string) *installInfo {
