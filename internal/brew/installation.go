@@ -15,6 +15,7 @@ type installInfo struct {
 	name      string
 	tap       string
 	version   string
+	revision  int
 	asDep     bool
 	pinned    bool
 	timestamp int64
@@ -130,11 +131,17 @@ func getFormulaInstallInfo(fetchSize bool, path string) *installInfo {
 	}
 
 	receipt := parseInstallReceipt(filepath.Join(path, "INSTALL_RECEIPT.json"))
+	revision := 0
+	// Get revision from subdir, e.g. 0.11.1_2 is vision 0.11.1 and revision is 2
+	if s, _ := strings.CutPrefix(subdir, receipt.Source.Versions.Stable); len(s) > 0 && strings.HasPrefix(s, "_") {
+		revision, _ = strconv.Atoi(s[1:])
+	}
 
 	return &installInfo{
 		name:      name,
 		tap:       receipt.Source.Tap,
 		version:   receipt.Source.Versions.Stable,
+		revision:  revision,
 		size:      size,
 		asDep:     receipt.InstalledAsDep,
 		timestamp: receipt.InstallTime,

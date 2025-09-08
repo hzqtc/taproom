@@ -17,7 +17,9 @@ type Package struct {
 	Name                  string // Used as a unique key
 	Tap                   string
 	Version               string
+	Revision              int
 	InstalledVersion      string
+	InstalledRevision     int
 	Desc                  string
 	Homepage              string
 	Urls                  []string
@@ -98,23 +100,39 @@ func (pkg *Package) BrewUrl() string {
 	}
 }
 
-func (pkg *Package) ShortVersion() string {
-	if pkg.IsOutdated {
-		return fmt.Sprintf("%s (New)", pkg.Version)
-	} else if pkg.IsPinned {
-		return fmt.Sprintf("%s (Pin)", pkg.InstalledVersion)
+func (pkg *Package) versionWithRev() string {
+	if pkg.Revision > 0 {
+		return fmt.Sprintf("%s_%d", pkg.Version, pkg.Revision)
 	} else {
 		return pkg.Version
 	}
 }
 
+func (pkg *Package) installedVersionWithRev() string {
+	if pkg.InstalledRevision > 0 {
+		return fmt.Sprintf("%s_%d", pkg.InstalledVersion, pkg.InstalledRevision)
+	} else {
+		return pkg.InstalledVersion
+	}
+}
+
+func (pkg *Package) ShortVersion() string {
+	if pkg.IsOutdated {
+		return fmt.Sprintf("%s (New)", pkg.versionWithRev())
+	} else if pkg.IsPinned {
+		return fmt.Sprintf("%s (Pin)", pkg.installedVersionWithRev())
+	} else {
+		return pkg.versionWithRev()
+	}
+}
+
 func (pkg *Package) LongVersion() string {
 	if pkg.IsOutdated {
-		return fmt.Sprintf("%s -> %s", pkg.InstalledVersion, pkg.Version)
+		return fmt.Sprintf("%s -> %s", pkg.installedVersionWithRev(), pkg.versionWithRev())
 	} else if pkg.IsPinned {
-		return fmt.Sprintf("%s (Pinned)", pkg.InstalledVersion)
+		return fmt.Sprintf("%s (Pinned)", pkg.installedVersionWithRev())
 	} else {
-		return pkg.Version
+		return pkg.versionWithRev()
 	}
 }
 

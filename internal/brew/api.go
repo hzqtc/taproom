@@ -45,6 +45,7 @@ type apiFormula struct {
 	Versions struct {
 		Stable string `json:"stable"`
 	} `json:"versions"`
+	Revision int    `json:"revision"`
 	Homepage string `json:"homepage"`
 	Urls     struct {
 		Stable struct {

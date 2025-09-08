@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"taproom/internal/data"
 )
@@ -30,6 +31,11 @@ func getCustomTapPackage(info *installInfo) (*data.Package, error) {
 		pkg.Version = m[1]
 	} else {
 		return nil, fmt.Errorf("no version found in %s", info.path)
+	}
+
+	// Revision
+	if m := regexp.MustCompile(`revision\s+([0-9]+)`).FindStringSubmatch(content); m != nil {
+		pkg.Revision, _ = strconv.Atoi(m[1])
 	}
 
 	// Desc

@@ -231,6 +231,7 @@ func packageFromFormula(f *apiFormula, installs90d int, inst *installInfo) *data
 		Name:              f.Name,
 		Tap:               f.Tap,
 		Version:           f.Versions.Stable,
+		Revision:          f.Revision,
 		Desc:              f.Desc,
 		Homepage:          f.Homepage,
 		Urls:              []string{f.Urls.Stable.Url, f.Urls.Head.Url},
@@ -292,7 +293,8 @@ func updateInstallInfo(pkg *data.Package, inst *installInfo) *data.Package {
 		pkg.IsOutdated = false
 	} else {
 		pkg.InstalledVersion = inst.version
-		pkg.IsOutdated = inst.version != pkg.Version
+		pkg.InstalledRevision = inst.revision
+		pkg.IsOutdated = inst.version != pkg.Version || inst.revision < pkg.Revision
 	}
 	pkg.IsPinned = inst.pinned
 	pkg.InstalledAsDependency = inst.asDep
