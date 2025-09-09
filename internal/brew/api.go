@@ -7,30 +7,44 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/pflag"
 )
 
-var cacheDir = func() string {
+var brewCacheDir = func() string {
+	brewCacheDirBytes, err := exec.Command("brew", "--cache").Output()
+	if err == nil {
+		return strings.TrimSpace(string(brewCacheDirBytes))
+	} else {
+		log.Printf("failed to locate homebrew cache path: %v", err)
+		return taproomCacheDir
+	}
+}()
+
+var taproomCacheDir = func() string {
 	home, err := os.UserHomeDir()
-	if err != nil {
+	if err == nil {
+		return filepath.Join(home, ".cache", "taproom")
+	} else {
+		log.Printf("failed to locate user's home dir: %v", err)
 		return ".cache"
 	}
-	return filepath.Join(home, ".cache", "taproom")
 }()
 
 const (
-	apiFormulaURL             = "https://formulae.brew.sh/api/formula.json"
-	apiCaskURL                = "https://formulae.brew.sh/api/cask.json"
+	apiFormulaURL             = "https://formulae.brew.sh/api/formula.jws.json"
+	apiCaskURL                = "https://formulae.brew.sh/api/cask.jws.json"
 	apiFormulaAnalytics90dURL = "https://formulae.brew.sh/api/analytics/install-on-request/90d.json"
 	apiCaskAnalytics90dURL    = "https://formulae.brew.sh/api/analytics/cask-install/90d.json"
 
-	formulaCache              = "formula.json"
-	casksCache                = "cask.json"
-	formulaeAnalytics90dCache = "formulae-analytics-90d.json"
-	casksAnalytics90dCache    = "casks-analytics-90d.json"
+	formulaJwsJson       = "formula.jws.json"
+	caskJwsJson          = "cask.jws.json"
+	formulaAnalyticsJson = "formula-analytics-90d.json"
+	caskAnalyticsJson    = "cask-analytics-90d.json"
 
 	urlCacheTtl = 6 * time.Hour
 )
@@ -83,6 +97,10 @@ type apiCask struct {
 	Disabled   bool `json:"disabled"`
 }
 
+type jwsJson struct {
+	Payload string `json:"payload"`
+}
+
 type apiFormulaAnalytics struct {
 	Items []struct {
 		Name  string `json:"formula"`
@@ -95,6 +113,42 @@ type apiCaskAnalytics struct {
 		Name  string `json:"cask"`
 		Count string `json:"count"`
 	} `json:"items"`
+}
+
+func fetchFormula(target *[]apiFormula, dataChan chan []apiFormula, errChan chan error) {
+	fetchJwsJsonWithCache(
+		apiFormulaURL,
+		filepath.Join(brewCacheDir, formulaJwsJson),
+		target,
+		dataChan,
+		errChan)
+}
+
+func fetchCask(target *[]apiCask, dataChan chan []apiCask, errChan chan error) {
+	fetchJwsJsonWithCache(
+		apiCaskURL,
+		filepath.Join(brewCacheDir, caskJwsJson),
+		target,
+		dataChan,
+		errChan)
+}
+
+func fetchFormulaAnalytics(target *apiFormulaAnalytics, dataChan chan apiFormulaAnalytics, errChan chan error) {
+	fetchJsonWithCache(
+		apiFormulaAnalytics90dURL,
+		filepath.Join(taproomCacheDir, formulaAnalyticsJson),
+		target,
+		dataChan,
+		errChan)
+}
+
+func fetchCaskAnalytics(target *apiCaskAnalytics, dataChan chan apiCaskAnalytics, errChan chan error) {
+	fetchJsonWithCache(
+		apiCaskAnalytics90dURL,
+		filepath.Join(taproomCacheDir, caskAnalyticsJson),
+		target,
+		dataChan,
+		errChan)
 }
 
 func readCacheData(cachePath string) []byte {
@@ -112,52 +166,73 @@ func readCacheData(cachePath string) []byte {
 	return nil
 }
 
-// fetchJsonWithCache is a generic function to fetch and decode Json from a URL, with caching.
-func fetchJsonWithCache[T any](url, filename string, target *T, dataChan chan T, errChan chan error) {
-	cachePath := filepath.Join(cacheDir, filename)
+// Fetch a JWS json and parse its payload to target
+func fetchJwsJsonWithCache[T any](url, cachePath string, target *T, dataChan chan T, errChan chan error) {
+	data, err := fetchUrlWithCache(url, cachePath)
+	if err != nil {
+		errChan <- err
+		return
+	}
+	jws := jwsJson{}
+	if err := json.Unmarshal(data, &jws); err != nil {
+		errChan <- fmt.Errorf("failed to decode jws json from %s: %w", url, err)
+		return
+	}
+	if err := json.Unmarshal([]byte(jws.Payload), target); err != nil {
+		errChan <- fmt.Errorf("failed to decode json from %s: %w", url, err)
+		return
+	}
+	dataChan <- *target
+}
 
-	// Attempt to load from cache first
+// A generic function to fetch and decode Json from a URL, with caching.
+func fetchJsonWithCache[T any](url, cachePath string, target *T, dataChan chan T, errChan chan error) {
+	data, err := fetchUrlWithCache(url, cachePath)
+	if err != nil {
+		errChan <- err
+		return
+	}
+	if err := json.Unmarshal(data, &target); err != nil {
+		errChan <- fmt.Errorf("failed to decode json from %s: %w", url, err)
+		return
+	}
+	dataChan <- *target
+}
+
+func fetchUrlWithCache(url, cachePath string) ([]byte, error) {
+	var jsonData []byte
 	if !*flagInvalidateCache {
-		if cacheData := readCacheData(cachePath); cacheData != nil {
-			if err := json.Unmarshal(cacheData, &target); err == nil {
-				log.Printf("Loaded %s from cache file %s", url, filename)
-				dataChan <- *target
-				return
-			}
-		}
+		jsonData = readCacheData(cachePath)
+	}
+	if jsonData != nil {
+		log.Printf("Loaded %s from cache %s", url, cachePath)
+		return jsonData, nil
 	}
 
 	// If cache is invalid or missing, fetch from URL
 	resp, err := http.Get(url)
 	if err != nil {
-		errChan <- fmt.Errorf("failed to fetch %s: %w", url, err)
-		return
+		return nil, fmt.Errorf("failed to fetch %s: %w", url, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		errChan <- fmt.Errorf("bad HTTP status fetching %s: %s", url, resp.Status)
-		return
+		return nil, fmt.Errorf("bad HTTP status fetching %s: %s", url, resp.Status)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		errChan <- fmt.Errorf("failed to read body from %s: %w", url, err)
-		return
+		return nil, fmt.Errorf("failed to read body from %s: %w", url, err)
 	}
 
 	// Save to cache
-	if err := os.MkdirAll(cacheDir, 0755); err == nil {
+	if err := os.MkdirAll(filepath.Dir(cachePath), 0755); err == nil {
 		if err := os.WriteFile(cachePath, body, 0644); err != nil {
 			// Log caching error but don't fail the request
 			log.Printf("Failed to write to cache at %s: %+v", cachePath, err)
 		}
 	}
 
-	if err := json.Unmarshal(body, &target); err != nil {
-		errChan <- fmt.Errorf("failed to decode json from %s: %w", url, err)
-		return
-	}
 	log.Printf("Downloaded %s", url)
-	dataChan <- *target
+	return body, nil
 }

@@ -60,17 +60,26 @@ var pinnedPackages = func() map[string]bool {
 	return formulae
 }()
 
-func fetchInstalledPackages(fetchSize bool, cask bool, resultCh chan []*installInfo, errCh chan error) {
-	var dir string
-	if cask {
-		dir = filepath.Join(brewPrefix, "Caskroom")
-	} else {
-		dir = filepath.Join(brewPrefix, "Cellar")
-	}
+func fetchInstalledFormula(fetchSize bool, resultCh chan []*installInfo, errCh chan error) {
+	fetchInstalledPackages(
+		filepath.Join(brewPrefix, "Cellar"),
+		func(path string) *installInfo { return getFormulaInstallInfo(fetchSize, path) },
+		resultCh,
+		errCh)
+}
 
-	entries, err := os.ReadDir(dir)
+func fetchInstalledCask(fetchSize bool, resultCh chan []*installInfo, errCh chan error) {
+	fetchInstalledPackages(
+		filepath.Join(brewPrefix, "Caskroom"),
+		func(path string) *installInfo { return getCaskInstallInfo(fetchSize, path) },
+		resultCh,
+		errCh)
+}
+
+func fetchInstalledPackages(installDir string, fetcher func(string) *installInfo, resultCh chan []*installInfo, errCh chan error) {
+	entries, err := os.ReadDir(installDir)
 	if err != nil {
-		errCh <- fmt.Errorf("failed to read dir %s: %w", dir, err)
+		errCh <- fmt.Errorf("failed to read dir %s: %w", installDir, err)
 	}
 
 	installInfoCh := make(chan *installInfo, 16 /* chan buffer */)
@@ -82,14 +91,10 @@ func fetchInstalledPackages(fetchSize bool, cask bool, resultCh chan []*installI
 			continue
 		}
 
-		path := filepath.Join(dir, name)
+		path := filepath.Join(installDir, name)
 		numPackages++
 		go func() {
-			if cask {
-				installInfoCh <- getCaskInstallInfo(fetchSize, path)
-			} else {
-				installInfoCh <- getFormulaInstallInfo(fetchSize, path)
-			}
+			installInfoCh <- fetcher(path)
 		}()
 	}
 

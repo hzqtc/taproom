@@ -48,23 +48,21 @@ func LoadData(fetchAnalytics, fetchSize bool, loadingPrgs *loading.LoadingProgre
 		var caskAnalytics90d apiCaskAnalytics
 		var formulaInstallInfo, caskInstallInfo []*installInfo
 
-		go fetchJsonWithCache(apiFormulaURL, formulaCache, &allFormulae, formulaeChan, errChan)
+		go fetchFormula(&allFormulae, formulaeChan, errChan)
 		loadingPrgs.AddTask(formulaeChan, "Loading all Formulae")
-		go fetchJsonWithCache(apiCaskURL, casksCache, &allCasks, casksChan, errChan)
+		go fetchCask(&allCasks, casksChan, errChan)
 		loadingPrgs.AddTask(casksChan, "Loading all Casks")
 		if fetchAnalytics {
-			go fetchJsonWithCache(apiFormulaAnalytics90dURL, formulaeAnalytics90dCache, &formulaAnalytics90d, formulaAnalytics90dChan, errChan)
+			go fetchFormulaAnalytics(&formulaAnalytics90d, formulaAnalytics90dChan, errChan)
 			loadingPrgs.AddTask(formulaAnalytics90dChan, "Loading Formulae 90d analytics")
-			go fetchJsonWithCache(apiCaskAnalytics90dURL, casksAnalytics90dCache, &caskAnalytics90d, caskAnalytics90dChan, errChan)
+			go fetchCaskAnalytics(&caskAnalytics90d, caskAnalytics90dChan, errChan)
 			loadingPrgs.AddTask(caskAnalytics90dChan, "Loading Cask 90d analytics")
 		} else {
 			loadingTasksNum -= 2
-			formulaAnalytics90d = apiFormulaAnalytics{}
-			caskAnalytics90d = apiCaskAnalytics{}
 		}
-		go fetchInstalledPackages(fetchSize, false, formulaInstallInfoChan, errChan)
+		go fetchInstalledFormula(fetchSize, formulaInstallInfoChan, errChan)
 		loadingPrgs.AddTask(formulaInstallInfoChan, "Loading formulae installation data")
-		go fetchInstalledPackages(fetchSize, true, caskInstallInfoChan, errChan)
+		go fetchInstalledCask(fetchSize, caskInstallInfoChan, errChan)
 		loadingPrgs.AddTask(caskInstallInfoChan, "Loading casks installation data")
 
 		// Update brew in the background, we don't depend on `brew` command to get data
