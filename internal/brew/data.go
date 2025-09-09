@@ -33,8 +33,8 @@ type DataLoadingErrMsg struct {
 // loadData returns a tea.Cmd that fetches all data concurrently.
 func LoadData(fetchAnalytics, fetchSize bool, loadingPrgs *loading.LoadingProgress) tea.Cmd {
 	return func() tea.Msg {
-		formulaeChan := make(chan []apiFormula)
-		casksChan := make(chan []apiCask)
+		formulaeChan := make(chan []*apiFormula)
+		casksChan := make(chan []*apiCask)
 		formulaAnalytics90dChan := make(chan apiFormulaAnalytics)
 		caskAnalytics90dChan := make(chan apiCaskAnalytics)
 		formulaInstallInfoChan := make(chan []*installInfo)
@@ -42,20 +42,20 @@ func LoadData(fetchAnalytics, fetchSize bool, loadingPrgs *loading.LoadingProgre
 		loadingTasksNum := 6
 		errChan := make(chan error, loadingTasksNum)
 
-		var allFormulae []apiFormula
-		var allCasks []apiCask
+		var allFormulae []*apiFormula
+		var allCasks []*apiCask
 		var formulaAnalytics90d apiFormulaAnalytics
 		var caskAnalytics90d apiCaskAnalytics
 		var formulaInstallInfo, caskInstallInfo []*installInfo
 
-		go fetchFormula(&allFormulae, formulaeChan, errChan)
+		go fetchFormula(formulaeChan, errChan)
 		loadingPrgs.AddTask(formulaeChan, "Loading all Formulae")
-		go fetchCask(&allCasks, casksChan, errChan)
+		go fetchCask(casksChan, errChan)
 		loadingPrgs.AddTask(casksChan, "Loading all Casks")
 		if fetchAnalytics {
-			go fetchFormulaAnalytics(&formulaAnalytics90d, formulaAnalytics90dChan, errChan)
+			go fetchFormulaAnalytics(formulaAnalytics90dChan, errChan)
 			loadingPrgs.AddTask(formulaAnalytics90dChan, "Loading Formulae 90d analytics")
-			go fetchCaskAnalytics(&caskAnalytics90d, caskAnalytics90dChan, errChan)
+			go fetchCaskAnalytics(caskAnalytics90dChan, errChan)
 			loadingPrgs.AddTask(caskAnalytics90dChan, "Loading Cask 90d analytics")
 		} else {
 			loadingTasksNum -= 2
@@ -71,23 +71,17 @@ func LoadData(fetchAnalytics, fetchSize bool, loadingPrgs *loading.LoadingProgre
 
 		for range loadingTasksNum {
 			select {
-			case f := <-formulaeChan:
-				allFormulae = f
+			case allFormulae = <-formulaeChan:
 				loadingPrgs.MarkCompleted(formulaeChan)
-			case c := <-casksChan:
-				allCasks = c
+			case allCasks = <-casksChan:
 				loadingPrgs.MarkCompleted(casksChan)
-			case fa := <-formulaAnalytics90dChan:
-				formulaAnalytics90d = fa
+			case formulaAnalytics90d = <-formulaAnalytics90dChan:
 				loadingPrgs.MarkCompleted(formulaAnalytics90dChan)
-			case ca := <-caskAnalytics90dChan:
-				caskAnalytics90d = ca
+			case caskAnalytics90d = <-caskAnalytics90dChan:
 				loadingPrgs.MarkCompleted(caskAnalytics90dChan)
-			case info := <-formulaInstallInfoChan:
-				formulaInstallInfo = info
+			case formulaInstallInfo = <-formulaInstallInfoChan:
 				loadingPrgs.MarkCompleted(formulaInstallInfoChan)
-			case info := <-caskInstallInfoChan:
-				caskInstallInfo = info
+			case caskInstallInfo = <-caskInstallInfoChan:
 				loadingPrgs.MarkCompleted(caskInstallInfoChan)
 			case err := <-errChan:
 				return DataLoadingErrMsg{err}
@@ -118,8 +112,8 @@ func updateBrew() {
 
 // processAllData merges all data sources into a single slice of Package.
 func processAllData(
-	formulae []apiFormula,
-	casks []apiCask,
+	formulae []*apiFormula,
+	casks []*apiCask,
 	formulaAnalytics90d apiFormulaAnalytics,
 	caskAnalytics90d apiCaskAnalytics,
 	formulaInstallInfo, caskInstallInfo []*installInfo,
@@ -154,7 +148,7 @@ func processAllData(
 
 	// Add formulae
 	for _, f := range formulae {
-		packages = append(packages, packageFromFormula(&f, formulaInstalls90d[f.Name], installedFormulae[f.Name]))
+		packages = append(packages, packageFromFormula(f, formulaInstalls90d[f.Name], installedFormulae[f.Name]))
 		for _, dep := range f.Dependencies {
 			formulaDependents[dep] = append(formulaDependents[dep], f.Name)
 		}
@@ -162,7 +156,7 @@ func processAllData(
 
 	// Add casks
 	for _, c := range casks {
-		packages = append(packages, packageFromCask(&c, caskInstalls90d[c.Name], installedCasks[c.Name]))
+		packages = append(packages, packageFromCask(c, caskInstalls90d[c.Name], installedCasks[c.Name]))
 		for _, dep := range c.Dependencies.Formulae {
 			formulaDependents[dep] = append(formulaDependents[dep], c.Name)
 		}

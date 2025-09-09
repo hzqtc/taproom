@@ -115,38 +115,42 @@ type apiCaskAnalytics struct {
 	} `json:"items"`
 }
 
-func fetchFormula(target *[]apiFormula, dataChan chan []apiFormula, errChan chan error) {
+func fetchFormula(dataChan chan []*apiFormula, errChan chan error) {
+	target := []*apiFormula{}
 	fetchJwsJsonWithCache(
 		apiFormulaURL,
 		filepath.Join(brewCacheDir, formulaJwsJson),
-		target,
+		&target,
 		dataChan,
 		errChan)
 }
 
-func fetchCask(target *[]apiCask, dataChan chan []apiCask, errChan chan error) {
+func fetchCask(dataChan chan []*apiCask, errChan chan error) {
+	target := []*apiCask{}
 	fetchJwsJsonWithCache(
 		apiCaskURL,
 		filepath.Join(brewCacheDir, caskJwsJson),
-		target,
+		&target,
 		dataChan,
 		errChan)
 }
 
-func fetchFormulaAnalytics(target *apiFormulaAnalytics, dataChan chan apiFormulaAnalytics, errChan chan error) {
+func fetchFormulaAnalytics(dataChan chan apiFormulaAnalytics, errChan chan error) {
+	target := apiFormulaAnalytics{}
 	fetchJsonWithCache(
 		apiFormulaAnalytics90dURL,
 		filepath.Join(taproomCacheDir, formulaAnalyticsJson),
-		target,
+		&target,
 		dataChan,
 		errChan)
 }
 
-func fetchCaskAnalytics(target *apiCaskAnalytics, dataChan chan apiCaskAnalytics, errChan chan error) {
+func fetchCaskAnalytics(dataChan chan apiCaskAnalytics, errChan chan error) {
+	target := apiCaskAnalytics{}
 	fetchJsonWithCache(
 		apiCaskAnalytics90dURL,
 		filepath.Join(taproomCacheDir, caskAnalyticsJson),
-		target,
+		&target,
 		dataChan,
 		errChan)
 }
