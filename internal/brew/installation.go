@@ -33,16 +33,16 @@ type installReceipt struct {
 			Stable string `json:"stable"` // Formula only
 		} `json:"versions"`
 		Tap  string `json:"tap"`
-		Path string `json:"path"`
+		Path string `json:"path"` // Path is a .rb file for custom tap packages
 	} `json:"source"`
 }
 
 var brewPrefix = func() string {
-	brewPrefixBytes, err := exec.Command("brew", "--prefix").Output()
+	bytes, err := exec.Command("brew", "--prefix").Output()
 	if err != nil {
 		panic(fmt.Sprintf("failed to locate homebrew path: %v", err))
 	}
-	return strings.TrimSpace(string(brewPrefixBytes))
+	return strings.TrimSpace(string(bytes))
 }()
 
 var pinnedPackages = func() map[string]bool {

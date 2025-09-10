@@ -16,9 +16,9 @@ import (
 )
 
 var brewCacheDir = func() string {
-	brewCacheDirBytes, err := exec.Command("brew", "--cache").Output()
+	bytes, err := exec.Command("brew", "--cache").Output()
 	if err == nil {
-		return strings.TrimSpace(string(brewCacheDirBytes))
+		return filepath.Join(strings.TrimSpace(string(bytes)), "api")
 	} else {
 		log.Printf("failed to locate homebrew cache path: %v", err)
 		return taproomCacheDir
