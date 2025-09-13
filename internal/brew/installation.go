@@ -135,7 +135,7 @@ func getFormulaInstallInfo(fetchSize bool, path string) *installInfo {
 		size = fetchDirSize(path, false)
 	}
 
-	receipt := parseInstallReceipt(filepath.Join(path, "INSTALL_RECEIPT.json"))
+	receipt := parseInstallReceipt(path)
 	revision := 0
 	// Get revision from subdir, e.g. 0.11.1_2 is vision 0.11.1 and revision is 2
 	if s, _ := strings.CutPrefix(subdir, receipt.Source.Versions.Stable); len(s) > 0 && strings.HasPrefix(s, "_") {
@@ -187,28 +187,32 @@ func getCaskInstallInfo(fetchSize bool, path string) *installInfo {
 		}
 	}
 
-	receipt := parseInstallReceipt(filepath.Join(path, ".metadata", "INSTALL_RECEIPT.json"))
+	installedAsDep := false
+	if receipt := parseInstallReceipt(filepath.Join(path, ".metadata")); receipt != nil {
+		installedAsDep = receipt.InstalledAsDep
+	}
 
 	return &installInfo{
 		name:      filepath.Base(path),
 		version:   version,
 		pinned:    false, // Cask can not be pinned
 		size:      size,
-		asDep:     receipt.InstalledAsDep,
+		asDep:     installedAsDep,
 		timestamp: timestamp,
 	}
 }
 
-func parseInstallReceipt(path string) *installReceipt {
+func parseInstallReceipt(dir string) *installReceipt {
+	const filename = "INSTALL_RECEIPT.json"
 	var receipt installReceipt
-	file, err := os.Open(path)
+	file, err := os.Open(filepath.Join(dir, filename))
 	if err != nil {
-		log.Printf("failed to open INSTALL_RECEIPT.json in: %s", path)
+		log.Printf("failed to open %s in: %s", filename, dir)
 		return nil
 	}
 	defer file.Close()
 	if err := json.NewDecoder(file).Decode(&receipt); err != nil {
-		log.Printf("failed to parse INSTALL_RECEIPT.json in: %s", path)
+		log.Printf("failed to parse %s in: %s", filename, dir)
 		return nil
 	}
 	return &receipt
