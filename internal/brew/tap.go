@@ -3,6 +3,7 @@ package brew
 import (
 	"fmt"
 	"os"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -10,6 +11,11 @@ import (
 )
 
 const coreTap = "homebrew/core"
+
+var (
+	versionRegex = regexp.MustCompile(`v?(\d+(?:\.\d+)+[a-zA-Z0-9\-\.]*)`)
+	sourceExts   = []string{".tar.gz", ".tar.xz", ".tar.bz2", ".tgz", ".zip"}
+)
 
 // Get a package from locally cloned custom tap data (*.rb files)
 // Ideally this should be called after `brew update`
@@ -29,8 +35,9 @@ func getCustomTapPackage(info *installInfo) (*data.Package, error) {
 	// Version
 	if m := regexp.MustCompile(`version\s+["']([^"']+)["']`).FindStringSubmatch(content); m != nil {
 		pkg.Version = m[1]
-	} else {
-		return nil, fmt.Errorf("no version found in %s", info.path)
+	}
+	if m := regexp.MustCompile(`tag:\s+["']([^"']+)["']`).FindStringSubmatch(content); m != nil {
+		pkg.Version = normalizeVersion(m[1])
 	}
 
 	// Revision
@@ -41,21 +48,25 @@ func getCustomTapPackage(info *installInfo) (*data.Package, error) {
 	// Desc
 	if m := regexp.MustCompile(`desc\s+["']([^"']+)["']`).FindStringSubmatch(content); m != nil {
 		pkg.Desc = m[1]
-	} else {
-		return nil, fmt.Errorf("no desc found in %s", info.path)
 	}
 
 	// Homepage
 	if m := regexp.MustCompile(`homepage\s+["']([^"']+)["']`).FindStringSubmatch(content); m != nil {
 		pkg.Homepage = m[1]
-	} else {
-		return nil, fmt.Errorf("no homepage found in %s", info.path)
 	}
 
 	// Urls
 	urlRe := regexp.MustCompile(`url\s+["']([^"']+)["']`)
 	for _, m := range urlRe.FindAllStringSubmatch(content, -1) {
-		pkg.Urls = append(pkg.Urls, m[1])
+		url := m[1]
+		pkg.Urls = append(pkg.Urls, url)
+
+		// Try infer version from url
+		if pkg.Version == "" {
+			if v := parseVersionFromUrl(url); v != "" {
+				pkg.Version = v
+			}
+		}
 	}
 
 	// License
@@ -90,5 +101,33 @@ func getCustomTapPackage(info *installInfo) (*data.Package, error) {
 		pkg.IsDeprecated = true
 	}
 
-	return &pkg, nil
+	// Final validation on required fields
+	if pkg.Version == "" {
+		return nil, fmt.Errorf("no version found in %s", info.path)
+	} else if pkg.Desc == "" {
+		return nil, fmt.Errorf("no desc found in %s", info.path)
+	} else if pkg.Homepage == "" {
+		return nil, fmt.Errorf("no homepage found in %s", info.path)
+	} else {
+		return &pkg, nil
+	}
+}
+
+func parseVersionFromUrl(url string) string {
+	base := path.Base(url)
+	for _, ext := range sourceExts {
+		if strings.HasSuffix(base, ext) {
+			base = strings.TrimSuffix(base, ext)
+			break
+		}
+	}
+	if m := versionRegex.FindStringSubmatch(base); m != nil {
+		return normalizeVersion(m[1])
+	} else {
+		return ""
+	}
+}
+
+func normalizeVersion(v string) string {
+	return strings.TrimPrefix(v, "v")
 }

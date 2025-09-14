@@ -129,20 +129,21 @@ func processAllData(
 
 	// Add formulae from custom taps, since they're not in formula.json
 	for _, info := range formulaInstallInfo {
-		if info.tap != coreTap {
-			pkg, err := getCustomTapPackage(info)
-			if err == nil {
-				pkg.Installs90d = formulaInstalls90d[pkg.Name]
-				pkg.InstallSupported = true
-				pkg.IsCask = false
-				pkg = updateInstallInfo(pkg, info)
-				packages = append(packages, pkg)
-				for _, dep := range pkg.Dependencies {
-					formulaDependents[dep] = append(formulaDependents[dep], pkg.Name)
-				}
-			} else {
-				log.Printf("failed to retrieve infomation for %s/%s: %v", info.tap, info.name, err)
+		if info.tap == coreTap {
+			continue
+		}
+		pkg, err := getCustomTapPackage(info)
+		if err == nil {
+			pkg.Installs90d = formulaInstalls90d[pkg.Name]
+			pkg.InstallSupported = true
+			pkg.IsCask = false
+			pkg = updateInstallInfo(pkg, info)
+			packages = append(packages, pkg)
+			for _, dep := range pkg.Dependencies {
+				formulaDependents[dep] = append(formulaDependents[dep], pkg.Name)
 			}
+		} else {
+			log.Printf("failed to retrieve infomation for %s/%s: %v", info.tap, info.name, err)
 		}
 	}
 
