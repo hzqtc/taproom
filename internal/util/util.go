@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"os"
 	"slices"
 )
 
@@ -49,4 +50,11 @@ func FormatSize(kbs int64) string {
 		}
 	}
 	return "0"
+}
+
+func GetEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
 }
