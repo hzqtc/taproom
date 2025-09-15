@@ -13,7 +13,7 @@ import (
 const coreTap = "homebrew/core"
 
 var (
-	versionRegex = regexp.MustCompile(`v?(\d+(?:\.\d+)+[a-zA-Z0-9\-\.]*)`)
+	versionRegex = regexp.MustCompile(`v?(\d+(?:\.\d+)*[a-zA-Z0-9\-\.]*)`)
 	sourceExts   = []string{".tar.gz", ".tar.xz", ".tar.bz2", ".tgz", ".zip"}
 )
 
