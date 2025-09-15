@@ -4,11 +4,12 @@ TARGET_OS = darwin
 TARGET_ARCH = arm64 amd64
 VERSION = $(shell cat .version)
 ASSETS  = $(wildcard release/*)
+SOURCES = $(shell find . -name '*.go')
 RELEASE_NOTE = .release-note.md
 
 all: build
 
-$(BINARY_NAME):
+$(BINARY_NAME): $(SOURCES) .version
 	go mod tidy
 	go build -o $(BINARY_NAME)
 
