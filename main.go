@@ -19,6 +19,13 @@ var (
 //go:embed .version
 var version string
 
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
+
 func main() {
 	pflag.Parse()
 
@@ -32,7 +39,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	f, err := os.OpenFile("/tmp/taproom.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	logfile := getEnv("TAPROOM_LOG", "/tmp/taproom.log")
+	f, err := os.OpenFile(logfile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		log.Fatalf("failed to create log file: %v", err)
 	}
