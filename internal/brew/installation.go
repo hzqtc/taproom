@@ -77,35 +77,36 @@ func fetchInstalledCask(fetchSize bool, resultCh chan []*installInfo, errCh chan
 }
 
 func fetchInstalledPackages(installDir string, fetcher func(string) *installInfo, resultCh chan []*installInfo, errCh chan error) {
+	infoList := []*installInfo{}
+
 	entries, err := os.ReadDir(installDir)
 	if err != nil {
-		errCh <- fmt.Errorf("failed to read dir %s: %w", installDir, err)
-	}
+		log.Printf("failed to read dir %s: %v", installDir, err)
+	} else {
+		installInfoCh := make(chan *installInfo, 16 /* chan buffer */)
+		numPackages := 0
+		for _, entry := range entries {
+			name := entry.Name()
+			// Skip hidden file and symlinks
+			if name == "" || name[0] == '.' || entry.Type()&os.ModeSymlink != 0 {
+				continue
+			}
 
-	installInfoCh := make(chan *installInfo, 16 /* chan buffer */)
-	numPackages := 0
-	for _, entry := range entries {
-		name := entry.Name()
-		// Skip hidden file and symlinks
-		if name == "" || name[0] == '.' || entry.Type()&os.ModeSymlink != 0 {
-			continue
+			path := filepath.Join(installDir, name)
+			numPackages++
+			go func() {
+				installInfoCh <- fetcher(path)
+			}()
 		}
 
-		path := filepath.Join(installDir, name)
-		numPackages++
-		go func() {
-			installInfoCh <- fetcher(path)
-		}()
-	}
-
-	infoList := []*installInfo{}
-	for range numPackages {
-		info := <-installInfoCh
-		if info == nil {
-			continue
+		for range numPackages {
+			info := <-installInfoCh
+			if info == nil {
+				continue
+			}
+			info.pinned = pinnedPackages[info.name]
+			infoList = append(infoList, info)
 		}
-		info.pinned = pinnedPackages[info.name]
-		infoList = append(infoList, info)
 	}
 	resultCh <- infoList
 }
