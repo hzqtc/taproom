@@ -60,9 +60,9 @@ func LoadData(fetchAnalytics, fetchSize bool, loadingPrgs *loading.LoadingProgre
 		} else {
 			loadingTasksNum -= 2
 		}
-		go fetchInstalledFormula(fetchSize, formulaInstallInfoChan, errChan)
+		go fetchInstalledFormula(fetchSize, formulaInstallInfoChan)
 		loadingPrgs.AddTask(formulaInstallInfoChan, "Loading formulae installation data")
-		go fetchInstalledCask(fetchSize, caskInstallInfoChan, errChan)
+		go fetchInstalledCask(fetchSize, caskInstallInfoChan)
 		loadingPrgs.AddTask(caskInstallInfoChan, "Loading casks installation data")
 
 		// Update brew in the background, we don't depend on `brew` command to get data

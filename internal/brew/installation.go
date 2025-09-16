@@ -60,31 +60,29 @@ var pinnedPackages = func() map[string]bool {
 	return formulae
 }()
 
-func fetchInstalledFormula(fetchSize bool, resultCh chan []*installInfo, errCh chan error) {
+func fetchInstalledFormula(fetchSize bool, resultCh chan []*installInfo) {
 	fetchInstalledPackages(
 		filepath.Join(brewPrefix, "Cellar"),
 		func(path string) *installInfo { return getFormulaInstallInfo(fetchSize, path) },
-		resultCh,
-		errCh)
+		resultCh)
 }
 
-func fetchInstalledCask(fetchSize bool, resultCh chan []*installInfo, errCh chan error) {
+func fetchInstalledCask(fetchSize bool, resultCh chan []*installInfo) {
 	fetchInstalledPackages(
 		filepath.Join(brewPrefix, "Caskroom"),
 		func(path string) *installInfo { return getCaskInstallInfo(fetchSize, path) },
-		resultCh,
-		errCh)
+		resultCh)
 }
 
-func fetchInstalledPackages(installDir string, fetcher func(string) *installInfo, resultCh chan []*installInfo, errCh chan error) {
+func fetchInstalledPackages(installDir string, fetcher func(string) *installInfo, resultCh chan []*installInfo) {
 	infoList := []*installInfo{}
+	installInfoCh := make(chan *installInfo, 16 /* chan buffer */)
+	numPackages := 0
 
 	entries, err := os.ReadDir(installDir)
 	if err != nil {
 		log.Printf("failed to read dir %s: %v", installDir, err)
 	} else {
-		installInfoCh := make(chan *installInfo, 16 /* chan buffer */)
-		numPackages := 0
 		for _, entry := range entries {
 			name := entry.Name()
 			// Skip hidden file and symlinks
@@ -98,15 +96,15 @@ func fetchInstalledPackages(installDir string, fetcher func(string) *installInfo
 				installInfoCh <- fetcher(path)
 			}()
 		}
+	}
 
-		for range numPackages {
-			info := <-installInfoCh
-			if info == nil {
-				continue
-			}
-			info.pinned = pinnedPackages[info.name]
-			infoList = append(infoList, info)
+	for range numPackages {
+		info := <-installInfoCh
+		if info == nil {
+			continue
 		}
+		info.pinned = pinnedPackages[info.name]
+		infoList = append(infoList, info)
 	}
 	resultCh <- infoList
 }
