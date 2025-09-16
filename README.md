@@ -1,7 +1,7 @@
 `taproom` is featured as "Tool of The Week" (July 15, 2025) on [Terminal Trove](https://terminaltrove.com/taproom/), the $HOME of all things in the terminal.
 
 <a href="https://terminaltrove.com/taproom">
-    <img src="https://cdn.terminaltrove.com/media/badges/tool_of_the_week/svg/terminal_trove_tool_of_the_week_gold_transparent.svg" alt="Terminal Trove Tool of The Week" width="640" />
+    <img src="https://cdn.terminaltrove.com/media/badges/tool_of_the_week/svg/terminal_trove_tool_of_the_week_gold_transparent.svg" alt="Terminal Trove Tool of The Week" width="480" />
 </a>
 
 # taproom
@@ -30,11 +30,13 @@
 - **Detailed View:** Get more info on any package, including its description, version, homepage, license, dependencies, and 90-day install count.
   - Also shows dependencies recursively (only when the dependencies is not installed)
   - Also shows dependents (which other packages depends on this one)
-- **Search:** Quickly find packages by name or description.
-  - Default: match keyword in either name or description
+- **Search:** Quickly find packages by keywords
+  - Default: match each keyword in either name or description
   - Prefix `n:`: match the keyword only in name
   - Prefix `d:`: match the keyword only in description
-  - Prefix `-`: turn into a negative keyword, can be combined with `n:` and `d:`
+  - Prefix `t:`: match the keyword only in tap
+  - Prefix `h:`: match the keyword only in home page
+  - Prefix `-`: turn into a negative keyword, can be combined with prefixes
     - For example: `ebook -facebook` - search for `ebook` but not `facebook`
 - **Filtering:** View all packages, or filter by:
   - Formulae only

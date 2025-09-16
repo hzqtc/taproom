@@ -59,13 +59,6 @@ const (
 	statusUninstalled    = "Uninstalled"
 )
 
-const (
-	negativeKwPrefix = "-"
-
-	kwPrefixName = "n:"
-	kwPrefixDesc = "d:"
-)
-
 func (pkg *Package) Symbol() string {
 	if pkg.IsCask {
 		return caskSymbol
@@ -164,9 +157,26 @@ func (pkg *Package) MarkUnpinned() {
 	pkg.IsPinned = false
 }
 
+const (
+	negativeKwPrefix = "-"
+
+	kwPrefixName     = "n:"
+	kwPrefixDesc     = "d:"
+	kwPrefixTap      = "t:"
+	kwPrefixHomePage = "h:"
+)
+
+var prefixFields = map[string]func(*Package) string{
+	kwPrefixName:     func(pkg *Package) string { return pkg.Name },
+	kwPrefixDesc:     func(pkg *Package) string { return pkg.Desc },
+	kwPrefixTap:      func(pkg *Package) string { return pkg.Tap },
+	kwPrefixHomePage: func(pkg *Package) string { return pkg.Homepage },
+}
+
 // Test if a package matches the keywords
 func (pkg *Package) MatchKeywords(kws []string) bool {
 	for _, kw := range kws {
+		kw = strings.ToLower(kw)
 		if kw, negative := strings.CutPrefix(kw, negativeKwPrefix); negative {
 			if pkg.matchKeyword(kw) {
 				return false
@@ -179,13 +189,11 @@ func (pkg *Package) MatchKeywords(kws []string) bool {
 }
 
 func (pkg *Package) matchKeyword(kw string) bool {
-	if kw, match := strings.CutPrefix(kw, kwPrefixName); match {
-		return strings.Contains(strings.ToLower(pkg.Name), kw)
-	} else if kw, match := strings.CutPrefix(kw, kwPrefixDesc); match {
-		return strings.Contains(strings.ToLower(pkg.Desc), kw)
-	} else {
-		return strings.Contains(strings.ToLower(pkg.Name), kw) ||
-			strings.Contains(strings.ToLower(pkg.Desc), kw) ||
-			strings.Contains(strings.ToLower(pkg.Homepage), kw)
+	for prefix, fieldFunc := range prefixFields {
+		if kw, hasPrefix := strings.CutPrefix(kw, prefix); hasPrefix {
+			return strings.Contains(strings.ToLower(fieldFunc(pkg)), kw)
+		}
 	}
+	return strings.Contains(strings.ToLower(pkg.Name), kw) ||
+		strings.Contains(strings.ToLower(pkg.Desc), kw)
 }
