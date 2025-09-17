@@ -186,19 +186,22 @@ func getCaskInstallInfo(fetchSize bool, path string) *installInfo {
 		}
 	}
 
-	installedAsDep := false
-	if receipt := parseInstallReceipt(filepath.Join(path, ".metadata")); receipt != nil {
-		installedAsDep = receipt.InstalledAsDep
-	}
-
-	return &installInfo{
+	info := installInfo{
 		name:      filepath.Base(path),
 		version:   version,
-		pinned:    false, // Cask can not be pinned
 		size:      size,
-		asDep:     installedAsDep,
 		timestamp: timestamp,
 	}
+
+	// Casks installed by older brew (before 4.4.0) does not have INSTALL_RECEIPT.json
+	if receipt := parseInstallReceipt(filepath.Join(path, ".metadata")); receipt != nil {
+		info.tap = receipt.Source.Tap
+		info.asDep = receipt.InstalledAsDep
+		info.path = receipt.Source.Path
+		info.timestamp = receipt.InstallTime
+	}
+
+	return &info
 }
 
 func parseInstallReceipt(dir string) *installReceipt {

@@ -127,11 +127,11 @@ func processAllData(
 
 	packages := []*data.Package{}
 
-	// Add formulae from custom taps, since they're not in formula.json
 	for _, info := range formulaInstallInfo {
 		if info.tap == coreTap {
 			continue
 		}
+		// Add formulae from third-party taps, since they're not in formula.json
 		pkg, err := getCustomTapPackage(info)
 		if err == nil {
 			pkg.Installs90d = formulaInstalls90d[pkg.Name]
@@ -142,6 +142,23 @@ func processAllData(
 			for _, dep := range pkg.Dependencies {
 				formulaDependents[dep] = append(formulaDependents[dep], pkg.Name)
 			}
+		} else {
+			log.Printf("failed to retrieve infomation for %s/%s: %v", info.tap, info.name, err)
+		}
+	}
+
+	for _, info := range caskInstallInfo {
+		if info.tap == caskTap {
+			continue
+		}
+		// Add casks from third-party taps, since they're not in cask.json
+		pkg, err := getCustomTapPackage(info)
+		if err == nil {
+			pkg.Installs90d = formulaInstalls90d[pkg.Name]
+			pkg.IsCask = true
+			pkg.InstallSupported = len(pkg.Urls) > 0 && isInstallSupported(pkg.Urls[0])
+			pkg = updateInstallInfo(pkg, info)
+			packages = append(packages, pkg)
 		} else {
 			log.Printf("failed to retrieve infomation for %s/%s: %v", info.tap, info.name, err)
 		}
@@ -247,35 +264,37 @@ func packageFromFormula(f *apiFormula, installs90d int, inst *installInfo) *data
 
 func packageFromCask(c *apiCask, installs90d int, inst *installInfo) *data.Package {
 	pkg := data.Package{
-		Name:         c.Name,
-		Tap:          c.Tap,
-		Version:      c.Version,
-		Desc:         c.Desc,
-		Homepage:     c.Homepage,
-		Urls:         []string{c.Url},
-		License:      "N/A",
-		Dependencies: util.Sort(append(c.Dependencies.Formulae, c.Dependencies.Casks...)),
-		Conflicts:    util.Sort(append(c.Conflicts.Formulae, c.Conflicts.Casks...)),
-		Installs90d:  installs90d,
-		IsCask:       true,
-		AutoUpdate:   c.AutoUpdate,
-		IsDeprecated: c.Deprecated,
-		IsDisabled:   c.Disabled,
+		Name:             c.Name,
+		Tap:              c.Tap,
+		Version:          c.Version,
+		Desc:             c.Desc,
+		Homepage:         c.Homepage,
+		Urls:             []string{c.Url},
+		License:          "N/A",
+		Dependencies:     util.Sort(append(c.Dependencies.Formulae, c.Dependencies.Casks...)),
+		Conflicts:        util.Sort(append(c.Conflicts.Formulae, c.Conflicts.Casks...)),
+		Installs90d:      installs90d,
+		IsCask:           true,
+		InstallSupported: isInstallSupported(c.Url),
+		AutoUpdate:       c.AutoUpdate,
+		IsDeprecated:     c.Deprecated,
+		IsDisabled:       c.Disabled,
 	}
-
-	url := c.Url
-	// Trim query param from the url
-	if i := strings.Index(url, "?"); i != -1 {
-		url = url[:i]
-	}
-	// Don't support installing casks in pkg format as they require sudo
-	pkg.InstallSupported = !strings.HasSuffix(url, ".pkg")
 
 	if inst != nil {
 		return updateInstallInfo(&pkg, inst)
 	} else {
 		return &pkg
 	}
+}
+
+func isInstallSupported(url string) bool {
+	// Trim query param from the url
+	if i := strings.Index(url, "?"); i != -1 {
+		url = url[:i]
+	}
+	// Don't support installing casks in pkg format as they require sudo
+	return !strings.HasSuffix(url, ".pkg")
 }
 
 func updateInstallInfo(pkg *data.Package, inst *installInfo) *data.Package {

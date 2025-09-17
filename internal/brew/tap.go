@@ -10,7 +10,10 @@ import (
 	"taproom/internal/data"
 )
 
-const coreTap = "homebrew/core"
+const (
+	coreTap = "homebrew/core"
+	caskTap = "homebrew/cask"
+)
 
 var (
 	versionRegex = regexp.MustCompile(`v?(\d+(?:\.\d+)*[a-zA-Z0-9\-\.]*)`)
@@ -35,6 +38,10 @@ func getCustomTapPackage(info *installInfo) (*data.Package, error) {
 	// Version
 	if m := regexp.MustCompile(`version\s+["']([^"']+)["']`).FindStringSubmatch(content); m != nil {
 		pkg.Version = m[1]
+	}
+	if m := regexp.MustCompile(`version\s+:latest`).FindStringSubmatch(content); m != nil {
+		// Special case for "version :latest"
+		pkg.Version = "latest"
 	}
 	if m := regexp.MustCompile(`tag:\s+["']([^"']+)["']`).FindStringSubmatch(content); m != nil {
 		pkg.Version = normalizeVersion(m[1])
@@ -75,6 +82,7 @@ func getCustomTapPackage(info *installInfo) (*data.Package, error) {
 	}
 
 	// Dependencies
+	// TODO: support parsing cask dependencies
 	depRe := regexp.MustCompile(`depends_on\s+["']([^"']+)["'](?:\s*=>\s*(.*))?`)
 	for _, m := range depRe.FindAllStringSubmatch(content, -1) {
 		name := m[1]
@@ -88,6 +96,7 @@ func getCustomTapPackage(info *installInfo) (*data.Package, error) {
 	}
 
 	// Conflicts
+	// TODO: support parsing cask conflicts
 	conflictRe := regexp.MustCompile(`conflicts_with\s+["']([^"']+)["']`)
 	for _, m := range conflictRe.FindAllStringSubmatch(content, -1) {
 		pkg.Conflicts = append(pkg.Conflicts, m[1])
