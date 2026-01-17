@@ -53,9 +53,10 @@ var flagInvalidateCache = pflag.BoolP("invalidate-cache", "i", false, "Invalidat
 
 // Structs for parsing Homebrew API Json
 type apiFormula struct {
-	Name     string `json:"name"`
-	Tap      string `json:"tap"`
-	Desc     string `json:"desc"`
+	Name     string   `json:"name"`
+	Aliases  []string `json:"aliases"`
+	Tap      string   `json:"tap"`
+	Desc     string   `json:"desc"`
 	Versions struct {
 		Stable string `json:"stable"`
 	} `json:"versions"`

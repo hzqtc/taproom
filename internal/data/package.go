@@ -15,6 +15,7 @@ type ReleaseInfo struct {
 // Package holds all combined information for a formula or cask.
 type Package struct {
 	Name                  string // Used as a unique key
+	Aliases               []string
 	Tap                   string
 	Version               string
 	Revision              int
@@ -166,13 +167,6 @@ const (
 	kwPrefixHomePage = "h:"
 )
 
-var prefixFields = map[string]func(*Package) string{
-	kwPrefixName:     func(pkg *Package) string { return pkg.Name },
-	kwPrefixDesc:     func(pkg *Package) string { return pkg.Desc },
-	kwPrefixTap:      func(pkg *Package) string { return pkg.Tap },
-	kwPrefixHomePage: func(pkg *Package) string { return pkg.Homepage },
-}
-
 // Test if a package matches the keywords
 func (pkg *Package) MatchKeywords(kws []string) bool {
 	for _, kw := range kws {
@@ -189,11 +183,39 @@ func (pkg *Package) MatchKeywords(kws []string) bool {
 }
 
 func (pkg *Package) matchKeyword(kw string) bool {
-	for prefix, fieldFunc := range prefixFields {
-		if kw, hasPrefix := strings.CutPrefix(kw, prefix); hasPrefix {
-			return strings.Contains(strings.ToLower(fieldFunc(pkg)), kw)
-		}
+	if kw, hasPrefix := strings.CutPrefix(kw, kwPrefixName); hasPrefix {
+		return pkg.matchKeywordInName(kw)
+	} else if kw, hasPrefix := strings.CutPrefix(kw, kwPrefixDesc); hasPrefix {
+		return pkg.matchKeywordInDesc(kw)
+	} else if kw, hasPrefix := strings.CutPrefix(kw, kwPrefixTap); hasPrefix {
+		return pkg.matchKeywordInTap(kw)
+	} else if kw, hasPrefix := strings.CutPrefix(kw, kwPrefixHomePage); hasPrefix {
+		return pkg.matchKeywordInHomePage(kw)
 	}
-	return strings.Contains(strings.ToLower(pkg.Name), kw) ||
-		strings.Contains(strings.ToLower(pkg.Desc), kw)
+	return pkg.matchKeywordInName(kw) || pkg.matchKeywordInDesc(kw)
+}
+
+func (pkg *Package) matchKeywordInName(kw string) bool {
+	if strings.Contains(strings.ToLower(pkg.Name), kw) {
+		return true
+	} else {
+		for _, alias := range pkg.Aliases {
+			if strings.Contains(strings.ToLower(alias), kw) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func (pkg *Package) matchKeywordInDesc(kw string) bool {
+	return strings.Contains(strings.ToLower(pkg.Desc), kw)
+}
+
+func (pkg *Package) matchKeywordInTap(kw string) bool {
+	return strings.Contains(strings.ToLower(pkg.Tap), kw)
+}
+
+func (pkg *Package) matchKeywordInHomePage(kw string) bool {
+	return strings.Contains(strings.ToLower(pkg.Homepage), kw)
 }

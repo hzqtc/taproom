@@ -135,6 +135,15 @@ func getFormulaInstallInfo(fetchSize bool, path string) *installInfo {
 	}
 
 	receipt := parseInstallReceipt(path)
+	if receipt == nil {
+		// Fallback when INSTALL_RECEIPT.json is missing
+		return &installInfo{
+			name:    name,
+			version: subdir,
+			size:    size,
+		}
+	}
+
 	revision := 0
 	// Get revision from subdir, e.g. 0.11.1_2 is vision 0.11.1 and revision is 2
 	if s, _ := strings.CutPrefix(subdir, receipt.Source.Versions.Stable); len(s) > 0 && strings.HasPrefix(s, "_") {
