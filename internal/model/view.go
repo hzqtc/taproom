@@ -9,6 +9,7 @@ import (
 
 const (
 	sidePanelWidthMin = 30
+	searchWidthMin    = 20
 )
 
 var (
@@ -88,8 +89,8 @@ func (m *model) updateLayout() {
 
 	m.filterView.SetWidth(sidePanelWidth)
 	searchWidth := m.width - sidePanelWidth - 8
-	if searchWidth < 20 {
-		searchWidth = 20
+	if searchWidth < searchWidthMin {
+		searchWidth = searchWidthMin
 	}
 	m.search.SetWidth(searchWidth)
 	m.table.SetDimensions(tableWidth, mainHeight)
