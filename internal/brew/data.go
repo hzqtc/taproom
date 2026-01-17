@@ -239,6 +239,7 @@ func mapInstallInfo(info []*installInfo) map[string]*installInfo {
 func packageFromFormula(f *apiFormula, installs90d int, inst *installInfo) *data.Package {
 	pkg := data.Package{
 		Name:              f.Name,
+		Aliases:           f.Aliases,
 		Tap:               f.Tap,
 		Version:           f.Versions.Stable,
 		Revision:          f.Revision,
