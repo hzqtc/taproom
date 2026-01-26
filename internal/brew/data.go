@@ -334,6 +334,7 @@ func packageFromFormula(f *apiFormula, installs90d int, inst *installInfo) *data
 		IsDeprecated:      f.Deprecated,
 		IsDisabled:        f.Disabled,
 		InstallSupported:  true,
+		Platforms:         parsePlatformsFromBottle(f.Bottle.Stable.Files),
 	}
 
 	if inst != nil {
@@ -360,6 +361,8 @@ func packageFromCask(c *apiCask, installs90d int, inst *installInfo) *data.Packa
 		AutoUpdate:       c.AutoUpdate,
 		IsDeprecated:     c.Deprecated,
 		IsDisabled:       c.Disabled,
+		Platforms:        parsePlatformsFromVariations(c.Variations),
+		MinMacOSVersion:  getMinMacOSVersion(c.MacOSReq.Gte),
 	}
 
 	if inst != nil {
