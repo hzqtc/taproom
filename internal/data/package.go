@@ -12,6 +12,12 @@ type ReleaseInfo struct {
 	Url     string
 }
 
+// Platform represents a supported OS and architecture combination
+type Platform struct {
+	OS   string // "macOS" or "Linux"
+	Arch string // "arm64" or "x86_64"
+}
+
 // Package holds all combined information for a formula or cask.
 type Package struct {
 	Name                  string // Used as a unique key
@@ -43,6 +49,8 @@ type Package struct {
 	InstallSupported      bool   // Whether installing the package is supported in taproom
 	InstalledDate         string
 	ReleaseInfo           *ReleaseInfo // Only set when package is outdated
+	Platforms             []Platform   // Supported platforms parsed from bottles/variations
+	MinMacOSVersion       string       // Minimum macOS version required (casks only)
 }
 
 const (
