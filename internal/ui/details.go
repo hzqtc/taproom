@@ -131,6 +131,9 @@ func (m *DetailsPanelModel) updatePanel() {
 	b.WriteString(fmt.Sprintf("Homepage: %s\n", m.pkg.Homepage))
 	b.WriteString(fmt.Sprintf("License: %s\n", m.pkg.License))
 	b.WriteString(fmt.Sprintf("Installs (90d): %d\n", m.pkg.Installs90d))
+	if platformStr := m.pkg.PlatformString(); platformStr != "" {
+		b.WriteString(fmt.Sprintf("Platforms: %s\n", platformStr))
+	}
 
 	b.WriteString(fmt.Sprintf("\nStatus: %s\n", formatStatus(m.pkg)))
 	if m.pkg.IsInstalled {

@@ -76,6 +76,15 @@ type apiFormula struct {
 	Conflicts         []string `json:"conflicts_with"`
 	Deprecated        bool     `json:"deprecated"`
 	Disabled          bool     `json:"disabled"`
+	Bottle struct {
+		Stable struct {
+			Files map[string]struct {
+				Cellar string `json:"cellar"`
+				Url    string `json:"url"`
+				Sha256 string `json:"sha256"`
+			} `json:"files"`
+		} `json:"stable"`
+	} `json:"bottle"`
 }
 
 type apiCask struct {
@@ -96,6 +105,10 @@ type apiCask struct {
 	AutoUpdate bool `json:"auto_updates"`
 	Deprecated bool `json:"deprecated"`
 	Disabled   bool `json:"disabled"`
+	MacOSReq   struct {
+		Gte []string `json:">="`
+	} `json:"macos"`
+	Variations map[string]interface{} `json:"variations"`
 }
 
 type jwsJson struct {

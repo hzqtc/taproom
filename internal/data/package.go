@@ -12,6 +12,12 @@ type ReleaseInfo struct {
 	Url     string
 }
 
+// Platform represents a supported OS and architecture combination
+type Platform struct {
+	OS   string // "macOS" or "Linux"
+	Arch string // "arm64" or "x86_64"
+}
+
 // Package holds all combined information for a formula or cask.
 type Package struct {
 	Name                  string // Used as a unique key
@@ -43,6 +49,8 @@ type Package struct {
 	InstallSupported      bool   // Whether installing the package is supported in taproom
 	InstalledDate         string
 	ReleaseInfo           *ReleaseInfo // Only set when package is outdated
+	Platforms             []Platform   // Supported platforms parsed from bottles/variations
+	MinMacOSVersion       string       // Minimum macOS version required (casks only)
 }
 
 const (
@@ -218,4 +226,49 @@ func (pkg *Package) matchKeywordInTap(kw string) bool {
 
 func (pkg *Package) matchKeywordInHomePage(kw string) bool {
 	return strings.Contains(strings.ToLower(pkg.Homepage), kw)
+}
+
+// PlatformString returns a human-readable string of supported platforms
+func (pkg *Package) PlatformString() string {
+	if len(pkg.Platforms) == 0 {
+		return ""
+	}
+
+	macArch := []string{}
+	linuxArch := []string{}
+
+	for _, p := range pkg.Platforms {
+		if p.OS == "macOS" {
+			macArch = append(macArch, p.Arch)
+		} else if p.OS == "Linux" {
+			linuxArch = append(linuxArch, p.Arch)
+		}
+	}
+
+	parts := []string{}
+	if len(macArch) > 0 {
+		s := "macOS (" + strings.Join(macArch, ", ") + ")"
+		if pkg.MinMacOSVersion != "" {
+			s += " requires " + pkg.MinMacOSVersion + "+"
+		}
+		parts = append(parts, s)
+	}
+	if len(linuxArch) > 0 {
+		parts = append(parts, "Linux ("+strings.Join(linuxArch, ", ")+")")
+	}
+
+	return strings.Join(parts, ", ")
+}
+
+// IsCompatibleWith checks if the package supports the given platform
+func (pkg *Package) IsCompatibleWith(platform Platform) bool {
+	if len(pkg.Platforms) == 0 {
+		return false
+	}
+	for _, p := range pkg.Platforms {
+		if p.OS == platform.OS && p.Arch == platform.Arch {
+			return true
+		}
+	}
+	return false
 }
