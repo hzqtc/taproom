@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"taproom/internal/model"
+	"taproom/internal/ui"
 	"taproom/internal/util"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -32,6 +33,8 @@ func main() {
 		pflag.Usage()
 		os.Exit(0)
 	}
+
+	ui.InitTheme()
 
 	logfile := util.GetEnv("TAPROOM_LOG", "/tmp/taproom.log")
 	f, err := os.OpenFile(logfile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)

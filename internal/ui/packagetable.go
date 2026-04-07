@@ -124,7 +124,7 @@ func getTableStyles() table.Styles {
 		BorderBottom(true).
 		Bold(true)
 	tableStyles.Selected = tableStyles.Selected.
-		Foreground(highlightForegroudColor).
+		Foreground(highlightForegroundColor).
 		Background(highlightColor).
 		Bold(true)
 	return tableStyles

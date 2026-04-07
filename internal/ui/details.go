@@ -20,11 +20,6 @@ type DetailsPanelModel struct {
 }
 
 var (
-	installedColor   = lipgloss.Color("#22C55E")
-	deprecatedColor  = lipgloss.Color("#EF4444")
-	uninstalledColor = lipgloss.Color("#FBBF24")
-	pinnedColor      = lipgloss.Color("#B57EDC")
-
 	detailPanelStyle = baseStyle.
 				Padding(0, 1)
 
