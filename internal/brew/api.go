@@ -7,23 +7,11 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/spf13/pflag"
 )
-
-var brewCacheDir = func() string {
-	bytes, err := exec.Command("brew", "--cache").Output()
-	if err == nil {
-		return filepath.Join(strings.TrimSpace(string(bytes)), "api")
-	} else {
-		log.Printf("failed to locate homebrew cache path: %v", err)
-		return taproomCacheDir
-	}
-}()
 
 var taproomCacheDir = func() string {
 	home, err := os.UserHomeDir()
@@ -120,7 +108,7 @@ func fetchFormula(dataChan chan []*apiFormula, errChan chan error) {
 	target := []*apiFormula{}
 	fetchJwsJsonWithCache(
 		apiFormulaURL,
-		filepath.Join(brewCacheDir, formulaJwsJson),
+		filepath.Join(taproomCacheDir, formulaJwsJson),
 		&target,
 		dataChan,
 		errChan)
@@ -130,7 +118,7 @@ func fetchCask(dataChan chan []*apiCask, errChan chan error) {
 	target := []*apiCask{}
 	fetchJwsJsonWithCache(
 		apiCaskURL,
-		filepath.Join(brewCacheDir, caskJwsJson),
+		filepath.Join(taproomCacheDir, caskJwsJson),
 		&target,
 		dataChan,
 		errChan)
