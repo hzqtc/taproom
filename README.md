@@ -108,6 +108,9 @@ The app's behavior can be further customized with command-line flags:
 - `--hide-help`: hide the help text at the bottom of the app
 - `--sort-column` or `-s` in short: specify the column to sort by (this can still be changed in app with `s` and `S` keys)
 - `--filters` or `-f` in short: specify initial filters (can still be changed later in the app)
+- `--theme`: color theme for light/dark terminal backgrounds (`auto`, `light`, `dark`; default: `auto`)
+  - By default, taproom auto-detects your terminal's background color and picks a matching palette
+  - Use `--theme light` or `--theme dark` to override if auto-detection doesn't work for your terminal
 
 Run `taproom -h` to learn more about the command line flags.
 
