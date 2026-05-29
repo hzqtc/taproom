@@ -20,7 +20,8 @@ type FilterViewModel struct {
 	filterInstalled key.Binding
 	filterOutdated  key.Binding
 	filterExplicit  key.Binding
-	filterActive    key.Binding
+	filterActive     key.Binding
+	filterCompatible key.Binding
 }
 
 var flagFilters = pflag.StringSliceP(
@@ -28,7 +29,7 @@ var flagFilters = pflag.StringSliceP(
 	"f",
 	[]string{},
 	"Filters to enable (comma separated no space).\n"+
-		"Pick 0 or 1 filter from each group: (Formulae, Casks), (Installed, Outdated, Expl. Installed, Active)",
+		"Pick 0 or 1 filter from each group: (Formulae, Casks), (Installed, Outdated, Expl. Installed, Active, Compatible)",
 )
 
 var filterStyle = baseStyle.
@@ -49,7 +50,8 @@ func NewFilterViewModel() FilterViewModel {
 		filterInstalled: key.NewBinding(key.WithKeys("i")),
 		filterOutdated:  key.NewBinding(key.WithKeys("o")),
 		filterExplicit:  key.NewBinding(key.WithKeys("e")),
-		filterActive:    key.NewBinding(key.WithKeys("v")),
+		filterActive:     key.NewBinding(key.WithKeys("v")),
+		filterCompatible: key.NewBinding(key.WithKeys("m")),
 	}
 }
 
@@ -72,6 +74,8 @@ func (m FilterViewModel) Update(msg tea.Msg) (FilterViewModel, tea.Cmd) {
 			m.fg.toggleFilter(FilterExplicitlyInstalled)
 		case key.Matches(msg, m.filterActive):
 			m.fg.toggleFilter(FilterActive)
+		case key.Matches(msg, m.filterCompatible):
+			m.fg.toggleFilter(FilterCompatible)
 		}
 	}
 

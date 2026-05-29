@@ -5,6 +5,7 @@ import (
 	"taproom/internal/brew"
 	"taproom/internal/data"
 	"taproom/internal/ui"
+	"taproom/internal/util"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -288,6 +289,10 @@ func (m *model) filterPackages() tea.Cmd {
 				passesFilter = pkg.IsInstalled && !pkg.InstalledAsDependency
 			case ui.FilterActive:
 				passesFilter = !pkg.IsDisabled && !pkg.IsDeprecated
+			case ui.FilterCompatible:
+				os, arch := util.CurrentPlatform()
+				currentPlatform := data.Platform{OS: os, Arch: arch}
+				passesFilter = pkg.IsCompatibleWith(currentPlatform)
 			}
 			// A package needs to pass all filters, so break early when it doesn't pass any filter
 			if !passesFilter {
