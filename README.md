@@ -60,10 +60,8 @@
 
 ### Install from pre-built binary
 
-`gromgit@` (Thank you!) maintains a [formula](https://github.com/gromgit/homebrew-brewtils/blob/main/Formula/taproom.rb):
-
 ```
-brew install gromgit/brewtils/taproom
+brew install taproom
 ```
 
 Or use [`eget`](https://github.com/zyedidia/eget):
