@@ -52,7 +52,7 @@
 
 ### Dependencies
 
-- A terminal emulator with a [nerd font](https://www.nerdfonts.com/)
+- A terminal emulator with a [nerd font](https://www.nerdfonts.com/) (optional - use `--no-nerd-font` if unavailable)
 - `du` (MacOS builtin command)
 - `brew` [Homebrew](https://brew.sh/)
 - `gh` [Github CLI](https://github.com/cli/cli)
@@ -111,6 +111,8 @@ The app's behavior can be further customized with command-line flags:
 - `--theme`: color theme for light/dark terminal backgrounds (`auto`, `light`, `dark`; default: `auto`)
   - By default, taproom auto-detects your terminal's background color and picks a matching palette
   - Use `--theme light` or `--theme dark` to override if auto-detection doesn't work for your terminal
+- `--no-nerd-font`: use plain text symbols instead of Nerd Font glyphs in the symbol column (`F` for formulae, `C` for casks)
+  - Use this if your terminal font does not include [Nerd Font](https://www.nerdfonts.com/) glyphs
 
 Run `taproom -h` to learn more about the command line flags.
 
