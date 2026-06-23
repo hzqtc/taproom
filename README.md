@@ -111,7 +111,9 @@ The app's behavior can be further customized with command-line flags:
 - `--theme`: color theme for light/dark terminal backgrounds (`auto`, `light`, `dark`; default: `auto`)
   - By default, taproom auto-detects your terminal's background color and picks a matching palette
   - Use `--theme light` or `--theme dark` to override if auto-detection doesn't work for your terminal
-- `--no-nerd-font`: use plain text symbols instead of Nerd Font glyphs in the symbol column (`F` for formulae, `C` for casks)
+- `--no-nerd-font`: use plain text instead of Nerd Font glyphs throughout the UI
+  - Symbol column: `F` for formulae, `C` for casks
+  - Status indicators in the details pane: `INS` (installed), `DEP` (installed as dependency), `OUT` (outdated), `PIN` (pinned), `OLD` (deprecated), `DIS` (disabled), `---` (not installed)
   - Use this if your terminal font does not include [Nerd Font](https://www.nerdfonts.com/) glyphs
 
 Run `taproom -h` to learn more about the command line flags.

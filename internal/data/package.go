@@ -54,7 +54,7 @@ const (
 	caskSymbolAscii    = "C"
 )
 
-var flagNoNerdFont = pflag.Bool("no-nerd-font", false, "Use plain text symbols (F/C) instead of Nerd Font icons")
+var FlagNoNerdFont = pflag.Bool("no-nerd-font", false, "Use plain text symbols instead of Nerd Font icons")
 
 const (
 	statusDisabled       = "Disabled"
@@ -67,7 +67,7 @@ const (
 )
 
 func (pkg *Package) Symbol() string {
-	if *flagNoNerdFont {
+	if *FlagNoNerdFont {
 		if pkg.IsCask {
 			return caskSymbolAscii
 		}
