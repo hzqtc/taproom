@@ -123,7 +123,7 @@ func (m *DetailsPanelModel) updatePanel() {
 	b.WriteString(fmt.Sprintf("\n%s\n\n", m.pkg.Desc))
 	b.WriteString(fmt.Sprintf("Version: %s\n", m.pkg.LongVersion()))
 	b.WriteString(fmt.Sprintf("Tap: %s\n", m.pkg.Tap))
-	b.WriteString(fmt.Sprintf("Homepage: %s\n", m.pkg.Homepage))
+	b.WriteString(fmt.Sprintf("Homepage: %s\n", util.Hyperlink(m.pkg.Homepage, m.pkg.Homepage)))
 	b.WriteString(fmt.Sprintf("License: %s\n", m.pkg.License))
 	b.WriteString(fmt.Sprintf("Installs (90d): %d\n", m.pkg.Installs90d))
 
