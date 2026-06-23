@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/spf13/pflag"
 )
 
 type ReleaseInfo struct {
@@ -46,9 +48,13 @@ type Package struct {
 }
 
 const (
-	formulaSymbol = ""
-	caskSymbol    = ""
+	formulaSymbol      = ""
+	caskSymbol         = ""
+	formulaSymbolAscii = "F"
+	caskSymbolAscii    = "C"
 )
+
+var flagNoNerdFont = pflag.Bool("no-nerd-font", false, "Use plain text symbols (F/C) instead of Nerd Font icons")
 
 const (
 	statusDisabled       = "Disabled"
@@ -61,11 +67,16 @@ const (
 )
 
 func (pkg *Package) Symbol() string {
+	if *flagNoNerdFont {
+		if pkg.IsCask {
+			return caskSymbolAscii
+		}
+		return formulaSymbolAscii
+	}
 	if pkg.IsCask {
 		return caskSymbol
-	} else {
-		return formulaSymbol
 	}
+	return formulaSymbol
 }
 
 func (pkg *Package) Status() string {
