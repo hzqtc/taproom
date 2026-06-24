@@ -51,8 +51,8 @@ type Package struct {
 const (
 	formulaSymbol      = ""
 	caskSymbol         = ""
-	formulaSymbolAscii = "F"
-	caskSymbolAscii    = "C"
+	formulaSymbolASCII = "F"
+	caskSymbolASCII    = "C"
 )
 
 var FlagNoNerdFont = pflag.Bool("no-nerd-font", false, "Use plain text symbols instead of Nerd Font icons")
