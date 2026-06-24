@@ -2,6 +2,7 @@ package data
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -56,6 +57,26 @@ const (
 
 var FlagNoNerdFont = pflag.Bool("no-nerd-font", false, "Use plain text symbols instead of Nerd Font icons")
 
+// nerdFontEnvVar is the environment variable used to disable Nerd Font icons
+// without passing the --no-nerd-font flag, e.g. TAPROOM_NERD_FONT=NO.
+const nerdFontEnvVar = "TAPROOM_NERD_FONT"
+
+// NoNerdFont reports whether Nerd Font icons should be replaced with plain text
+// symbols. This is true when either the --no-nerd-font flag is set or the
+// TAPROOM_NERD_FONT environment variable is set to a "no" value
+// (no, false, off, or 0, case-insensitive). The flag and the env var are both
+// opt-out switches, so either one being set disables Nerd Font icons.
+func NoNerdFont() bool {
+	if *FlagNoNerdFont {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(nerdFontEnvVar))) {
+	case "no", "false", "off", "0":
+		return true
+	}
+	return false
+}
+
 const (
 	statusDisabled       = "Disabled"
 	statusDeprecated     = "Deprecated"
@@ -67,7 +88,7 @@ const (
 )
 
 func (pkg *Package) Symbol() string {
-	if *FlagNoNerdFont {
+	if NoNerdFont() {
 		if pkg.IsCask {
 			return caskSymbolAscii
 		}

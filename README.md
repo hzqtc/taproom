@@ -115,6 +115,7 @@ The app's behavior can be further customized with command-line flags:
   - Symbol column: `F` for formulae, `C` for casks
   - Status indicators in the details pane: `INS` (installed), `DEP` (installed as dependency), `OUT` (outdated), `PIN` (pinned), `OLD` (deprecated), `DIS` (disabled), `---` (not installed)
   - Use this if your terminal font does not include [Nerd Font](https://www.nerdfonts.com/) glyphs
+  - This can also be enabled with the `TAPROOM_NERD_FONT` environment variable, e.g. `TAPROOM_NERD_FONT=NO` (accepts `no`, `false`, `off`, or `0`, case-insensitive). The flag and the environment variable are both opt-out switches, so either one disables Nerd Font glyphs.
 
 Run `taproom -h` to learn more about the command line flags.
 

@@ -99,14 +99,14 @@ func (m DetailsPanelModel) View() string {
 }
 
 func formatStatus(pkg *data.Package) string {
-	if *data.FlagNoNerdFont {
+	if data.NoNerdFont() {
 		return pkg.Status()
 	}
 	return fmt.Sprintf("%s %s", formatStatusSymbol(pkg), pkg.Status())
 }
 
 func formatStatusSymbol(pkg *data.Package) string {
-	if *data.FlagNoNerdFont {
+	if data.NoNerdFont() {
 		if pkg.IsDisabled {
 			return deprecatedStyle.Render(disabledSymbolAscii)
 		} else if pkg.IsDeprecated {
