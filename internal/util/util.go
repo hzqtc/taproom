@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"slices"
-
-	"github.com/charmbracelet/x/ansi"
 )
 
 func SortAndUniq(input []string) []string {
@@ -59,10 +57,4 @@ func GetEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
-}
-
-// Use OSC8 to wrap a string in a hyperlink. The id lets terminals underline the
-// whole link on hover even when it wraps across multiple lines.
-func Hyperlink(url, text string) string {
-	return ansi.SetHyperlink(url, "id=link") + text + ansi.ResetHyperlink()
 }
