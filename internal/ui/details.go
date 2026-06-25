@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type DetailsPanelModel struct {
@@ -112,6 +113,12 @@ func formatStatusSymbol(pkg *data.Package) string {
 	}
 }
 
+// Use OSC8 to wrap a string in a hyperlink. The id lets terminals underline the
+// whole link on hover even when it wraps across multiple lines.
+func hyperLink(url, text string) string {
+	return ansi.SetHyperlink(url, "id=link") + text + ansi.ResetHyperlink()
+}
+
 func (m *DetailsPanelModel) updatePanel() {
 	if m.pkg == nil {
 		m.vp.SetContent("No packages selected.")
@@ -123,7 +130,7 @@ func (m *DetailsPanelModel) updatePanel() {
 	b.WriteString(fmt.Sprintf("\n%s\n\n", m.pkg.Desc))
 	b.WriteString(fmt.Sprintf("Version: %s\n", m.pkg.LongVersion()))
 	b.WriteString(fmt.Sprintf("Tap: %s\n", m.pkg.Tap))
-	b.WriteString(fmt.Sprintf("Homepage: %s\n", m.pkg.Homepage))
+	b.WriteString(fmt.Sprintf("Homepage: %s\n", hyperLink(m.pkg.Homepage, m.pkg.Homepage)))
 	b.WriteString(fmt.Sprintf("License: %s\n", m.pkg.License))
 	b.WriteString(fmt.Sprintf("Installs (90d): %d\n", m.pkg.Installs90d))
 
