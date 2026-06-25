@@ -54,6 +54,16 @@ const (
 	pinnedSymbol              = "󰐃"
 )
 
+const (
+	disabledSymbolAscii            = "DIS"
+	deprecatedSymbolAscii          = "OLD"
+	uninstalledSymbolAscii         = "---"
+	installedSymbolAscii           = "DEP"
+	explicitlyInstalledSymbolAscii = "INS"
+	outdatedSymbolAscii            = "OUT"
+	pinnedSymbolAscii              = "PIN"
+)
+
 func NewDetailsPanelModel() DetailsPanelModel {
 	return DetailsPanelModel{}
 }
@@ -90,10 +100,30 @@ func (m DetailsPanelModel) View() string {
 }
 
 func formatStatus(pkg *data.Package) string {
+	if data.NoNerdFont() {
+		return pkg.Status()
+	}
 	return fmt.Sprintf("%s %s", formatStatusSymbol(pkg), pkg.Status())
 }
 
 func formatStatusSymbol(pkg *data.Package) string {
+	if data.NoNerdFont() {
+		if pkg.IsDisabled {
+			return deprecatedStyle.Render(disabledSymbolAscii)
+		} else if pkg.IsDeprecated {
+			return deprecatedStyle.Render(deprecatedSymbolAscii)
+		} else if pkg.IsPinned {
+			return pinnedStyle.Render(pinnedSymbolAscii)
+		} else if pkg.IsOutdated {
+			return outdatedStyle.Render(outdatedSymbolAscii)
+		} else if pkg.IsInstalled {
+			if pkg.InstalledAsDependency {
+				return installedStyle.Render(installedSymbolAscii)
+			}
+			return installedStyle.Render(explicitlyInstalledSymbolAscii)
+		}
+		return uninstalledStyle.Render(uninstalledSymbolAscii)
+	}
 	if pkg.IsDisabled {
 		return deprecatedStyle.Render(disabledSymbol)
 	} else if pkg.IsDeprecated {
