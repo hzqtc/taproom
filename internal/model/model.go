@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 	"taproom/internal/brew"
 	"taproom/internal/data"
@@ -38,10 +39,9 @@ type model struct {
 	loadingView ui.LoadingScreenModel
 
 	// State
-	isExecuting bool
-	focusMode   focusMode
-	width       int
-	height      int
+	focusMode focusMode
+	width     int
+	height    int
 
 	// Keybindings
 	keys keyMap
@@ -96,28 +96,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadingView, cmd = m.loadingView.Update(msg)
 		cmds = append(cmds, cmd)
 
-	case brew.CommandStartMsg:
-		m.isExecuting = true
-		m.outputView.Clear()
-
-	case brew.CommandOutputMsg:
-		if msg.Line != "" {
-			m.outputView.Append(msg.Line)
-			m.updateLayout()
-		}
-		cmds = append(cmds, brew.StreamOutput(msg.Ch))
-
 	case brew.CommandFinishMsg:
-		m.isExecuting = false
 		if msg.Err == nil {
-			// Command was successful, clear output and update package state
+			// Command succeeded: clear output and update package state
 			m.outputView.Clear()
 			brew.UpdatePackageForAction(msg.Command, msg.Pkgs)
 			m.table.UpdateRows()
 		} else {
+			// brew ran on the real terminal, but its native output is gone once we
+			// redraw, so surface a concise failure line in the TUI.
+			m.outputView.Clear()
+			m.outputView.Append(fmt.Sprintf("brew %s failed: %v", msg.Command, msg.Err))
 			m.outputView.SetError()
 		}
-		// If there are error, it should already be displayed in the output
 		m.updateLayout()
 
 	case ui.TableSelectionChangedMsg:
@@ -211,27 +202,27 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 		}
 	case key.Matches(msg, m.keys.UpgradeAll):
 		outdatedPkgs := brew.GetOutdatedPackages()
-		if !m.isExecuting && len(outdatedPkgs) > 0 {
+		if len(outdatedPkgs) > 0 {
 			cmd = brew.UpgradeAllPackages(outdatedPkgs)
 		}
 	case key.Matches(msg, m.keys.Upgrade):
-		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsOutdated && !selectedPkg.IsPinned {
+		if selectedPkg != nil && selectedPkg.IsOutdated && !selectedPkg.IsPinned {
 			cmd = brew.UpgradePackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.Install):
-		if !m.isExecuting && selectedPkg != nil && !selectedPkg.IsInstalled {
+		if selectedPkg != nil && !selectedPkg.IsInstalled {
 			cmd = brew.InstallPackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.Remove):
-		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsInstalled {
+		if selectedPkg != nil && selectedPkg.IsInstalled {
 			cmd = brew.UninstallPackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.Pin):
-		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsInstalled && !selectedPkg.IsCask && !selectedPkg.IsPinned {
+		if selectedPkg != nil && selectedPkg.IsInstalled && !selectedPkg.IsCask && !selectedPkg.IsPinned {
 			cmd = brew.PinPackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.Unpin):
-		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsPinned {
+		if selectedPkg != nil && selectedPkg.IsPinned {
 			cmd = brew.UnpinPackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.CleanUp):
