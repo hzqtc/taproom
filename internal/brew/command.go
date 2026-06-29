@@ -1,12 +1,7 @@
 package brew
 
 import (
-	"bufio"
-	"fmt"
-	"io"
 	"os/exec"
-	"strings"
-	"sync"
 	"taproom/internal/data"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,11 +9,6 @@ import (
 
 // --- Command Execution Messages ---
 
-type CommandStartMsg struct{}
-type CommandOutputMsg struct {
-	Ch   chan tea.Msg
-	Line string
-}
 type CommandFinishMsg struct {
 	Err     error
 	Command BrewCommand
@@ -39,85 +29,34 @@ const (
 
 // --- Command Functions ---
 
-func startCommand() tea.Cmd {
-	return func() tea.Msg {
-		return CommandStartMsg{}
+// runBrew runs a brew command by handing the terminal over to the child process via
+// tea.ExecProcess. This is what makes interactive prompts work — most importantly sudo
+// password entry for casks: Bubble Tea drops the alt-screen and restores the terminal to
+// cooked mode, brew runs attached to the real terminal so it can prompt, and the TUI redraws
+// once the command finishes.
+//
+// When pause is true, brew is wrapped in a small shell script that waits for Enter after the
+// command exits so the user can read brew's output (caveats or errors) before the TUI
+// repaints. "$@" passes args as a proper argv vector (no quoting/injection concerns) and
+// `exit $status` preserves brew's real exit code for CommandFinishMsg.
+func runBrew(command BrewCommand, pkgs []*data.Package, pause bool, args ...string) tea.Cmd {
+	var cmd *exec.Cmd
+	if pause {
+		const script = `brew "$@"; status=$?; printf '\n[taproom] Press enter to return...'; read -r _; exit $status`
+		// "sh" becomes $0; the package args follow as $1, $2, … consumed by "$@".
+		shArgs := append([]string{"-c", script, "sh"}, args...)
+		cmd = exec.Command("sh", shArgs...)
+	} else {
+		cmd = exec.Command("brew", args...)
 	}
-}
-
-func StreamOutput(ch chan tea.Msg) tea.Cmd {
-	return func() tea.Msg {
-		return <-ch
-	}
-}
-
-func feedOutput(ch chan tea.Msg, pipe io.ReadCloser) {
-	scanner := bufio.NewScanner(pipe)
-	for scanner.Scan() {
-		ch <- CommandOutputMsg{Ch: ch, Line: scanner.Text()}
-	}
-}
-
-func execute(BrewCommand BrewCommand, pkgs []*data.Package, args ...string) tea.Cmd {
-	return func() tea.Msg {
-		ch := make(chan tea.Msg)
-
-		go func() {
-			defer close(ch)
-
-			cmdLine := fmt.Sprintf("brew %s", strings.Join(args, " "))
-
-			if BrewCommand == BrewCommandInstall || BrewCommand == BrewCommandUninstall {
-				if pkg := pkgs[0]; !pkg.InstallSupported {
-					ch <- CommandOutputMsg{Ch: ch, Line: fmt.Sprintf("%s can’t be %sed because it’s a .pkg and may need sudo", pkg.Name, BrewCommand)}
-					ch <- CommandOutputMsg{Ch: ch, Line: fmt.Sprintf("please run '%s' in command line", cmdLine)}
-					ch <- CommandFinishMsg{Err: fmt.Errorf("install not supported")}
-					return
-				}
-			}
-
-			ch <- CommandOutputMsg{Ch: ch, Line: "> " + cmdLine}
-			cmd := exec.Command("brew", args...)
-			// Connect to stdout and stderr
-			stdout, err := cmd.StdoutPipe()
-			if err != nil {
-				ch <- CommandFinishMsg{Err: fmt.Errorf("failed to get stdout pipe: %w", err)}
-				return
-			}
-			stderr, err := cmd.StderrPipe()
-			if err != nil {
-				ch <- CommandFinishMsg{Err: fmt.Errorf("failed to get stderr pipe: %w", err)}
-				return
-			}
-			// Start command
-			if err := cmd.Start(); err != nil {
-				ch <- CommandFinishMsg{Err: fmt.Errorf("failed to start command: %w", err)}
-				return
-			}
-
-			var wg sync.WaitGroup
-			wg.Add(2)
-			// Stream stdout and stderr
-			go func() {
-				defer wg.Done()
-				feedOutput(ch, stdout)
-			}()
-			go func() {
-				defer wg.Done()
-				feedOutput(ch, stderr)
-			}()
-
-			cmdErr := cmd.Wait()
-			wg.Wait()
-			ch <- CommandFinishMsg{Err: cmdErr, Command: BrewCommand, Pkgs: pkgs}
-		}()
-
-		return CommandOutputMsg{Ch: ch}
-	}
+	// Stdin/Stdout/Stderr are left nil so ExecProcess connects them to the terminal.
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return CommandFinishMsg{Err: err, Command: command, Pkgs: pkgs}
+	})
 }
 
 func UpgradeAllPackages(pkgs []*data.Package) tea.Cmd {
-	return tea.Batch(startCommand(), execute(BrewCommandUpgradeAll, pkgs, "upgrade"))
+	return runBrew(BrewCommandUpgradeAll, pkgs, true, "upgrade")
 }
 
 func UpgradePackage(pkg *data.Package) tea.Cmd {
@@ -126,7 +65,7 @@ func UpgradePackage(pkg *data.Package) tea.Cmd {
 		args = append(args, "--cask")
 	}
 	args = append(args, pkg.Name)
-	return tea.Batch(startCommand(), execute(BrewCommandUpgrade, []*data.Package{pkg}, args...))
+	return runBrew(BrewCommandUpgrade, []*data.Package{pkg}, true, args...)
 }
 
 func InstallPackage(pkg *data.Package) tea.Cmd {
@@ -135,7 +74,7 @@ func InstallPackage(pkg *data.Package) tea.Cmd {
 		args = append(args, "--cask")
 	}
 	args = append(args, pkg.Name)
-	return tea.Batch(startCommand(), execute(BrewCommandInstall, []*data.Package{pkg}, args...))
+	return runBrew(BrewCommandInstall, []*data.Package{pkg}, true, args...)
 }
 
 func UninstallPackage(pkg *data.Package) tea.Cmd {
@@ -144,19 +83,19 @@ func UninstallPackage(pkg *data.Package) tea.Cmd {
 		args = append(args, "--cask")
 	}
 	args = append(args, pkg.Name)
-	return tea.Batch(startCommand(), execute(BrewCommandUninstall, []*data.Package{pkg}, args...))
+	return runBrew(BrewCommandUninstall, []*data.Package{pkg}, true, args...)
 }
 
 func PinPackage(pkg *data.Package) tea.Cmd {
-	return tea.Batch(startCommand(), execute(BrewCommandPin, []*data.Package{pkg}, "pin", pkg.Name))
+	return runBrew(BrewCommandPin, []*data.Package{pkg}, false, "pin", pkg.Name)
 }
 
 func UnpinPackage(pkg *data.Package) tea.Cmd {
-	return tea.Batch(startCommand(), execute(BrewCommandUnpin, []*data.Package{pkg}, "unpin", pkg.Name))
+	return runBrew(BrewCommandUnpin, []*data.Package{pkg}, false, "unpin", pkg.Name)
 }
 
 func Cleanup() tea.Cmd {
-	return tea.Batch(startCommand(), execute(BrewCommandCleanup, []*data.Package{}, "cleanup", "--prune=all"))
+	return runBrew(BrewCommandCleanup, nil, true, "cleanup", "--prune=all")
 }
 
 func UpdatePackageForAction(command BrewCommand, pkgs []*data.Package) {
