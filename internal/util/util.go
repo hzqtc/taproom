@@ -3,6 +3,7 @@ package util
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"slices"
 )
 
@@ -57,4 +58,19 @@ func GetEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// CurrentPlatform returns the current system's platform
+func CurrentPlatform() (string, string) {
+	os := "macOS"
+	if runtime.GOOS == "linux" {
+		os = "Linux"
+	}
+
+	arch := "x86_64"
+	if runtime.GOARCH == "arm64" {
+		arch = "arm64"
+	}
+
+	return os, arch
 }

@@ -24,6 +24,7 @@ const (
 	FilterOutdated                               // 0000 1000
 	FilterExplicitlyInstalled                    // 0001 0000
 	FilterActive                                 // 0010 0000
+	FilterCompatible                             // 0100 0000
 
 	filterMax
 	filterUnknown
@@ -33,7 +34,7 @@ const (
 // Filters from different groups can co-exist
 var conflictFilters = []filterGroup{
 	filterGroup(FilterFormulae | FilterCasks),
-	filterGroup(FilterInstalled | FilterOutdated | FilterExplicitlyInstalled | FilterActive),
+	filterGroup(FilterInstalled | FilterOutdated | FilterExplicitlyInstalled | FilterActive | FilterCompatible),
 }
 
 func (f Filter) getConflictFilters() filterGroup {
@@ -100,6 +101,8 @@ func (f Filter) String() string {
 		return "Expl. Installed"
 	case FilterActive:
 		return "Active"
+	case FilterCompatible:
+		return "Compatible"
 	default:
 		return "Unknown"
 	}
@@ -119,6 +122,8 @@ func parseFilter(s string) (Filter, error) {
 		return FilterExplicitlyInstalled, nil
 	case "Active":
 		return FilterActive, nil
+	case "Compatible":
+		return FilterCompatible, nil
 	default:
 		return filterUnknown, fmt.Errorf("Unknown filter: %s", s)
 	}

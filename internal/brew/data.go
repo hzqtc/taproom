@@ -17,6 +17,86 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// parsePlatformsFromBottle extracts platforms from formula bottle file keys
+func parsePlatformsFromBottle(files map[string]struct {
+	Cellar string `json:"cellar"`
+	Url    string `json:"url"`
+	Sha256 string `json:"sha256"`
+}) []data.Platform {
+	platformSet := make(map[data.Platform]bool)
+
+	for key := range files {
+		if strings.HasSuffix(key, "_linux") {
+			if strings.HasPrefix(key, "arm64") {
+				platformSet[data.Platform{OS: "Linux", Arch: "arm64"}] = true
+			} else {
+				platformSet[data.Platform{OS: "Linux", Arch: "x86_64"}] = true
+			}
+		} else {
+			// macOS version names (sequoia, sonoma, etc.)
+			if strings.HasPrefix(key, "arm64_") {
+				platformSet[data.Platform{OS: "macOS", Arch: "arm64"}] = true
+			} else {
+				platformSet[data.Platform{OS: "macOS", Arch: "x86_64"}] = true
+			}
+		}
+	}
+
+	platforms := make([]data.Platform, 0, len(platformSet))
+	for p := range platformSet {
+		platforms = append(platforms, p)
+	}
+	return platforms
+}
+
+// parsePlatformsFromVariations extracts platforms from cask variations keys
+func parsePlatformsFromVariations(variations map[string]interface{}) []data.Platform {
+	platformSet := make(map[data.Platform]bool)
+
+	// Default: casks support macOS
+	hasMacOS := false
+	hasLinux := false
+
+	for key := range variations {
+		if strings.HasSuffix(key, "_linux") {
+			hasLinux = true
+			if strings.HasPrefix(key, "arm64") {
+				platformSet[data.Platform{OS: "Linux", Arch: "arm64"}] = true
+			} else {
+				platformSet[data.Platform{OS: "Linux", Arch: "x86_64"}] = true
+			}
+		} else {
+			// macOS version names
+			hasMacOS = true
+			if strings.HasPrefix(key, "arm64_") {
+				platformSet[data.Platform{OS: "macOS", Arch: "arm64"}] = true
+			} else {
+				platformSet[data.Platform{OS: "macOS", Arch: "x86_64"}] = true
+			}
+		}
+	}
+
+	// If no variations, assume macOS with both architectures
+	if !hasMacOS && !hasLinux {
+		platformSet[data.Platform{OS: "macOS", Arch: "arm64"}] = true
+		platformSet[data.Platform{OS: "macOS", Arch: "x86_64"}] = true
+	}
+
+	platforms := make([]data.Platform, 0, len(platformSet))
+	for p := range platformSet {
+		platforms = append(platforms, p)
+	}
+	return platforms
+}
+
+// getMinMacOSVersion extracts the minimum macOS version from requirements
+func getMinMacOSVersion(versions []string) string {
+	if len(versions) > 0 {
+		return versions[0]
+	}
+	return ""
+}
+
 // Holding all packages
 var allBrewPackages []*data.Package
 
@@ -254,6 +334,7 @@ func packageFromFormula(f *apiFormula, installs90d int, inst *installInfo) *data
 		IsDeprecated:      f.Deprecated,
 		IsDisabled:        f.Disabled,
 		InstallSupported:  true,
+		Platforms:         parsePlatformsFromBottle(f.Bottle.Stable.Files),
 	}
 
 	if inst != nil {
@@ -280,6 +361,8 @@ func packageFromCask(c *apiCask, installs90d int, inst *installInfo) *data.Packa
 		AutoUpdate:       c.AutoUpdate,
 		IsDeprecated:     c.Deprecated,
 		IsDisabled:       c.Disabled,
+		Platforms:        parsePlatformsFromVariations(c.Variations),
+		MinMacOSVersion:  getMinMacOSVersion(c.MacOSReq.Gte),
 	}
 
 	if inst != nil {
