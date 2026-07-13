@@ -42,11 +42,11 @@ func (lp *LoadingProgress) String(completedTaskSuffix string) string {
 	var b strings.Builder
 	total := len(lp.tasks)
 	for i, c := range lp.tasks {
-		b.WriteString(fmt.Sprintf("[%d/%d] %s...", i+1, total, lp.taskMsg[c]))
+		fmt.Fprintf(&b, "[%d/%d] %s...", i+1, total, lp.taskMsg[c])
 		if lp.taskCompleted[c] {
-			b.WriteString(completedTaskSuffix)
+			fmt.Fprintf(&b, "%s", completedTaskSuffix)
 		}
-		b.WriteString("\n")
+		fmt.Fprintf(&b, "\n")
 	}
 	return b.String()
 }

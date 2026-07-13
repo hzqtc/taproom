@@ -90,20 +90,20 @@ func (m DetailsPanelModel) View() string {
 }
 
 func formatStatus(pkg *data.Package) string {
-	return fmt.Sprintf("%s %s", formatStatusSymbol(pkg), pkg.Status())
+	return fmt.Sprintf("%s %s", formatStatusSymbol(pkg), pkg.DisplayStatus())
 }
 
 func formatStatusSymbol(pkg *data.Package) string {
-	if pkg.IsDisabled {
+	if pkg.DeprecationStatus == data.Deleted {
 		return deprecatedStyle.Render(disabledSymbol)
-	} else if pkg.IsDeprecated {
+	} else if pkg.DeprecationStatus == data.Deprecated {
 		return deprecatedStyle.Render(deprecatedSymbol)
-	} else if pkg.IsPinned {
+	} else if pkg.UpdateStatus == data.Pinned {
 		return pinnedStyle.Render(pinnedSymbol)
-	} else if pkg.IsOutdated {
+	} else if pkg.UpdateStatus == data.Outdated {
 		return outdatedStyle.Render(outdatedSymbol)
-	} else if pkg.IsInstalled {
-		if pkg.InstalledAsDependency {
+	} else if pkg.InstallStatus != data.Uninstalled {
+		if pkg.InstallStatus == data.InstalledDep {
 			return installedStyle.Render(installedSymbol)
 		} else {
 			return installedStyle.Render(explicitlyInstalledSymbol)
@@ -126,46 +126,46 @@ func (m *DetailsPanelModel) updatePanel() {
 	}
 
 	var b strings.Builder
-	b.WriteString(headerStyle.Render(fmt.Sprintf("%s %s", m.pkg.Symbol(), m.pkg.Name)))
-	b.WriteString(fmt.Sprintf("\n%s\n\n", m.pkg.Desc))
-	b.WriteString(fmt.Sprintf("Version: %s\n", m.pkg.LongVersion()))
-	b.WriteString(fmt.Sprintf("Tap: %s\n", m.pkg.Tap))
-	b.WriteString(fmt.Sprintf("Homepage: %s\n", hyperLink(m.pkg.Homepage, m.pkg.Homepage)))
-	b.WriteString(fmt.Sprintf("License: %s\n", m.pkg.License))
-	b.WriteString(fmt.Sprintf("Installs (90d): %d\n", m.pkg.Installs90d))
+	fmt.Fprintf(&b, "%s", headerStyle.Render(fmt.Sprintf("%s %s", m.pkg.Symbol(), m.pkg.Name)))
+	fmt.Fprintf(&b, "\n%s\n\n", m.pkg.Desc)
+	fmt.Fprintf(&b, "Version: %s\n", m.pkg.LongVersion())
+	fmt.Fprintf(&b, "Tap: %s\n", m.pkg.Tap)
+	fmt.Fprintf(&b, "Homepage: %s\n", hyperLink(m.pkg.Homepage, m.pkg.Homepage))
+	fmt.Fprintf(&b, "License: %s\n", m.pkg.License)
+	fmt.Fprintf(&b, "Installs (90d): %d\n", m.pkg.Installs90d)
 
-	b.WriteString(fmt.Sprintf("\nStatus: %s\n", formatStatus(m.pkg)))
-	if m.pkg.IsInstalled {
-		b.WriteString(fmt.Sprintf("Size: %s\n", m.pkg.FormattedSize))
-		b.WriteString(fmt.Sprintf("Installed on: %s\n", m.pkg.InstalledDate))
+	fmt.Fprintf(&b, "\nStatus: %s\n", formatStatus(m.pkg))
+	if m.pkg.InstallStatus != data.Uninstalled {
+		fmt.Fprintf(&b, "Size: %s\n", m.pkg.FormattedSize)
+		fmt.Fprintf(&b, "Installed on: %s\n", m.pkg.InstalledDate)
 		if release := m.pkg.ReleaseInfo; release != nil {
-			b.WriteString(fmt.Sprintf("Released on: %s\n", release.Date.Format(time.DateOnly)))
+			fmt.Fprintf(&b, "Released on: %s\n", release.Date.Format(time.DateOnly))
 		}
 	}
 
 	if len(m.pkg.Conflicts) > 0 {
-		b.WriteString("\nConflicts:\n")
+		fmt.Fprintf(&b, "\nConflicts:\n")
 		for _, c := range m.pkg.Conflicts {
 			if p := brew.GetPackage(c); p != nil {
-				b.WriteString(fmt.Sprintf("  %s %s\n", formatStatusSymbol(p), c))
+				fmt.Fprintf(&b, "  %s %s\n", formatStatusSymbol(p), c)
 			}
 		}
 	}
 
 	if len(m.pkg.Dependencies) > 0 {
-		b.WriteString("\nDependencies:\n")
+		fmt.Fprintf(&b, "\nDependencies:\n")
 		for _, dep := range m.pkg.Dependencies {
 			depPkg := brew.GetPackage(dep)
 			if depPkg == nil {
 				continue
 			}
-			b.WriteString(fmt.Sprintf("  %s %s\n", formatStatusSymbol(depPkg), dep))
-			if !depPkg.IsInstalled {
+			fmt.Fprintf(&b, "  %s %s\n", formatStatusSymbol(depPkg), dep)
+			if depPkg.InstallStatus == data.Uninstalled {
 				// For uninstalled dependencies, show all recursive uninstalled dependencies
 				recursiveDeps := util.SortAndUniq(brew.GetRecursiveMissingDeps(dep))
 				for _, d := range recursiveDeps {
-					if p := brew.GetPackage(d); p != nil && !p.IsInstalled {
-						b.WriteString(fmt.Sprintf("    %s %s\n", formatStatusSymbol(p), d))
+					if p := brew.GetPackage(d); p != nil && p.InstallStatus == data.Uninstalled {
+						fmt.Fprintf(&b, "    %s %s\n", formatStatusSymbol(p), d)
 					}
 				}
 			}
@@ -173,28 +173,28 @@ func (m *DetailsPanelModel) updatePanel() {
 	}
 
 	if len(m.pkg.BuildDependencies) > 0 {
-		b.WriteString("\nBuild dependencies:\n")
+		fmt.Fprintf(&b, "\nBuild dependencies:\n")
 		for _, dep := range m.pkg.BuildDependencies {
 			if p := brew.GetPackage(dep); p != nil {
-				b.WriteString(fmt.Sprintf("  %s %s\n", formatStatusSymbol(p), dep))
+				fmt.Fprintf(&b, "  %s %s\n", formatStatusSymbol(p), dep)
 			}
 		}
 	}
 
 	if len(m.pkg.Dependents) > 0 {
-		b.WriteString("\nRequired By:\n")
+		fmt.Fprintf(&b, "\nRequired By:\n")
 		for _, dep := range m.pkg.Dependents {
 			depPkg := brew.GetPackage(dep)
 			if depPkg == nil {
 				continue
 			}
-			b.WriteString(fmt.Sprintf("  %s %s\n", formatStatusSymbol(depPkg), dep))
-			if depPkg.IsInstalled {
+			fmt.Fprintf(&b, "  %s %s\n", formatStatusSymbol(depPkg), dep)
+			if depPkg.InstallStatus != data.Uninstalled {
 				// For installed dependents, show all recursive explicitly installed dependents
 				recursiveDependents := util.SortAndUniq(brew.GetRecursiveInstalledDependents(dep))
 				for _, d := range recursiveDependents {
-					if p := brew.GetPackage(d); p != nil && p.IsInstalled && !p.InstalledAsDependency {
-						b.WriteString(fmt.Sprintf("    %s %s\n", formatStatusSymbol(p), d))
+					if p := brew.GetPackage(d); p != nil && p.InstallStatus == data.ExplicitlyInstalled {
+						fmt.Fprintf(&b, "    %s %s\n", formatStatusSymbol(p), d)
 					}
 				}
 			}
