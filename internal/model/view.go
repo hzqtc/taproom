@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	sidePanelWidthMin = 30
+	sidePanelWidthMin = 48
 	searchWidthMin    = 20
 )
 

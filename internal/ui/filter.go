@@ -33,7 +33,7 @@ const (
 // Filters from different groups can co-exist
 var conflictFilters = []filterGroup{
 	filterGroup(FilterFormulae | FilterCasks),
-	filterGroup(FilterInstalled | FilterOutdated | FilterExplicitlyInstalled | FilterActive),
+	filterGroup(FilterInstalled | FilterExplicitlyInstalled),
 }
 
 func (f Filter) getConflictFilters() filterGroup {
