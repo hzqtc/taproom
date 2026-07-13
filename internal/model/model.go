@@ -215,23 +215,23 @@ func (m *model) handleTableKeys(msg tea.KeyMsg) tea.Cmd {
 			cmd = brew.UpgradeAllPackages(outdatedPkgs)
 		}
 	case key.Matches(msg, m.keys.Upgrade):
-		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsOutdated && !selectedPkg.IsPinned {
+		if !m.isExecuting && selectedPkg != nil && selectedPkg.UpdateStatus == data.Outdated {
 			cmd = brew.UpgradePackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.Install):
-		if !m.isExecuting && selectedPkg != nil && !selectedPkg.IsInstalled {
+		if !m.isExecuting && selectedPkg != nil && selectedPkg.InstallStatus == data.Uninstalled {
 			cmd = brew.InstallPackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.Remove):
-		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsInstalled {
+		if !m.isExecuting && selectedPkg != nil && selectedPkg.InstallStatus != data.Uninstalled {
 			cmd = brew.UninstallPackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.Pin):
-		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsInstalled && !selectedPkg.IsCask && !selectedPkg.IsPinned {
+		if !m.isExecuting && selectedPkg != nil && selectedPkg.InstallStatus != data.Uninstalled && !selectedPkg.IsCask && selectedPkg.UpdateStatus != data.Pinned {
 			cmd = brew.PinPackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.Unpin):
-		if !m.isExecuting && selectedPkg != nil && selectedPkg.IsPinned {
+		if !m.isExecuting && selectedPkg != nil && selectedPkg.UpdateStatus == data.Pinned {
 			cmd = brew.UnpinPackage(selectedPkg)
 		}
 	case key.Matches(msg, m.keys.CleanUp):
@@ -281,13 +281,13 @@ func (m *model) filterPackages() tea.Cmd {
 			case ui.FilterCasks:
 				passesFilter = pkg.IsCask
 			case ui.FilterInstalled:
-				passesFilter = pkg.IsInstalled
+				passesFilter = pkg.InstallStatus != data.Uninstalled
 			case ui.FilterOutdated:
-				passesFilter = pkg.IsOutdated
+				passesFilter = pkg.UpdateStatus == data.Outdated
 			case ui.FilterExplicitlyInstalled:
-				passesFilter = pkg.IsInstalled && !pkg.InstalledAsDependency
+				passesFilter = pkg.InstallStatus == data.ExplicitlyInstalled
 			case ui.FilterActive:
-				passesFilter = !pkg.IsDisabled && !pkg.IsDeprecated
+				passesFilter = pkg.DeprecationStatus == data.Active
 			}
 			// A package needs to pass all filters, so break early when it doesn't pass any filter
 			if !passesFilter {

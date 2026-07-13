@@ -38,7 +38,7 @@ func (m StatsModel) View() string {
 			formulaeNum++
 		}
 
-		if !pkg.IsInstalled {
+		if pkg.InstallStatus == data.Uninstalled {
 			continue
 		}
 
@@ -48,7 +48,7 @@ func (m StatsModel) View() string {
 		} else {
 			installedFormulaeNum++
 			formulaeSize += pkg.Size
-			if pkg.InstalledAsDependency {
+			if pkg.InstallStatus == data.InstalledDep {
 				installedFormulaeDepNum++
 			}
 		}

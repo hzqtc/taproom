@@ -12,37 +12,59 @@ type ReleaseInfo struct {
 	Url     string
 }
 
+type InstallStatus string
+
+const (
+	InstalledDep        InstallStatus = "installed_dep"
+	ExplicitlyInstalled InstallStatus = "explicitly_installed"
+	Uninstalled         InstallStatus = "uninstalled"
+)
+
+type UpdateStatus string
+
+const (
+	NotApplicable UpdateStatus = "not_applicable"
+	UpToDate      UpdateStatus = "up_to_date"
+	Outdated      UpdateStatus = "outdated"
+	Pinned        UpdateStatus = "pinned"
+)
+
+type DeprecationStatus string
+
+const (
+	Deprecated DeprecationStatus = "deprecated"
+	Deleted    DeprecationStatus = "deleted"
+	Active     DeprecationStatus = "active"
+)
+
 // Package holds all combined information for a formula or cask.
 type Package struct {
-	Name                  string // Used as a unique key
-	Aliases               []string
-	Tap                   string
-	Version               string
-	Revision              int
-	InstalledVersion      string
-	InstalledRevision     int
-	Desc                  string
-	Homepage              string
-	Urls                  []string
-	License               string
-	Dependencies          []string
-	BuildDependencies     []string
-	Dependents            []string
-	Conflicts             []string
-	Installs90d           int
-	AutoUpdate            bool
-	IsCask                bool
-	IsInstalled           bool
-	IsOutdated            bool
-	IsPinned              bool
-	IsDeprecated          bool
-	IsDisabled            bool
-	InstalledAsDependency bool
-	Size                  int64  // Size in kbs
-	FormattedSize         string // Formated size like 24.5MB, 230KB
-	InstallSupported      bool   // Whether installing the package is supported in taproom
-	InstalledDate         string
-	ReleaseInfo           *ReleaseInfo // Only set when package is outdated
+	Name              string // Used as a unique key
+	Aliases           []string
+	Tap               string
+	Version           string
+	Revision          int
+	InstalledVersion  string
+	InstalledRevision int
+	Desc              string
+	Homepage          string
+	Urls              []string
+	License           string
+	Dependencies      []string
+	BuildDependencies []string
+	Dependents        []string
+	Conflicts         []string
+	Installs90d       int
+	AutoUpdate        bool
+	IsCask            bool
+	InstallStatus     InstallStatus
+	UpdateStatus      UpdateStatus
+	DeprecationStatus DeprecationStatus
+	Size              int64  // Size in kbs
+	FormattedSize     string // Formated size like 24.5MB, 230KB
+	InstallSupported  bool   // Whether installing the package is supported in taproom
+	InstalledDate     string
+	ReleaseInfo       *ReleaseInfo // Only set when package is outdated
 }
 
 const (
@@ -68,18 +90,19 @@ func (pkg *Package) Symbol() string {
 	}
 }
 
-func (pkg *Package) Status() string {
-	if pkg.IsDisabled {
+// / A simplified status string for display
+func (pkg *Package) DisplayStatus() string {
+	if pkg.DeprecationStatus == Deleted {
 		return statusDisabled
-	} else if pkg.IsDeprecated {
+	} else if pkg.DeprecationStatus == Deprecated {
 		return statusDeprecated
-	} else if pkg.IsPinned {
+	} else if pkg.UpdateStatus == Pinned {
 		return statusPinned
-	} else if pkg.IsOutdated {
+	} else if pkg.UpdateStatus == Outdated {
 		return statusOutdated
-	} else if pkg.InstalledAsDependency {
+	} else if pkg.InstallStatus == InstalledDep {
 		return statusInstalledAsDep
-	} else if pkg.IsInstalled {
+	} else if pkg.InstallStatus == ExplicitlyInstalled {
 		return statusInstalled
 	} else {
 		return statusUninstalled
@@ -111,51 +134,55 @@ func (pkg *Package) installedVersionWithRev() string {
 }
 
 func (pkg *Package) ShortVersion() string {
-	if pkg.IsOutdated {
+	switch pkg.UpdateStatus {
+	case Outdated:
 		return fmt.Sprintf("%s (New)", pkg.versionWithRev())
-	} else if pkg.IsPinned {
+	case Pinned:
 		return fmt.Sprintf("%s (Pin)", pkg.installedVersionWithRev())
-	} else {
+	default:
 		return pkg.versionWithRev()
 	}
 }
 
 func (pkg *Package) LongVersion() string {
-	if pkg.IsOutdated {
+	switch pkg.UpdateStatus {
+	case Outdated:
 		return fmt.Sprintf("%s -> %s", pkg.installedVersionWithRev(), pkg.versionWithRev())
-	} else if pkg.IsPinned {
+	case Pinned:
 		return fmt.Sprintf("%s (Pinned)", pkg.installedVersionWithRev())
-	} else {
+	default:
 		return pkg.versionWithRev()
 	}
 }
 
 func (pkg *Package) MarkInstalled() {
-	pkg.IsInstalled = true
-	pkg.IsOutdated = false
+	pkg.InstallStatus = ExplicitlyInstalled
+	pkg.UpdateStatus = UpToDate
 	pkg.InstalledVersion = pkg.Version
 	pkg.InstalledDate = time.Now().Format(time.DateOnly)
 }
 
 func (pkg *Package) MarkInstalledAsDep() {
 	pkg.MarkInstalled()
-	pkg.InstalledAsDependency = true
+	pkg.InstallStatus = InstalledDep
 }
 
 func (pkg *Package) MarkUninstalled() {
-	pkg.IsInstalled = false
+	pkg.InstallStatus = Uninstalled
 	pkg.InstalledVersion = ""
-	pkg.IsOutdated = false
-	pkg.IsPinned = false
-	pkg.InstalledAsDependency = false
+	pkg.UpdateStatus = NotApplicable
 }
 
 func (pkg *Package) MarkPinned() {
-	pkg.IsPinned = true
+	pkg.UpdateStatus = Pinned
 }
 
 func (pkg *Package) MarkUnpinned() {
-	pkg.IsPinned = false
+	if pkg.InstalledVersion != pkg.Version || pkg.InstalledRevision < pkg.Revision {
+		pkg.UpdateStatus = Outdated
+	} else {
+		pkg.UpdateStatus = UpToDate
+	}
 }
 
 const (

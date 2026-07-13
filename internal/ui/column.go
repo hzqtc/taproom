@@ -122,13 +122,13 @@ func (c packageTableColumn) getColumnData(pkg *data.Package) string {
 	case colInstalls:
 		return fmt.Sprintf("%d", pkg.Installs90d)
 	case colSize:
-		if pkg.IsInstalled {
+		if pkg.InstallStatus != data.Uninstalled {
 			return pkg.FormattedSize
 		} else {
 			return "N/A"
 		}
 	case colStatus:
-		return pkg.Status()
+		return pkg.DisplayStatus()
 	default:
 		return ""
 	}

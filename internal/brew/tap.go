@@ -24,16 +24,19 @@ var (
 // Ideally this should be called after `brew update`
 func getCustomTapPackage(info *installInfo) (*data.Package, error) {
 	pkg := data.Package{
-		Name: info.name,
-		Tap:  info.tap,
+		Name:              info.name,
+		Tap:               info.tap,
+		InstallStatus:     data.Uninstalled,
+		UpdateStatus:      data.NotApplicable,
+		DeprecationStatus: data.Active,
 	}
 
 	// This reads the .rb file located in /opt/homebrew/Library/Taps/
-	data, err := os.ReadFile(info.path)
+	bytes, err := os.ReadFile(info.path)
 	if err != nil {
 		return nil, fmt.Errorf("can't read %s: %w", info.path, err)
 	}
-	content := string(data)
+	content := string(bytes)
 
 	// Version
 	if m := regexp.MustCompile(`version\s+["']([^"']+)["']`).FindStringSubmatch(content); m != nil {
@@ -104,10 +107,9 @@ func getCustomTapPackage(info *installInfo) (*data.Package, error) {
 
 	// Flags
 	if strings.Contains(content, "disable!") {
-		pkg.IsDisabled = true
-	}
-	if strings.Contains(content, "deprecate!") {
-		pkg.IsDeprecated = true
+		pkg.DeprecationStatus = data.Deleted
+	} else if strings.Contains(content, "deprecate!") {
+		pkg.DeprecationStatus = data.Deprecated
 	}
 
 	// Final validation on required fields

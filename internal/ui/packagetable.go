@@ -257,7 +257,7 @@ func (m *PackageTableModel) sortRows() {
 		})
 	case colStatus:
 		sort.Slice(m.packages, func(i, j int) bool {
-			return m.packages[i].Status() < m.packages[j].Status()
+			return m.packages[i].DisplayStatus() < m.packages[j].DisplayStatus()
 		})
 	}
 	m.UpdateRows()
