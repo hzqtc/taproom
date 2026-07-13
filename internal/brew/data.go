@@ -33,25 +33,21 @@ type DataLoadingErrMsg struct {
 // loadData returns a tea.Cmd that fetches all data concurrently.
 func LoadData(fetchAnalytics, fetchSize bool, loadingPrgs *loading.LoadingProgress) tea.Cmd {
 	return func() tea.Msg {
-		formulaeChan := make(chan []*apiFormula)
-		casksChan := make(chan []*apiCask)
+		packagesChan := make(chan internalPackages)
 		formulaAnalytics90dChan := make(chan apiFormulaAnalytics)
 		caskAnalytics90dChan := make(chan apiCaskAnalytics)
 		formulaInstallInfoChan := make(chan []*installInfo)
 		caskInstallInfoChan := make(chan []*installInfo)
-		loadingTasksNum := 6
+		loadingTasksNum := 5
 		errChan := make(chan error, loadingTasksNum)
 
-		var allFormulae []*apiFormula
-		var allCasks []*apiCask
+		var pkgs internalPackages
 		var formulaAnalytics90d apiFormulaAnalytics
 		var caskAnalytics90d apiCaskAnalytics
 		var formulaInstallInfo, caskInstallInfo []*installInfo
 
-		go fetchFormula(formulaeChan, errChan)
-		loadingPrgs.AddTask(formulaeChan, "Loading all Formulae")
-		go fetchCask(casksChan, errChan)
-		loadingPrgs.AddTask(casksChan, "Loading all Casks")
+		go fetchInternalPackages(packagesChan, errChan)
+		loadingPrgs.AddTask(packagesChan, "Loading all Packages")
 		if fetchAnalytics {
 			go fetchFormulaAnalytics(formulaAnalytics90dChan, errChan)
 			loadingPrgs.AddTask(formulaAnalytics90dChan, "Loading Formulae 90d analytics")
@@ -71,10 +67,8 @@ func LoadData(fetchAnalytics, fetchSize bool, loadingPrgs *loading.LoadingProgre
 
 		for range loadingTasksNum {
 			select {
-			case allFormulae = <-formulaeChan:
-				loadingPrgs.MarkCompleted(formulaeChan)
-			case allCasks = <-casksChan:
-				loadingPrgs.MarkCompleted(casksChan)
+			case pkgs = <-packagesChan:
+				loadingPrgs.MarkCompleted(packagesChan)
 			case formulaAnalytics90d = <-formulaAnalytics90dChan:
 				loadingPrgs.MarkCompleted(formulaAnalytics90dChan)
 			case caskAnalytics90d = <-caskAnalytics90dChan:
@@ -89,8 +83,7 @@ func LoadData(fetchAnalytics, fetchSize bool, loadingPrgs *loading.LoadingProgre
 		}
 
 		allBrewPackages = processAllData(
-			allFormulae,
-			allCasks,
+			pkgs,
 			formulaAnalytics90d,
 			caskAnalytics90d,
 			formulaInstallInfo,
@@ -112,8 +105,7 @@ func updateBrew() {
 
 // processAllData merges all data sources into a single slice of Package.
 func processAllData(
-	formulae []*apiFormula,
-	casks []*apiCask,
+	pkgs internalPackages,
 	formulaAnalytics90d apiFormulaAnalytics,
 	caskAnalytics90d apiCaskAnalytics,
 	formulaInstallInfo, caskInstallInfo []*installInfo,
@@ -126,6 +118,12 @@ func processAllData(
 	caskDependents := make(map[string][]string)                    // cask name to packages that depends on it
 
 	packages := []*data.Package{}
+
+	// Map aliases
+	aliasesMap := make(map[string][]string)
+	for alias, canonical := range pkgs.FormulaAliases {
+		aliasesMap[canonical] = append(aliasesMap[canonical], alias)
+	}
 
 	for _, info := range formulaInstallInfo {
 		if info.tap == coreTap {
@@ -143,7 +141,7 @@ func processAllData(
 				formulaDependents[dep] = append(formulaDependents[dep], pkg.Name)
 			}
 		} else {
-			log.Printf("failed to retrieve infomation for %s/%s: %v", info.tap, info.name, err)
+			log.Printf("failed to retrieve information for %s/%s: %v", info.tap, info.name, err)
 		}
 	}
 
@@ -160,32 +158,35 @@ func processAllData(
 			pkg = updateInstallInfo(pkg, info)
 			packages = append(packages, pkg)
 		} else {
-			log.Printf("failed to retrieve infomation for %s/%s: %v", info.tap, info.name, err)
+			log.Printf("failed to retrieve information for %s/%s: %v", info.tap, info.name, err)
 		}
 	}
 
 	// Add formulae
-	for _, f := range formulae {
-		packages = append(packages, packageFromFormula(f, formulaInstalls90d[f.Name], installedFormulae[f.Name]))
-		for _, dep := range f.Dependencies {
-			formulaDependents[dep] = append(formulaDependents[dep], f.Name)
+	for name, f := range pkgs.Formulae {
+		aliases := aliasesMap[name]
+		pkg := packageFromFormula(name, aliases, f, formulaInstalls90d[name], installedFormulae[name])
+		packages = append(packages, pkg)
+		for _, dep := range pkg.Dependencies {
+			formulaDependents[dep] = append(formulaDependents[dep], name)
 		}
 	}
 
 	// Add casks
-	for _, c := range casks {
-		packages = append(packages, packageFromCask(c, caskInstalls90d[c.Name], installedCasks[c.Name]))
-		for _, dep := range c.Dependencies.Formulae {
-			formulaDependents[dep] = append(formulaDependents[dep], c.Name)
+	for name, c := range pkgs.Casks {
+		pkg := packageFromCask(name, c, caskInstalls90d[name], installedCasks[name])
+		packages = append(packages, pkg)
+		for _, dep := range c.DependsOnArgs.Formula {
+			formulaDependents[dep] = append(formulaDependents[dep], name)
 		}
-		for _, dep := range c.Dependencies.Casks {
-			caskDependents[dep] = append(caskDependents[dep], c.Name)
+		for _, dep := range c.DependsOnArgs.Cask {
+			caskDependents[dep] = append(caskDependents[dep], name)
 		}
 	}
 
 	// Post processing: fetch release info and populate dependents
 	for _, pkg := range packages {
-		if *flagFetchReleaseInfo && pkg.IsInstalled {
+		if *flagFetchReleaseInfo && pkg.InstallStatus != data.Uninstalled {
 			// Fetch release note in background as non blocking go routines
 			go func() {
 				pkg.ReleaseInfo = gh.GetGithubReleaseInfo(pkg)
@@ -236,24 +237,48 @@ func mapInstallInfo(info []*installInfo) map[string]*installInfo {
 	return installedMap
 }
 
-func packageFromFormula(f *apiFormula, installs90d int, inst *installInfo) *data.Package {
+func packageFromFormula(name string, aliases []string, f *apiFormula, installs90d int, inst *installInfo) *data.Package {
+	var deps []string
+	var buildDeps []string
+	for _, dep := range f.StableDependencies {
+		if dep.IsBuild {
+			buildDeps = append(buildDeps, dep.Name)
+		} else {
+			deps = append(deps, dep.Name)
+		}
+	}
+
 	pkg := data.Package{
-		Name:              f.Name,
-		Aliases:           f.Aliases,
-		Tap:               f.Tap,
-		Version:           f.Versions.Stable,
+		Name:              name,
+		Aliases:           aliases,
+		Tap:               "homebrew/core",
+		Version:           f.StableVersion,
 		Revision:          f.Revision,
 		Desc:              f.Desc,
 		Homepage:          f.Homepage,
-		Urls:              []string{f.Urls.Stable.Url, f.Urls.Head.Url},
-		License:           f.License,
-		Dependencies:      util.Sort(f.Dependencies),
-		BuildDependencies: util.Sort(f.BuildDependencies),
-		Conflicts:         f.Conflicts,
+		Urls: func() []string {
+			if len(f.StableUrlArgs) > 0 {
+				return []string{f.StableUrlArgs[0]}
+			}
+			return []string{}
+		}(),
+		License:           string(f.License),
+		Dependencies:      util.Sort(deps),
+		BuildDependencies: util.Sort(buildDeps),
+		Conflicts:         util.Sort(f.Conflicts),
 		Installs90d:       installs90d,
-		IsDeprecated:      f.Deprecated,
-		IsDisabled:        f.Disabled,
-		InstallSupported:  true,
+		DeprecationStatus: func() data.DeprecationStatus {
+			if f.DisableArgs != nil {
+				return data.Deleted
+			}
+			if f.DeprecateArgs != nil {
+				return data.Deprecated
+			}
+			return data.Active
+		}(),
+		InstallSupported: true,
+		InstallStatus:    data.Uninstalled,
+		UpdateStatus:     data.NotApplicable,
 	}
 
 	if inst != nil {
@@ -263,23 +288,37 @@ func packageFromFormula(f *apiFormula, installs90d int, inst *installInfo) *data
 	}
 }
 
-func packageFromCask(c *apiCask, installs90d int, inst *installInfo) *data.Package {
+func packageFromCask(name string, c *apiCask, installs90d int, inst *installInfo) *data.Package {
 	pkg := data.Package{
-		Name:             c.Name,
-		Tap:              c.Tap,
-		Version:          c.Version,
-		Desc:             c.Desc,
-		Homepage:         c.Homepage,
-		Urls:             []string{c.Url},
-		License:          "N/A",
-		Dependencies:     util.Sort(append(c.Dependencies.Formulae, c.Dependencies.Casks...)),
-		Conflicts:        util.Sort(append(c.Conflicts.Formulae, c.Conflicts.Casks...)),
-		Installs90d:      installs90d,
-		IsCask:           true,
-		InstallSupported: isInstallSupported(c.Url),
-		AutoUpdate:       c.AutoUpdate,
-		IsDeprecated:     c.Deprecated,
-		IsDisabled:       c.Disabled,
+		Name:         name,
+		Tap:          "homebrew/cask",
+		Version:      c.Version,
+		Desc:         c.Desc,
+		Homepage:     c.Homepage,
+		Urls:         c.UrlArgs,
+		License:      "N/A",
+		Dependencies: util.Sort(append(c.DependsOnArgs.Formula, c.DependsOnArgs.Cask...)),
+		Conflicts:    util.Sort(append(c.Conflicts.Formula, c.Conflicts.Cask...)),
+		Installs90d:  installs90d,
+		IsCask:       true,
+		InstallSupported: func() bool {
+			if len(c.UrlArgs) > 0 {
+				return isInstallSupported(c.UrlArgs[0])
+			}
+			return false
+		}(),
+		AutoUpdate:   c.AutoUpdates,
+		DeprecationStatus: func() data.DeprecationStatus {
+			if c.DisableArgs != nil {
+				return data.Deleted
+			}
+			if c.DeprecateArgs != nil {
+				return data.Deprecated
+			}
+			return data.Active
+		}(),
+		InstallStatus: data.Uninstalled,
+		UpdateStatus:  data.NotApplicable,
 	}
 
 	if inst != nil {
@@ -299,18 +338,27 @@ func isInstallSupported(url string) bool {
 }
 
 func updateInstallInfo(pkg *data.Package, inst *installInfo) *data.Package {
-	pkg.IsInstalled = true
+	if inst.asDep {
+		pkg.InstallStatus = data.InstalledDep
+	} else {
+		pkg.InstallStatus = data.ExplicitlyInstalled
+	}
+
 	if pkg.IsCask && pkg.AutoUpdate {
 		// Cask has auto update (not managed by brew), assume it is up-to-date
 		pkg.InstalledVersion = pkg.Version
-		pkg.IsOutdated = false
+		pkg.UpdateStatus = data.UpToDate
 	} else {
 		pkg.InstalledVersion = inst.version
 		pkg.InstalledRevision = inst.revision
-		pkg.IsOutdated = inst.version != pkg.Version || inst.revision < pkg.Revision
+		if inst.pinned {
+			pkg.UpdateStatus = data.Pinned
+		} else if inst.version != pkg.Version || inst.revision < pkg.Revision {
+			pkg.UpdateStatus = data.Outdated
+		} else {
+			pkg.UpdateStatus = data.UpToDate
+		}
 	}
-	pkg.IsPinned = inst.pinned
-	pkg.InstalledAsDependency = inst.asDep
 	pkg.Size = inst.size
 	pkg.FormattedSize = util.FormatSize(inst.size)
 	pkg.InstalledDate = time.Unix(inst.timestamp, 0).Format(time.DateOnly)
@@ -333,7 +381,7 @@ func GetPackage(name string) *data.Package {
 func GetOutdatedPackages() []*data.Package {
 	outdatedPackages := []*data.Package{}
 	for i := range allBrewPackages {
-		if pkg := allBrewPackages[i]; pkg.IsOutdated {
+		if pkg := allBrewPackages[i]; pkg.UpdateStatus == data.Outdated {
 			outdatedPackages = append(outdatedPackages, pkg)
 		}
 	}
@@ -343,7 +391,7 @@ func GetOutdatedPackages() []*data.Package {
 // Recursively find uninstalled dependencies
 func GetRecursiveMissingDeps(pkgName string) []string {
 	pkg := GetPackage(pkgName)
-	if pkg.IsInstalled {
+	if pkg.InstallStatus != data.Uninstalled {
 		return []string{}
 	} else {
 		deps := pkg.Dependencies
@@ -357,7 +405,7 @@ func GetRecursiveMissingDeps(pkgName string) []string {
 // Recursively find installed dependents
 func GetRecursiveInstalledDependents(pkgName string) []string {
 	pkg := GetPackage(pkgName)
-	if !pkg.IsInstalled {
+	if pkg.InstallStatus == data.Uninstalled {
 		return []string{}
 	} else {
 		deps := pkg.Dependents
