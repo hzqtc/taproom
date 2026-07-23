@@ -135,7 +135,6 @@ func processAllData(
 		pkg, err := getCustomTapPackage(info)
 		if err == nil {
 			pkg.Installs90d = formulaInstalls90d[pkg.Name]
-			pkg.InstallSupported = true
 			pkg.IsCask = false
 			pkg = updateInstallInfo(pkg, info)
 			packages = append(packages, pkg)
@@ -156,7 +155,6 @@ func processAllData(
 		if err == nil {
 			pkg.Installs90d = formulaInstalls90d[pkg.Name]
 			pkg.IsCask = true
-			pkg.InstallSupported = len(pkg.Urls) > 0 && isInstallSupported(pkg.Urls[0])
 			pkg = updateInstallInfo(pkg, info)
 			packages = append(packages, pkg)
 		} else {
@@ -253,7 +251,6 @@ func packageFromFormula(f *apiFormula, installs90d int, inst *installInfo) *data
 		Installs90d:       installs90d,
 		IsDeprecated:      f.Deprecated,
 		IsDisabled:        f.Disabled,
-		InstallSupported:  true,
 	}
 
 	if inst != nil {
@@ -265,21 +262,20 @@ func packageFromFormula(f *apiFormula, installs90d int, inst *installInfo) *data
 
 func packageFromCask(c *apiCask, installs90d int, inst *installInfo) *data.Package {
 	pkg := data.Package{
-		Name:             c.Name,
-		Tap:              c.Tap,
-		Version:          c.Version,
-		Desc:             c.Desc,
-		Homepage:         c.Homepage,
-		Urls:             []string{c.Url},
-		License:          "N/A",
-		Dependencies:     util.Sort(append(c.Dependencies.Formulae, c.Dependencies.Casks...)),
-		Conflicts:        util.Sort(append(c.Conflicts.Formulae, c.Conflicts.Casks...)),
-		Installs90d:      installs90d,
-		IsCask:           true,
-		InstallSupported: isInstallSupported(c.Url),
-		AutoUpdate:       c.AutoUpdate,
-		IsDeprecated:     c.Deprecated,
-		IsDisabled:       c.Disabled,
+		Name:         c.Name,
+		Tap:          c.Tap,
+		Version:      c.Version,
+		Desc:         c.Desc,
+		Homepage:     c.Homepage,
+		Urls:         []string{c.Url},
+		License:      "N/A",
+		Dependencies: util.Sort(append(c.Dependencies.Formulae, c.Dependencies.Casks...)),
+		Conflicts:    util.Sort(append(c.Conflicts.Formulae, c.Conflicts.Casks...)),
+		Installs90d:  installs90d,
+		IsCask:       true,
+		AutoUpdate:   c.AutoUpdate,
+		IsDeprecated: c.Deprecated,
+		IsDisabled:   c.Disabled,
 	}
 
 	if inst != nil {
@@ -287,15 +283,6 @@ func packageFromCask(c *apiCask, installs90d int, inst *installInfo) *data.Packa
 	} else {
 		return &pkg
 	}
-}
-
-func isInstallSupported(url string) bool {
-	// Trim query param from the url
-	if i := strings.Index(url, "?"); i != -1 {
-		url = url[:i]
-	}
-	// Don't support installing casks in pkg format as they require sudo
-	return !strings.HasSuffix(url, ".pkg")
 }
 
 func updateInstallInfo(pkg *data.Package, inst *installInfo) *data.Package {
