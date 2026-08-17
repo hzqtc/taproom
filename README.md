@@ -132,4 +132,4 @@ Run `taproom -h` to learn more about the command line flags.
 
 ## ✨ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=hzqtc/taproom&type=Date)](https://www.star-history.com/#hzqtc/taproom&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=hzqtc/taproom&type=Date)](https://star-history.dera.page/#hzqtc/taproom&Date)
