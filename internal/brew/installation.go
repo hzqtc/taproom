@@ -25,9 +25,9 @@ type installInfo struct {
 
 // struct to parse INSTALL_RECEIPT.json
 type installReceipt struct {
-	InstalledAsDep bool  `json:"installed_as_dependency"`
-	InstallTime    int64 `json:"time"`
-	Source         struct {
+	InstalledOnRequest bool  `json:"installed_on_request"`
+	InstallTime        int64 `json:"time"`
+	Source             struct {
 		Version  string `json:"version"` // Cask only
 		Versions struct {
 			Stable string `json:"stable"` // Formula only
@@ -156,7 +156,7 @@ func getFormulaInstallInfo(fetchSize bool, path string) *installInfo {
 		version:   receipt.Source.Versions.Stable,
 		revision:  revision,
 		size:      size,
-		asDep:     receipt.InstalledAsDep,
+		asDep:     !receipt.InstalledOnRequest,
 		timestamp: receipt.InstallTime,
 		path:      receipt.Source.Path,
 	}
@@ -205,7 +205,7 @@ func getCaskInstallInfo(fetchSize bool, path string) *installInfo {
 	// Casks installed by older brew (before 4.4.0) does not have INSTALL_RECEIPT.json
 	if receipt := parseInstallReceipt(filepath.Join(path, ".metadata")); receipt != nil {
 		info.tap = receipt.Source.Tap
-		info.asDep = receipt.InstalledAsDep
+		info.asDep = !receipt.InstalledOnRequest
 		info.path = receipt.Source.Path
 		info.timestamp = receipt.InstallTime
 	}
