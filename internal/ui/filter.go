@@ -21,9 +21,10 @@ const (
 	FilterFormulae            Filter = 1 << iota // 0000 0001
 	FilterCasks                                  // 0000 0010
 	FilterInstalled                              // 0000 0100
-	FilterOutdated                               // 0000 1000
-	FilterExplicitlyInstalled                    // 0001 0000
-	FilterActive                                 // 0010 0000
+	FilterUninstalled                            // 0000 1000
+	FilterOutdated                               // 0001 0000
+	FilterExplicitlyInstalled                    // 0010 0000
+	FilterActive                                 // 0100 0000
 
 	filterMax
 	filterUnknown
@@ -31,18 +32,24 @@ const (
 
 // Mutually exclusive filter groups
 // Filters from different groups can co-exist
+// A filter can belong to more than one group; all groups it belongs to are
+// considered conflicting. This lets Outdated conflict with Uninstalled without
+// conflicting with Installed, since the two can meaningfully be combined.
 var conflictFilters = []filterGroup{
 	filterGroup(FilterFormulae | FilterCasks),
-	filterGroup(FilterInstalled | FilterExplicitlyInstalled),
+	filterGroup(FilterInstalled | FilterExplicitlyInstalled | FilterUninstalled),
+	// Outdated packages are installed by definition
+	filterGroup(FilterOutdated | FilterUninstalled),
 }
 
 func (f Filter) getConflictFilters() filterGroup {
+	conflicts := emptyFilterGroup
 	for _, fg := range conflictFilters {
 		if fg.isFilterEnabled(f) {
-			return fg
+			conflicts |= fg
 		}
 	}
-	return emptyFilterGroup
+	return conflicts
 }
 
 func (fg filterGroup) isFilterEnabled(f Filter) bool {
@@ -94,6 +101,8 @@ func (f Filter) String() string {
 		return "Casks"
 	case FilterInstalled:
 		return "Installed"
+	case FilterUninstalled:
+		return "Uninstalled"
 	case FilterOutdated:
 		return "Outdated"
 	case FilterExplicitlyInstalled:
@@ -113,6 +122,8 @@ func parseFilter(s string) (Filter, error) {
 		return FilterCasks, nil
 	case "Installed":
 		return FilterInstalled, nil
+	case "Uninstalled":
+		return FilterUninstalled, nil
 	case "Outdated":
 		return FilterOutdated, nil
 	case "Expl. Installed":

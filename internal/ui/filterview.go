@@ -14,13 +14,14 @@ type FilterViewModel struct {
 	fg    filterGroup
 	width int
 
-	filterAll       key.Binding
-	filterFormulae  key.Binding
-	filterCasks     key.Binding
-	filterInstalled key.Binding
-	filterOutdated  key.Binding
-	filterExplicit  key.Binding
-	filterActive    key.Binding
+	filterAll         key.Binding
+	filterFormulae    key.Binding
+	filterCasks       key.Binding
+	filterInstalled   key.Binding
+	filterUninstalled key.Binding
+	filterOutdated    key.Binding
+	filterExplicit    key.Binding
+	filterActive      key.Binding
 }
 
 var flagFilters = pflag.StringSliceP(
@@ -28,7 +29,8 @@ var flagFilters = pflag.StringSliceP(
 	"f",
 	[]string{},
 	"Filters to enable (comma separated no space).\n"+
-		"Pick 0 or 1 filter from each group: (Formulae, Casks), (Installed, Outdated, Expl. Installed, Active)",
+		"Filters are combined with AND. Mutually exclusive: (Formulae, Casks), "+
+		"(Installed, Expl. Installed, Uninstalled); Uninstalled also conflicts with Outdated.",
 )
 
 var filterStyle = baseStyle.
@@ -42,14 +44,15 @@ func NewFilterViewModel() FilterViewModel {
 	}
 
 	return FilterViewModel{
-		fg:              fg,
-		filterAll:       key.NewBinding(key.WithKeys("a")),
-		filterFormulae:  key.NewBinding(key.WithKeys("f")),
-		filterCasks:     key.NewBinding(key.WithKeys("c")),
-		filterInstalled: key.NewBinding(key.WithKeys("i")),
-		filterOutdated:  key.NewBinding(key.WithKeys("o")),
-		filterExplicit:  key.NewBinding(key.WithKeys("e")),
-		filterActive:    key.NewBinding(key.WithKeys("v")),
+		fg:                fg,
+		filterAll:         key.NewBinding(key.WithKeys("a")),
+		filterFormulae:    key.NewBinding(key.WithKeys("f")),
+		filterCasks:       key.NewBinding(key.WithKeys("c")),
+		filterInstalled:   key.NewBinding(key.WithKeys("i")),
+		filterUninstalled: key.NewBinding(key.WithKeys("n")),
+		filterOutdated:    key.NewBinding(key.WithKeys("o")),
+		filterExplicit:    key.NewBinding(key.WithKeys("e")),
+		filterActive:      key.NewBinding(key.WithKeys("v")),
 	}
 }
 
@@ -66,6 +69,8 @@ func (m FilterViewModel) Update(msg tea.Msg) (FilterViewModel, tea.Cmd) {
 			m.fg.toggleFilter(FilterCasks)
 		case key.Matches(msg, m.filterInstalled):
 			m.fg.toggleFilter(FilterInstalled)
+		case key.Matches(msg, m.filterUninstalled):
+			m.fg.toggleFilter(FilterUninstalled)
 		case key.Matches(msg, m.filterOutdated):
 			m.fg.toggleFilter(FilterOutdated)
 		case key.Matches(msg, m.filterExplicit):

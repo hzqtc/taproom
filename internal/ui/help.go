@@ -63,6 +63,8 @@ func (m HelpModel) View() string {
 	fmt.Fprintf(&b, ": casks ")
 	fmt.Fprintf(&b, "%s", keyStyle.Render("i"))
 	fmt.Fprintf(&b, ": installed ")
+	fmt.Fprintf(&b, "%s", keyStyle.Render("n"))
+	fmt.Fprintf(&b, ": uninstalled ")
 	fmt.Fprintf(&b, "%s", keyStyle.Render("o"))
 	fmt.Fprintf(&b, ": outdated ")
 	fmt.Fprintf(&b, "%s", keyStyle.Render("e"))
