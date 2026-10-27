@@ -282,6 +282,8 @@ func (m *model) filterPackages() tea.Cmd {
 				passesFilter = pkg.IsCask
 			case ui.FilterInstalled:
 				passesFilter = pkg.IsInstalled
+			case ui.FilterUninstalled:
+				passesFilter = !pkg.IsInstalled
 			case ui.FilterOutdated:
 				passesFilter = pkg.IsOutdated
 			case ui.FilterExplicitlyInstalled:

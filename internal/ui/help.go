@@ -62,6 +62,8 @@ func (m HelpModel) View() string {
 	b.WriteString(": casks ")
 	b.WriteString(keyStyle.Render("i"))
 	b.WriteString(": installed ")
+	b.WriteString(keyStyle.Render("n"))
+	b.WriteString(": uninstalled ")
 	b.WriteString(keyStyle.Render("o"))
 	b.WriteString(": outdated ")
 	b.WriteString(keyStyle.Render("e"))
