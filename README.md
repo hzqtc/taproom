@@ -42,6 +42,7 @@
   - Formulae only
   - Casks only
   - Installed packages
+  - Uninstalled packages
   - Outdated packages
   - Packages you installed explicitly (not as dependencies)
 - **Flexible Sorting:** Sort packages alphabetically by name or by 90-day popularity.
