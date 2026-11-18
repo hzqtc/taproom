@@ -241,10 +241,10 @@ func packageFromFormula(name string, aliases []string, f *apiFormula, installs90
 	var deps []string
 	var buildDeps []string
 	for _, dep := range f.StableDependencies {
-		if dep.IsBuild {
-			buildDeps = append(buildDeps, dep.Name)
-		} else if dep.IsRuntime {
-			deps = append(deps, dep.Name)
+		if dep.isBuild {
+			buildDeps = append(buildDeps, dep.name)
+		} else if dep.isRuntime {
+			deps = append(deps, dep.name)
 		}
 	}
 

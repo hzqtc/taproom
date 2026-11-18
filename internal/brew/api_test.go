@@ -59,8 +59,8 @@ func TestDependencyUnmarshalJSON(t *testing.T) {
 			if err := json.Unmarshal([]byte(tc.input), &d); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if d.Name != tc.wantName || d.IsBuild != tc.isBuild || d.IsRuntime != tc.isRuntime {
-				t.Errorf("got %+v, want Name=%q IsBuild=%v IsRuntime=%v", d, tc.wantName, tc.isBuild, tc.isRuntime)
+			if d.name != tc.wantName || d.isBuild != tc.isBuild || d.isRuntime != tc.isRuntime {
+				t.Errorf("got %+v, want name=%q isBuild=%v isRuntime=%v", d, tc.wantName, tc.isBuild, tc.isRuntime)
 			}
 		})
 	}
