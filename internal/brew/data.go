@@ -343,10 +343,10 @@ func isInstallSupported(url string) bool {
 }
 
 func updateInstallInfo(pkg *data.Package, inst *installInfo) *data.Package {
-	if inst.asDep {
-		pkg.InstallStatus = data.InstalledDep
-	} else {
+	if inst.onRequest {
 		pkg.InstallStatus = data.ExplicitlyInstalled
+	} else {
+		pkg.InstallStatus = data.InstalledDep
 	}
 
 	if pkg.IsCask && pkg.AutoUpdate {
