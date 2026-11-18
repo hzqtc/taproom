@@ -127,8 +127,8 @@ func getCustomTapPackage(info *installInfo) (*data.Package, error) {
 func parseVersionFromUrl(url string) string {
 	base := path.Base(url)
 	for _, ext := range sourceExts {
-		if strings.HasSuffix(base, ext) {
-			base = strings.TrimSuffix(base, ext)
+		if trimmed, ok := strings.CutSuffix(base, ext); ok {
+			base = trimmed
 			break
 		}
 	}

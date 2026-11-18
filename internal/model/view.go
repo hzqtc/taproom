@@ -88,10 +88,7 @@ func (m *model) updateLayout() {
 	}
 
 	m.filterView.SetWidth(sidePanelWidth)
-	searchWidth := m.width - sidePanelWidth - 8
-	if searchWidth < searchWidthMin {
-		searchWidth = searchWidthMin
-	}
+	searchWidth := max(searchWidthMin, m.width-sidePanelWidth-8)
 	m.search.SetWidth(searchWidth)
 	m.table.SetDimensions(tableWidth, mainHeight)
 	m.detailPanel.SetDimension(sidePanelWidth-2, mainHeight)

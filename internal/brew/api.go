@@ -78,12 +78,12 @@ func findLatestCachedBottleTag(cacheDir string) string {
 		if entry.IsDir() {
 			continue
 		}
-		name := entry.Name()
-		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+		tag, ok := strings.CutPrefix(entry.Name(), prefix)
+		if !ok {
 			continue
 		}
-		tag := name[len(prefix) : len(name)-len(suffix)]
-		if tag == "" {
+		tag, ok = strings.CutSuffix(tag, suffix)
+		if !ok || tag == "" {
 			continue
 		}
 		info, err := entry.Info()

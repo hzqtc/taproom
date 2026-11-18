@@ -117,16 +117,15 @@ func (m LoadingScreenModel) View() string {
 	if m.isLoading {
 		var b strings.Builder
 		m.spinner.Style = spinnerStyle
-		b.WriteString(
-			fmt.Sprintf(
-				"%s\n%s\n\n%s Loading...",
-				logoStyle.Render(logo),
-				m.progress.String(logoStyle.Render("Done")),
-				m.spinner.View(),
-			),
+		fmt.Fprintf(
+			&b,
+			"%s\n%s\n\n%s Loading...",
+			logoStyle.Render(logo),
+			m.progress.String(logoStyle.Render("Done")),
+			m.spinner.View(),
 		)
 		if *flagShowLoadTimer {
-			b.WriteString(m.stopwatch.View())
+			fmt.Fprintf(&b, "%s", m.stopwatch.View())
 		}
 		return b.String()
 	}

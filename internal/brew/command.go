@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"os/exec"
 	"strings"
 	"sync"
@@ -55,6 +56,9 @@ func feedOutput(ch chan tea.Msg, pipe io.ReadCloser) {
 	scanner := bufio.NewScanner(pipe)
 	for scanner.Scan() {
 		ch <- CommandOutputMsg{Ch: ch, Line: scanner.Text()}
+	}
+	if err := scanner.Err(); err != nil {
+		log.Printf("error reading command output: %v", err)
 	}
 }
 
