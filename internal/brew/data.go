@@ -243,25 +243,30 @@ func packageFromFormula(name string, aliases []string, f *apiFormula, installs90
 	for _, dep := range f.StableDependencies {
 		if dep.IsBuild {
 			buildDeps = append(buildDeps, dep.Name)
-		} else {
+		} else if dep.IsRuntime {
 			deps = append(deps, dep.Name)
 		}
 	}
 
+	var urls []string
+	if len(f.StableUrlArgs) > 0 {
+		urls = append(urls, f.StableUrlArgs[0])
+	}
+	if len(f.HeadUrlArgs) > 0 {
+		urls = append(urls, f.HeadUrlArgs[0])
+	}
+
+	allAliases := util.SortAndUniq(append(aliases, f.Aliases...))
+
 	pkg := data.Package{
 		Name:              name,
-		Aliases:           aliases,
+		Aliases:           allAliases,
 		Tap:               "homebrew/core",
 		Version:           f.StableVersion,
 		Revision:          f.Revision,
 		Desc:              f.Desc,
 		Homepage:          f.Homepage,
-		Urls: func() []string {
-			if len(f.StableUrlArgs) > 0 {
-				return []string{f.StableUrlArgs[0]}
-			}
-			return []string{}
-		}(),
+		Urls:              urls,
 		License:           string(f.License),
 		Dependencies:      util.Sort(deps),
 		BuildDependencies: util.Sort(buildDeps),
