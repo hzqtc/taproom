@@ -1,207 +1,207 @@
 package ui
 
 import (
-	"fmt"
-	"strings"
-	"taproom/internal/brew"
-	"taproom/internal/data"
-	"taproom/internal/util"
-	"time"
+  "fmt"
+  "strings"
+  "taproom/internal/brew"
+  "taproom/internal/data"
+  "taproom/internal/util"
+  "time"
 
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
+  "github.com/charmbracelet/bubbles/viewport"
+  tea "github.com/charmbracelet/bubbletea"
+  "github.com/charmbracelet/lipgloss"
+  "github.com/charmbracelet/x/ansi"
 )
 
 type DetailsPanelModel struct {
-	pkg     *data.Package
-	content string
-	vp      viewport.Model
+  pkg     *data.Package
+  content string
+  vp      viewport.Model
 }
 
 var (
-	detailPanelStyle = baseStyle.
-				Padding(0, 1)
+  detailPanelStyle = baseStyle.
+        Padding(0, 1)
 
-	headerStyle = lipgloss.NewStyle().
-			Foreground(highlightColor).
-			Bold(true)
+  headerStyle = lipgloss.NewStyle().
+      Foreground(highlightColor).
+      Bold(true)
 
-	installedStyle = lipgloss.NewStyle().
-			Foreground(installedColor)
+  installedStyle = lipgloss.NewStyle().
+      Foreground(installedColor)
 
-	deprecatedStyle = lipgloss.NewStyle().
-			Foreground(deprecatedColor)
+  deprecatedStyle = lipgloss.NewStyle().
+      Foreground(deprecatedColor)
 
-	uninstalledStyle = lipgloss.NewStyle().
-				Foreground(uninstalledColor)
+  uninstalledStyle = lipgloss.NewStyle().
+        Foreground(uninstalledColor)
 
-	outdatedStyle = lipgloss.NewStyle().
-			Foreground(highlightColor)
+  outdatedStyle = lipgloss.NewStyle().
+      Foreground(highlightColor)
 
-	pinnedStyle = lipgloss.NewStyle().
-			Foreground(pinnedColor)
+  pinnedStyle = lipgloss.NewStyle().
+      Foreground(pinnedColor)
 )
 
 const (
-	disabledSymbol            = "󰜺"
-	deprecatedSymbol          = "󰀦"
-	uninstalledSymbol         = "󰅖"
-	installedSymbol           = "󰄬"
-	explicitlyInstalledSymbol = "󰄭"
-	outdatedSymbol            = "󰓦"
-	pinnedSymbol              = "󰐃"
+  disabledSymbol            = "󰜺"
+  deprecatedSymbol          = "󰀦"
+  uninstalledSymbol         = "󰅖"
+  installedSymbol           = "󰄬"
+  explicitlyInstalledSymbol = "󰄭"
+  outdatedSymbol            = "󰓦"
+  pinnedSymbol              = "󰐃"
 )
 
 func NewDetailsPanelModel() DetailsPanelModel {
-	return DetailsPanelModel{}
+  return DetailsPanelModel{}
 }
 
 func (m *DetailsPanelModel) SetDimension(width, height int) {
-	m.vp.Width = width
-	m.vp.Height = height
-	m.vp.SetContent(lipgloss.NewStyle().Width(width).Render(m.content))
+  m.vp.Width = width
+  m.vp.Height = height
+  m.vp.SetContent(lipgloss.NewStyle().Width(width).Render(m.content))
 }
 
 func (m *DetailsPanelModel) SetPackage(pkg *data.Package) {
-	m.pkg = pkg
-	m.updatePanel()
+  m.pkg = pkg
+  m.updatePanel()
 }
 
 func (m *DetailsPanelModel) SetFocused(focused bool) {
-	if focused {
-		detailPanelStyle = detailPanelStyle.BorderForeground(focusedBorderColor)
-	} else {
-		detailPanelStyle = detailPanelStyle.BorderForeground(borderColor)
-	}
+  if focused {
+    detailPanelStyle = detailPanelStyle.BorderForeground(focusedBorderColor)
+  } else {
+    detailPanelStyle = detailPanelStyle.BorderForeground(borderColor)
+  }
 }
 
 func (m DetailsPanelModel) Update(msg tea.Msg) (DetailsPanelModel, tea.Cmd) {
-	var cmd tea.Cmd
-	m.vp, cmd = m.vp.Update(msg)
-	return m, cmd
+  var cmd tea.Cmd
+  m.vp, cmd = m.vp.Update(msg)
+  return m, cmd
 }
 
 func (m DetailsPanelModel) View() string {
-	detailPanelStyle = detailPanelStyle.
-		BorderStyle(getRoundedBorderWithTitle("Details", m.vp.Width+2))
-	return detailPanelStyle.Render(m.vp.View())
+  detailPanelStyle = detailPanelStyle.
+    BorderStyle(getRoundedBorderWithTitle("Details", m.vp.Width+2))
+  return detailPanelStyle.Render(m.vp.View())
 }
 
 func formatStatus(pkg *data.Package) string {
-	return fmt.Sprintf("%s %s", formatStatusSymbol(pkg), pkg.DisplayStatus())
+  return fmt.Sprintf("%s %s", formatStatusSymbol(pkg), pkg.DisplayStatus())
 }
 
 func formatStatusSymbol(pkg *data.Package) string {
-	if pkg.DeprecationStatus == data.Deleted {
-		return deprecatedStyle.Render(disabledSymbol)
-	} else if pkg.DeprecationStatus == data.Deprecated {
-		return deprecatedStyle.Render(deprecatedSymbol)
-	} else if pkg.UpdateStatus == data.Pinned {
-		return pinnedStyle.Render(pinnedSymbol)
-	} else if pkg.UpdateStatus == data.Outdated {
-		return outdatedStyle.Render(outdatedSymbol)
-	} else if pkg.InstallStatus != data.Uninstalled {
-		if pkg.InstallStatus == data.InstalledDep {
-			return installedStyle.Render(installedSymbol)
-		} else {
-			return installedStyle.Render(explicitlyInstalledSymbol)
-		}
-	} else {
-		return uninstalledStyle.Render(uninstalledSymbol)
-	}
+  if pkg.DeprecationStatus == data.Deleted {
+    return deprecatedStyle.Render(disabledSymbol)
+  } else if pkg.DeprecationStatus == data.Deprecated {
+    return deprecatedStyle.Render(deprecatedSymbol)
+  } else if pkg.UpdateStatus == data.Pinned {
+    return pinnedStyle.Render(pinnedSymbol)
+  } else if pkg.UpdateStatus == data.Outdated {
+    return outdatedStyle.Render(outdatedSymbol)
+  } else if pkg.InstallStatus != data.Uninstalled {
+    if pkg.InstallStatus == data.InstalledDep {
+      return installedStyle.Render(installedSymbol)
+    } else {
+      return installedStyle.Render(explicitlyInstalledSymbol)
+    }
+  } else {
+    return uninstalledStyle.Render(uninstalledSymbol)
+  }
 }
 
 // Use OSC8 to wrap a string in a hyperlink. The id lets terminals underline the
 // whole link on hover even when it wraps across multiple lines.
 func hyperLink(url, text string) string {
-	return ansi.SetHyperlink(url, "id=link") + text + ansi.ResetHyperlink()
+  return ansi.SetHyperlink(url, "id=link") + text + ansi.ResetHyperlink()
 }
 
 func (m *DetailsPanelModel) updatePanel() {
-	if m.pkg == nil {
-		m.vp.SetContent("No packages selected.")
-		return
-	}
+  if m.pkg == nil {
+    m.vp.SetContent("No packages selected.")
+    return
+  }
 
-	var b strings.Builder
-	fmt.Fprintf(&b, "%s", headerStyle.Render(fmt.Sprintf("%s %s", m.pkg.Symbol(), m.pkg.Name)))
-	fmt.Fprintf(&b, "\n%s\n\n", m.pkg.Desc)
-	fmt.Fprintf(&b, "Version: %s\n", m.pkg.LongVersion())
-	fmt.Fprintf(&b, "Tap: %s\n", m.pkg.Tap)
-	fmt.Fprintf(&b, "Homepage: %s\n", hyperLink(m.pkg.Homepage, m.pkg.Homepage))
-	fmt.Fprintf(&b, "License: %s\n", m.pkg.License)
-	fmt.Fprintf(&b, "Installs (90d): %d\n", m.pkg.Installs90d)
+  var b strings.Builder
+  fmt.Fprintf(&b, "%s", headerStyle.Render(fmt.Sprintf("%s %s", m.pkg.Symbol(), m.pkg.Name)))
+  fmt.Fprintf(&b, "\n%s\n\n", m.pkg.Desc)
+  fmt.Fprintf(&b, "Version: %s\n", m.pkg.LongVersion())
+  fmt.Fprintf(&b, "Tap: %s\n", m.pkg.Tap)
+  fmt.Fprintf(&b, "Homepage: %s\n", hyperLink(m.pkg.Homepage, m.pkg.Homepage))
+  fmt.Fprintf(&b, "License: %s\n", m.pkg.License)
+  fmt.Fprintf(&b, "Installs (90d): %d\n", m.pkg.Installs90d)
 
-	fmt.Fprintf(&b, "\nStatus: %s\n", formatStatus(m.pkg))
-	if m.pkg.InstallStatus != data.Uninstalled {
-		fmt.Fprintf(&b, "Size: %s\n", m.pkg.FormattedSize)
-		fmt.Fprintf(&b, "Installed on: %s\n", m.pkg.InstalledDate)
-		if release := m.pkg.ReleaseInfo; release != nil {
-			fmt.Fprintf(&b, "Released on: %s\n", release.Date.Format(time.DateOnly))
-		}
-	}
+  fmt.Fprintf(&b, "\nStatus: %s\n", formatStatus(m.pkg))
+  if m.pkg.InstallStatus != data.Uninstalled {
+    fmt.Fprintf(&b, "Size: %s\n", m.pkg.FormattedSize)
+    fmt.Fprintf(&b, "Installed on: %s\n", m.pkg.InstalledDate)
+    if release := m.pkg.ReleaseInfo; release != nil {
+      fmt.Fprintf(&b, "Released on: %s\n", release.Date.Format(time.DateOnly))
+    }
+  }
 
-	if len(m.pkg.Conflicts) > 0 {
-		fmt.Fprintf(&b, "\nConflicts:\n")
-		for _, c := range m.pkg.Conflicts {
-			if p := brew.GetPackage(c); p != nil {
-				fmt.Fprintf(&b, "  %s %s\n", formatStatusSymbol(p), c)
-			}
-		}
-	}
+  if len(m.pkg.Conflicts) > 0 {
+    fmt.Fprintf(&b, "\nConflicts:\n")
+    for _, c := range m.pkg.Conflicts {
+      if p := brew.GetPackage(c); p != nil {
+        fmt.Fprintf(&b, "  %s %s\n", formatStatusSymbol(p), c)
+      }
+    }
+  }
 
-	if len(m.pkg.Dependencies) > 0 {
-		fmt.Fprintf(&b, "\nDependencies:\n")
-		for _, dep := range m.pkg.Dependencies {
-			depPkg := brew.GetPackage(dep)
-			if depPkg == nil {
-				continue
-			}
-			fmt.Fprintf(&b, "  %s %s\n", formatStatusSymbol(depPkg), dep)
-			if depPkg.InstallStatus == data.Uninstalled {
-				// For uninstalled dependencies, show all recursive uninstalled dependencies
-				recursiveDeps := util.SortAndUniq(brew.GetRecursiveMissingDeps(dep))
-				for _, d := range recursiveDeps {
-					if p := brew.GetPackage(d); p != nil && p.InstallStatus == data.Uninstalled {
-						fmt.Fprintf(&b, "    %s %s\n", formatStatusSymbol(p), d)
-					}
-				}
-			}
-		}
-	}
+  if len(m.pkg.Dependencies) > 0 {
+    fmt.Fprintf(&b, "\nDependencies:\n")
+    for _, dep := range m.pkg.Dependencies {
+      depPkg := brew.GetPackage(dep)
+      if depPkg == nil {
+        continue
+      }
+      fmt.Fprintf(&b, "  %s %s\n", formatStatusSymbol(depPkg), dep)
+      if depPkg.InstallStatus == data.Uninstalled {
+        // For uninstalled dependencies, show all recursive uninstalled dependencies
+        recursiveDeps := util.SortAndUniq(brew.GetRecursiveMissingDeps(dep))
+        for _, d := range recursiveDeps {
+          if p := brew.GetPackage(d); p != nil && p.InstallStatus == data.Uninstalled {
+            fmt.Fprintf(&b, "    %s %s\n", formatStatusSymbol(p), d)
+          }
+        }
+      }
+    }
+  }
 
-	if len(m.pkg.BuildDependencies) > 0 {
-		fmt.Fprintf(&b, "\nBuild dependencies:\n")
-		for _, dep := range m.pkg.BuildDependencies {
-			if p := brew.GetPackage(dep); p != nil {
-				fmt.Fprintf(&b, "  %s %s\n", formatStatusSymbol(p), dep)
-			}
-		}
-	}
+  if len(m.pkg.BuildDependencies) > 0 {
+    fmt.Fprintf(&b, "\nBuild dependencies:\n")
+    for _, dep := range m.pkg.BuildDependencies {
+      if p := brew.GetPackage(dep); p != nil {
+        fmt.Fprintf(&b, "  %s %s\n", formatStatusSymbol(p), dep)
+      }
+    }
+  }
 
-	if len(m.pkg.Dependents) > 0 {
-		fmt.Fprintf(&b, "\nRequired By:\n")
-		for _, dep := range m.pkg.Dependents {
-			depPkg := brew.GetPackage(dep)
-			if depPkg == nil {
-				continue
-			}
-			fmt.Fprintf(&b, "  %s %s\n", formatStatusSymbol(depPkg), dep)
-			if depPkg.InstallStatus != data.Uninstalled {
-				// For installed dependents, show all recursive explicitly installed dependents
-				recursiveDependents := util.SortAndUniq(brew.GetRecursiveInstalledDependents(dep))
-				for _, d := range recursiveDependents {
-					if p := brew.GetPackage(d); p != nil && p.InstallStatus == data.ExplicitlyInstalled {
-						fmt.Fprintf(&b, "    %s %s\n", formatStatusSymbol(p), d)
-					}
-				}
-			}
-		}
-	}
+  if len(m.pkg.Dependents) > 0 {
+    fmt.Fprintf(&b, "\nRequired By:\n")
+    for _, dep := range m.pkg.Dependents {
+      depPkg := brew.GetPackage(dep)
+      if depPkg == nil {
+        continue
+      }
+      fmt.Fprintf(&b, "  %s %s\n", formatStatusSymbol(depPkg), dep)
+      if depPkg.InstallStatus != data.Uninstalled {
+        // For installed dependents, show all recursive explicitly installed dependents
+        recursiveDependents := util.SortAndUniq(brew.GetRecursiveInstalledDependents(dep))
+        for _, d := range recursiveDependents {
+          if p := brew.GetPackage(d); p != nil && p.InstallStatus == data.ExplicitlyInstalled {
+            fmt.Fprintf(&b, "    %s %s\n", formatStatusSymbol(p), d)
+          }
+        }
+      }
+    }
+  }
 
-	m.content = b.String()
-	m.vp.SetContent(lipgloss.NewStyle().Width(m.vp.Width).Render(m.content))
-	m.vp.GotoTop()
+  m.content = b.String()
+  m.vp.SetContent(lipgloss.NewStyle().Width(m.vp.Width).Render(m.content))
+  m.vp.GotoTop()
 }
